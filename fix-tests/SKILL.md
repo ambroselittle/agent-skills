@@ -67,7 +67,7 @@ Work through each group:
 
 1. **Read the relevant source and test files** before making any changes.
 2. **Make the fix.** Edit the minimal set of files needed.
-3. **Verify locally** if possible — run the specific failing tests with the project's test runner to confirm the fix. Look at package.json, Makefile, or CI config to determine how tests are run.
+3. **Verify locally.** Check whether prerequisites are met (e.g., for e2e tests, check that required services are running). Only skip verification if you confirm prerequisites are actually unavailable — never assume they're down. Use project-level guidance (CLAUDE.md, test-specific readmes) to determine how to run tests.
 4. **Move to the next group.**
 
 ## Step 6: Final summary
