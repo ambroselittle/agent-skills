@@ -113,8 +113,7 @@ Create a task list using the `TaskCreate` tool to track progress through the rem
 2. Resolve versions
 3. Scaffold project
 4. Install & verify
-5. Git init + first commit
-6. GitHub repo (if opted in)
+5. Git init + GitHub
 
 Mark each task `in_progress` when starting it and `completed` when done.
 
@@ -187,170 +186,19 @@ Write the merged results to a `versions.json` file for the scaffold step.
 
 **Mark task in_progress.**
 
-Create the project directory and all files. Spawn a **scaffold agent** to do the file creation work — this keeps the main context clean from the large volume of file writes.
+Run the scaffold script to create all project files from Jinja2 templates:
 
-The agent receives: project name, template name, output directory, versions.json, and any customizations. It creates all files and reports back the directory structure.
-
-The structure varies by template but follows these conventions:
-
-### Common structure (all templates)
-
-```
-<project-name>/
-├── apps/                    # Application packages
-├── packages/                # Shared packages
-├── .github/
-│   └── workflows/
-│       └── ci.yml           # GitHub Actions: lint + typecheck + test
-├── .gitignore
-├── biome.json               # Biome config (strict, noExplicitAny: error)
-├── docker-compose.yml       # Local Postgres (+ any other services)
-├── pnpm-workspace.yaml
-├── turbo.json
-├── package.json             # Root package.json with workspace scripts
-├── tsconfig.json            # Root TS config (TS templates only)
-├── CLAUDE.md                # Root CLAUDE.md for agentic development
-├── .claude/
-│   └── rules/
-│       ├── testing.md
-│       ├── modules.md
-│       └── types.md
-└── README.md                # Project name + how to run
+```bash
+cd ${CLAUDE_SKILL_DIR} && uv run python -m scripts.scaffold \
+  --project-name <name> \
+  --template <template> \
+  --versions <path-to-versions.json> \
+  --output <output-dir>
 ```
 
-### Template: fullstack-ts
+The script renders `templates/common/` (shared across all templates) and `templates/<template>/` (template-specific files), substituting project name, scope, and dependency versions.
 
-```
-apps/
-├── web/                     # Vite + React + Tailwind + shadcn/ui
-│   ├── src/
-│   │   ├── main.tsx
-│   │   ├── App.tsx          # Basic app with tRPC provider
-│   │   ├── lib/
-│   │   │   └── trpc.ts      # tRPC client setup
-│   │   └── components/      # shadcn component directory
-│   ├── index.html
-│   ├── vite.config.ts
-│   ├── tsconfig.json
-│   ├── package.json
-│   ├── CLAUDE.md            # App-specific CLAUDE.md
-│   └── __tests__/
-│       └── App.test.tsx     # Basic render test
-└── api/                     # Hono + tRPC adapter
-    ├── src/
-    │   ├── index.ts         # Hono server entry + tRPC middleware
-    │   ├── router.ts        # Root tRPC router
-    │   └── trpc.ts          # tRPC context + init
-    ├── tsconfig.json
-    ├── package.json
-    ├── CLAUDE.md            # App-specific CLAUDE.md
-    └── __tests__/
-        └── router.test.ts   # Basic tRPC procedure test
-
-packages/
-├── db/                      # Prisma schema + client
-│   ├── prisma/
-│   │   ├── schema.prisma    # Basic User model as starter
-│   │   └── seed.ts          # Seed a test user
-│   ├── src/
-│   │   └── index.ts         # Re-export PrismaClient
-│   ├── package.json
-│   ├── CLAUDE.md
-│   └── tsconfig.json
-├── types/                   # Shared TypeScript types
-│   ├── src/
-│   │   └── index.ts
-│   ├── package.json
-│   └── tsconfig.json
-└── config/                  # Shared configs (tsconfig)
-    ├── tsconfig.base.json
-    └── package.json
-```
-
-### Template: fullstack-graphql
-
-Same as fullstack-ts but replace tRPC with:
-- `apps/api/` uses Yoga + Pothos instead of tRPC adapter
-- `apps/web/` uses Apollo Client + Apollo Provider instead of tRPC client
-- `packages/` adds a `graphql/` package with generated types (codegen)
-- Include `graphql-codegen` config for type generation from schema
-
-### Template: fullstack-python
-
-```
-apps/
-├── web/                     # Same as fullstack-ts web (Vite + React + Tailwind)
-└── api/                     # FastAPI
-    ├── src/
-    │   ├── main.py          # FastAPI app entry
-    │   ├── routes/
-    │   │   └── health.py    # Health check endpoint
-    │   └── models/
-    │       └── __init__.py
-    ├── tests/
-    │   └── test_health.py   # Basic endpoint test
-    ├── pyproject.toml
-    └── Dockerfile
-
-packages/                    # TS shared packages only
-├── types/
-└── config/
-```
-
-Uses `uv` for Python dependency management. `turbo.json` includes Python-aware task definitions.
-
-### Template: api-ts
-
-Same as fullstack-ts but without `apps/web/`. Just `apps/api/` + `packages/db/` + `packages/types/`.
-
-### Template: api-python
-
-Same as fullstack-python but without `apps/web/`. Just `apps/api/` (FastAPI) + minimal packages.
-
-### Template: swift-ts
-
-```
-apps/
-├── ios/                     # Xcode project (generated via xcodegen or swift package init)
-│   ├── Sources/
-│   │   ├── App.swift        # @main App entry
-│   │   ├── ContentView.swift
-│   │   └── API/
-│   │       └── Client.swift  # Generated OpenAPI client
-│   ├── Tests/
-│   │   └── AppTests.swift
-│   └── project.yml          # xcodegen spec (if using xcodegen)
-│                             # Targets: iOS, iPadOS, Designed for iPad (Mac), visionOS
-└── api/                     # Hono + REST + OpenAPI
-    ├── src/
-    │   ├── index.ts
-    │   ├── routes/
-    │   │   └── health.ts
-    │   └── openapi.ts       # OpenAPI spec generation (e.g., via zod-openapi or hono/zod-openapi)
-    ├── tsconfig.json
-    ├── package.json
-    └── __tests__/
-        └── routes.test.ts
-
-packages/
-├── db/                      # Prisma + Postgres
-└── config/
-```
-
-Uses OpenAPI spec generation from the Hono routes, which can be used to auto-generate a typed Swift client.
-
-### Scaffolding rules
-
-- **Every app and package gets a test.** At minimum one passing test that proves the thing starts/renders/responds.
-- **Use workspace references** for internal dependencies (e.g., `"@<project>/db": "workspace:*"`).
-- **turbo.json** defines: `build`, `dev`, `test`, `lint`, `typecheck` pipelines.
-- **Root package.json** scripts: `dev`, `build`, `test`, `lint`, `typecheck`, `db:push`, `db:studio` (where applicable).
-- **docker-compose.yml** includes Postgres with a named volume, health check, and a `.env.example` with `DATABASE_URL`.
-- **README.md** includes: project name, stack overview, prerequisites (Node, pnpm, Docker), setup commands (`pnpm install`, `docker compose up -d`, `pnpm db:push`, `pnpm dev`), and test command (`pnpm test`).
-- **Biome** replaces ESLint + Prettier. Use strict config with `noExplicitAny: error`.
-- **CLAUDE.md** files at root and in each app/package. `.claude/rules/` with testing, modules, and types rules.
-
-If the user requested customizations, apply them after the base scaffold — edit the scaffolded files rather than trying to template everything. Report what you changed.
+**If the user requested customizations:** After the scaffold script completes, apply customizations by editing the scaffolded files directly. This is where the model adds value — interpreting "use Express instead of Hono" and making the right changes across package.json, server entry point, etc. Report what you changed.
 
 **Mark task completed.**
 
@@ -360,82 +208,52 @@ If the user requested customizations, apply them after the base scaffold — edi
 
 **Mark task in_progress.**
 
-After creating all files, run verification. Spawn a **verification agent** to handle this — it's long-running and produces verbose output that doesn't need to be in the main context.
+Run the verification script:
 
-The agent runs these steps in sequence:
+```bash
+cd ${CLAUDE_SKILL_DIR} && uv run python -m scripts.verify <output-dir>
+```
 
-1. **Install dependencies:**
-   ```bash
-   cd <project-dir> && pnpm install
-   ```
-   For Python templates, also run `cd apps/api && uv sync`.
+This runs the full pipeline in sequence: `pnpm install` → `docker compose up` → `db push` → `build` → `typecheck` → `lint` → `test` → dev server smoke check. It reports per-step pass/fail with timing.
 
-2. **Start services:**
-   ```bash
-   docker compose up -d
-   ```
-   Wait for Postgres health check to pass.
+**If verification passes:** Mark task completed and continue.
 
-3. **Push database schema** (if Prisma):
-   ```bash
-   pnpm db:push
-   ```
+**If verification fails:** The script reports which step failed and the error output. Diagnose and fix the issue, then re-run. Common fixes:
+- Port conflict → change the port in the config
+- Missing `.env` → create one from `.env.example`
+- Type errors → fix the generated code
+- Test failures → fix the test or the code it tests
 
-4. **Run the full verification suite:**
-   ```bash
-   pnpm build && pnpm typecheck && pnpm lint && pnpm test
-   ```
-
-5. **Verify dev server starts** (briefly — start it, confirm no crashes, check ports, then stop):
-   ```bash
-   pnpm dev
-   ```
-   Check that it binds to the expected ports. Stop after confirming.
-
-The agent reports back: pass/fail per step, with error details for any failures.
-
-If any step fails: diagnose and fix. Common issues: port conflicts (try different ports), missing system dependencies (report to user), version incompatibilities (pin to compatible versions). Do not proceed to git until everything passes.
+Do not proceed to git until verification passes cleanly.
 
 **Mark task completed.**
 
 ---
 
-## Step 7: Git Init + First Commit
+## Step 7: Git Init + First Commit + GitHub
 
 **Mark task in_progress.**
 
-```bash
-git init
-git add -A
-git commit -m "Initial scaffold: <template> monorepo
+Run the git initialization script:
 
-Stack: <list key technologies and versions>
-Generated by create-repo skill."
+```bash
+cd ${CLAUDE_SKILL_DIR} && uv run python -m scripts.init_git <output-dir> \
+  --project-name <name> \
+  --template <template> \
+  --stack "<stack description, e.g. React 19 + Hono + tRPC + Prisma + Tailwind v4>"
 ```
 
-This first commit is important — it establishes the clean baseline before any application code is written.
+Add `--no-github` if the user opted out of GitHub repo creation.
+
+The script handles: `git init`, staging, initial commit with stack description, and (optionally) `gh repo create --private --source=. --push`.
 
 **Mark task completed.**
 
 ---
 
-## Step 8: GitHub Repo (if opted in)
+## Step 8: Report & Next Steps
 
-**Mark task in_progress.**
-
-```bash
-gh repo create <project-name> --private --source=. --push
-```
-
-This creates the repo on GitHub, sets it as the origin, and pushes the initial commit.
-
-If the user opted out: skip this step and mark completed immediately.
-
-**Mark task completed.**
-
----
-
-## Step 9: Report & Next Steps
+Mark all tasks completed.
 
 Report results, then suggest what to do next:
 

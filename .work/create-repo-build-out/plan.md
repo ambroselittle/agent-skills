@@ -80,13 +80,13 @@ status: in-progress
 
 ---
 
-### Phase 5: Rewrite SKILL.md as orchestrator
+### ~~Phase 5: Rewrite SKILL.md as orchestrator~~ ✓
 
 **Goal:** The SKILL.md becomes a thin coordinator that runs the interview, then delegates to the Python scripts in sequence.
 
 **Tasks:**
-- [ ] `Rewrite create-repo SKILL.md` — The new SKILL.md: (1) runs the interview (template, project name, customizations, GitHub opt-in), (2) calls `scripts/preflight.py --template <template>` and stops if it fails, (3) calls `scripts/resolve_versions.py --template <template> --output versions.json`, (4) calls `scripts/scaffold.py --project-name <name> --template <template> --versions versions.json --output ./<name>`, (5) if the user requested customizations, the AI applies them by editing the scaffolded files, (6) calls `scripts/verify.py ./<name>`, (7) calls `scripts/init_git.py ./<name> --template <template>` (with `--no-github` if opted out), (8) reports results and suggests next steps. The skill references scripts via `${CLAUDE_SKILL_DIR}/scripts/`. Include the template descriptions and interview flow from the current SKILL.md.
-- [ ] `Update CLAUDE.md for create-repo` — Add a CLAUDE.md inside create-repo/ explaining the skill's own structure: scripts/, templates/, eval/, how to add a new template, how to run tests.
+- [x] `Rewrite create-repo SKILL.md` — The new SKILL.md: (1) runs the interview (template, project name, customizations, GitHub opt-in), (2) calls `scripts/preflight.py --template <template>` and stops if it fails, (3) calls `scripts/resolve_versions.py --template <template> --output versions.json`, (4) calls `scripts/scaffold.py --project-name <name> --template <template> --versions versions.json --output ./<name>`, (5) if the user requested customizations, the AI applies them by editing the scaffolded files, (6) calls `scripts/verify.py ./<name>`, (7) calls `scripts/init_git.py ./<name> --template <template>` (with `--no-github` if opted out), (8) reports results and suggests next steps. The skill references scripts via `${CLAUDE_SKILL_DIR}/scripts/`. Include the template descriptions and interview flow from the current SKILL.md.
+- [x] `Update CLAUDE.md for create-repo` — Add a CLAUDE.md inside create-repo/ explaining the skill's own structure: scripts/, templates/, eval/, how to add a new template, how to run tests.
 
 **Verify (after all tasks in phase):**
 - [ ] The SKILL.md is well-structured and references all scripts correctly
