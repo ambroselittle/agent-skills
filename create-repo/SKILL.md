@@ -174,6 +174,18 @@ If any incompatibility is detected, resolve it before proceeding (typically by p
 
 Write the merged results to a `versions.json` file for the scaffold step.
 
+**Version caching:** After resolving, save the versions to `${CLAUDE_SKILL_DIR}/.version-cache/<template>.json` using the format:
+```json
+{
+  "cached_at": <unix-timestamp>,
+  "cached_at_human": "<ISO-8601>",
+  "template": "<template>",
+  "versions": { ... }
+}
+```
+
+Before spawning agents, check if a cache file exists and is less than 24 hours old. If so, skip resolution and use the cached versions — just inform the user: "Using cached versions from [time]. Pass `--fresh` or say 'resolve fresh versions' to re-check."
+
 **For Python packages** (fullstack-python, api-python templates): add an agent for Python deps using `uv pip compile` or PyPI checks.
 
 **For Swift** (swift-ts template): check `xcodebuild -version` for the installed Xcode toolchain version.

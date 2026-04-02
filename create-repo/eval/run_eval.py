@@ -2,15 +2,17 @@
 
 Runs the full pipeline (scaffold with test versions) and then checks
 the output for structural correctness, configuration quality, and
-completeness.
+completeness. Eval outputs go to .eval-runs/ (gitignored).
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sys
-import tempfile
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Add parent to path so we can import scripts
@@ -20,9 +22,15 @@ from eval.checks.check_structure import check_structure
 from eval.models import CheckResult, EvalResult
 from scripts.scaffold import scaffold
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+EVAL_RUNS_DIR = PROJECT_ROOT / ".eval-runs"
+VERSION_CACHE_DIR = PROJECT_ROOT / ".version-cache"
 
-# Test versions for eval — realistic but pinned for reproducibility
-EVAL_VERSIONS = {
+# Default TTL for cached versions (24 hours)
+VERSION_CACHE_TTL_SECONDS = 86400
+
+# Fallback versions for eval — used when no cache exists and --fresh is not set
+FALLBACK_VERSIONS = {
     "react": "19.1.0",
     "react_dom": "19.1.0",
     "typescript": "5.8.3",
@@ -48,23 +56,70 @@ EVAL_VERSIONS = {
 }
 
 
+def get_cached_versions(template: str) -> dict | None:
+    """Load cached versions if they exist and are fresh enough."""
+    cache_file = VERSION_CACHE_DIR / f"{template}.json"
+    if not cache_file.exists():
+        return None
+
+    try:
+        data = json.loads(cache_file.read_text())
+        cached_at = data.get("cached_at", 0)
+        if time.time() - cached_at > VERSION_CACHE_TTL_SECONDS:
+            return None
+        return data.get("versions")
+    except (json.JSONDecodeError, KeyError):
+        return None
+
+
+def save_version_cache(template: str, versions: dict) -> None:
+    """Save resolved versions to cache with a timestamp."""
+    VERSION_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    cache_file = VERSION_CACHE_DIR / f"{template}.json"
+    cache_file.write_text(json.dumps({
+        "cached_at": time.time(),
+        "cached_at_human": datetime.now(timezone.utc).isoformat(),
+        "template": template,
+        "versions": versions,
+    }, indent=2))
+
+
+def get_versions(template: str) -> dict:
+    """Get versions for a template, using cache if fresh.
+
+    Returns cached versions if available and within TTL,
+    otherwise returns fallback versions.
+    """
+    cached = get_cached_versions(template)
+    if cached:
+        return cached
+    return FALLBACK_VERSIONS
+
+
 def run_eval(template: str, output_dir: Path | None = None) -> EvalResult:
     """Run the full eval for a template.
 
     Scaffolds a test project and runs all structural checks against it.
+    Eval output goes to .eval-runs/<template>-<timestamp>/.
     """
     result = EvalResult(template=template)
+    versions = get_versions(template)
 
-    # Scaffold to a temp dir or specified dir
+    # Determine output directory
     if output_dir is None:
-        tmp = tempfile.mkdtemp(prefix=f"create-repo-eval-{template}-")
-        project_dir = Path(tmp) / "eval-project"
+        EVAL_RUNS_DIR.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        project_dir = EVAL_RUNS_DIR / f"{template}-{timestamp}" / "eval-project"
     else:
         project_dir = output_dir
 
+    # Clean up if it exists from a previous run
+    if project_dir.exists():
+        shutil.rmtree(project_dir)
+
     # Step 1: Scaffold
     try:
-        scaffold("eval-project", template, EVAL_VERSIONS, project_dir)
+        scaffold("eval-project", template, versions, project_dir)
         result.checks.append(CheckResult("scaffold", True))
     except Exception as e:
         result.checks.append(CheckResult("scaffold", False, str(e)))
@@ -106,7 +161,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--output",
-        help="Output directory (default: temp dir)",
+        help="Output directory (default: .eval-runs/)",
     )
     args = parser.parse_args()
 
