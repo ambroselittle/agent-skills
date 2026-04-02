@@ -43,33 +43,25 @@ status: in-progress
 
 ---
 
-### Phase 2: Version resolution
+### ~~Phase 2: Version resolution~~ — DROPPED
 
-**Goal:** A script that resolves the latest stable versions of all npm packages (and Python packages for Python templates) needed by a template, checks compatibility constraints, and outputs a versions.json.
-
-**Tasks:**
-- [ ] `Build version resolver` — `scripts/resolve_versions.py` takes a template name, runs `npm view <pkg> version` for each package in the template's dependency list (defined as a dict in the module), checks known compatibility constraints (React + React types, Prisma client + CLI, tRPC client + server, Tailwind v4 + PostCSS), outputs a `versions.json` with resolved versions. For fullstack-ts, the packages are: react, react-dom, @types/react, @types/react-dom, vite, vitest, @vitejs/plugin-react, tailwindcss, @tailwindcss/vite, hono, @hono/trpc-server, @trpc/server, @trpc/client, @trpc/react-query, @tanstack/react-query, @prisma/client, prisma, typescript, @biomejs/biome, playwright, @playwright/test. Define the dependency list and compatibility rules as data, not code.
-- [ ] `Test version resolver` — Tests that: resolves a known package, detects version incompatibilities (mock npm view to return conflicting versions), outputs valid JSON, handles npm view failures gracefully (network error → clear error message).
-
-**Verify (after all tasks in phase):**
-- [ ] `uv run python -m scripts.resolve_versions --template fullstack-ts` outputs valid JSON with all expected package names
-- [ ] `uv run pytest tests/test_resolve_versions.py -v` passes
+> Version resolution stays in the SKILL.md as model-driven parallel agents. Test run proved this works well — the model dynamically discovers current packages and the AskUserQuestion flow handles it. Not worth scripting something that the model handles better and that changes over time.
 
 ---
 
-### Phase 3: Scaffold engine + fullstack-ts templates
+### ~~Phase 3: Scaffold engine + fullstack-ts templates~~ ✓
 
 **Goal:** The core scaffolding script and the fullstack-ts template files. Given a project name and resolved versions, produces a complete directory structure with all files rendered.
 
 **Tasks:**
-- [ ] `Build Jinja2 template renderer` — `scripts/scaffold.py` takes project_name, template_name, versions_json_path, output_dir. Loads template files from `templates/<template_name>/` and `templates/common/`, renders them with Jinja2 (substituting project name, versions, package names), writes to output_dir preserving directory structure. Template files use `.j2` extension; non-template files (like .gitignore) are copied as-is. The renderer handles nested directories and preserves file permissions (executable bits on scripts).
-- [ ] `Create common template files` — `templates/common/` contains files shared across all templates: `.gitignore` (Node + Python + macOS + IDE), `biome.json` (strict config, noExplicitAny: error), `.github/workflows/ci.yml.j2` (lint + typecheck + test), `.github/pull_request_template.md`, `docker-compose.yml.j2` (Postgres with health check), `claude-md/root.md.j2` (root CLAUDE.md template), `claude-md/app.md.j2` (per-app CLAUDE.md template), `claude-md/package.md.j2` (per-package CLAUDE.md template), `claude-rules/testing.md`, `claude-rules/modules.md`, `claude-rules/types.md`.
-- [ ] `Create fullstack-ts template files` — `templates/fullstack-ts/` contains: root `package.json.j2`, `pnpm-workspace.yaml`, `turbo.json`, `tsconfig.json.j2` (strict: true). `apps/web/`: `package.json.j2`, `vite.config.ts.j2` (with API proxy), `tsconfig.json`, `index.html.j2`, `src/main.tsx`, `src/App.tsx.j2` (with tRPC provider), `src/lib/trpc.ts.j2`, `tailwind.config.ts`, `src/app.css` (Tailwind imports), `__tests__/App.test.tsx` (render test), `e2e/smoke.spec.ts.j2` (Playwright: load page, verify API call works), `playwright.config.ts.j2`. `apps/api/`: `package.json.j2`, `tsconfig.json`, `src/index.ts.j2` (Hono server + tRPC adapter + health endpoint), `src/router.ts.j2` (root tRPC router with health + user.list procedures), `src/trpc.ts.j2` (tRPC context with Prisma), `__tests__/router.test.ts.j2` (unit test for tRPC procedures), `__tests__/api.test.ts.j2` (API-level test hitting actual Hono routes). `packages/db/`: `package.json.j2`, `tsconfig.json`, `prisma/schema.prisma.j2` (User model), `prisma/seed.ts.j2` (seed a test user), `src/index.ts` (re-export PrismaClient). `packages/types/`: `package.json.j2`, `tsconfig.json`, `src/index.ts`. `packages/config/`: `package.json.j2`, `tsconfig.base.json`.
-- [ ] `Test scaffold engine` — Tests that: renders a simple template with variables, preserves directory structure, copies non-template files as-is, handles missing template gracefully, fullstack-ts scaffold produces expected directory structure (check key files exist).
+- [x] `Build Jinja2 template renderer` — `scripts/scaffold.py` takes project_name, template_name, versions_json_path, output_dir. Loads template files from `templates/<template_name>/` and `templates/common/`, renders them with Jinja2 (substituting project name, versions, package names), writes to output_dir preserving directory structure. Template files use `.j2` extension; non-template files (like .gitignore) are copied as-is. The renderer handles nested directories and preserves file permissions (executable bits on scripts).
+- [x] `Create common template files` — `templates/common/` contains files shared across all templates: `.gitignore` (Node + Python + macOS + IDE), `biome.json` (strict config, noExplicitAny: error), `.github/workflows/ci.yml.j2` (lint + typecheck + test), `.github/pull_request_template.md`, `docker-compose.yml.j2` (Postgres with health check), `claude-md/root.md.j2` (root CLAUDE.md template), `claude-md/app.md.j2` (per-app CLAUDE.md template), `claude-md/package.md.j2` (per-package CLAUDE.md template), `claude-rules/testing.md`, `claude-rules/modules.md`, `claude-rules/types.md`.
+- [x] `Create fullstack-ts template files` — `templates/fullstack-ts/` contains: root `package.json.j2`, `pnpm-workspace.yaml`, `turbo.json`, `tsconfig.json.j2` (strict: true). `apps/web/`: `package.json.j2`, `vite.config.ts.j2` (with API proxy), `tsconfig.json`, `index.html.j2`, `src/main.tsx`, `src/App.tsx.j2` (with tRPC provider), `src/lib/trpc.ts.j2`, `tailwind.config.ts`, `src/app.css` (Tailwind imports), `__tests__/App.test.tsx` (render test), `e2e/smoke.spec.ts.j2` (Playwright: load page, verify API call works), `playwright.config.ts.j2`. `apps/api/`: `package.json.j2`, `tsconfig.json`, `src/index.ts.j2` (Hono server + tRPC adapter + health endpoint), `src/router.ts.j2` (root tRPC router with health + user.list procedures), `src/trpc.ts.j2` (tRPC context with Prisma), `__tests__/router.test.ts.j2` (unit test for tRPC procedures), `__tests__/api.test.ts.j2` (API-level test hitting actual Hono routes). `packages/db/`: `package.json.j2`, `tsconfig.json`, `prisma/schema.prisma.j2` (User model), `prisma/seed.ts.j2` (seed a test user), `src/index.ts` (re-export PrismaClient). `packages/types/`: `package.json.j2`, `tsconfig.json`, `src/index.ts`. `packages/config/`: `package.json.j2`, `tsconfig.base.json`.
+- [x] `Test scaffold engine` — Tests that: renders a simple template with variables, preserves directory structure, copies non-template files as-is, handles missing template gracefully, fullstack-ts scaffold produces expected directory structure (check key files exist).
 
 **Verify (after all tasks in phase):**
-- [ ] `uv run pytest tests/test_scaffold.py -v` passes
-- [ ] Manual: `uv run python -m scripts.scaffold --project-name test-app --template fullstack-ts --versions versions.json --output /tmp/test-app` produces a directory with the expected structure
+- [x] `uv run pytest tests/test_scaffold.py -v` passes
+- [x] Manual: `uv run python -m scripts.scaffold --project-name test-app --template fullstack-ts --versions versions.json --output /tmp/test-app` produces a directory with the expected structure
 
 ---
 

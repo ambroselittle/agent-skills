@@ -1,0 +1,24 @@
+{
+  "name": "{{ scope }}/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "{{ scope }}/db": "workspace:*",
+    "{{ scope }}/types": "workspace:*",
+    "@hono/trpc-server": "{{ versions.hono_trpc_server }}",
+    "@trpc/server": "{{ versions.trpc_server }}",
+    "hono": "{{ versions.hono }}"
+  },
+  "devDependencies": {
+    "tsx": "latest",
+    "typescript": "{{ versions.typescript }}",
+    "vitest": "{{ versions.vitest }}"
+  }
+}

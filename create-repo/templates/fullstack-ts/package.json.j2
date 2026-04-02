@@ -1,0 +1,21 @@
+{
+  "name": "{{ project_name }}",
+  "private": true,
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "test": "turbo test",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "typecheck": "turbo typecheck",
+    "db:push": "turbo db:push --filter={{ scope }}/db",
+    "db:studio": "pnpm --filter={{ scope }}/db exec prisma studio",
+    "db:seed": "turbo db:seed --filter={{ scope }}/db"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "{{ versions.biomejs_biome }}",
+    "turbo": "latest",
+    "typescript": "{{ versions.typescript }}"
+  },
+  "packageManager": "pnpm@{{ versions.pnpm }}"
+}

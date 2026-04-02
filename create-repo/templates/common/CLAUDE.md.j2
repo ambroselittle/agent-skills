@@ -1,0 +1,32 @@
+# {{ project_name }}
+
+## Project Structure
+
+This is a pnpm monorepo managed with Turborepo.
+
+- `apps/` — Application packages
+- `packages/` — Shared libraries and configuration
+
+## Commands
+
+- `pnpm dev` — Start all apps in development mode
+- `pnpm build` — Build all packages
+- `pnpm test` — Run all tests
+- `pnpm lint` — Lint with Biome
+- `pnpm typecheck` — TypeScript type checking
+- `pnpm db:push` — Push Prisma schema to database
+- `pnpm db:studio` — Open Prisma Studio
+
+## Development
+
+1. `docker compose up -d` — Start Postgres
+2. `pnpm install` — Install dependencies
+3. `pnpm db:push` — Push database schema
+4. `pnpm dev` — Start development servers
+
+## Conventions
+
+- Strict TypeScript (`strict: true`)
+- Biome for linting and formatting (not ESLint/Prettier)
+- All packages use workspace protocol (`workspace:*`)
+- Every app and package has at least one test

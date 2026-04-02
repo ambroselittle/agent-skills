@@ -1,0 +1,28 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { useState } from "react"
+import { trpc, trpcClient } from "./lib/trpc"
+
+const queryClient = new QueryClient()
+
+function AppContent() {
+  const healthQuery = trpc.health.useQuery()
+
+  return (
+    <div>
+      <h1>{{ project_name }}</h1>
+      <p>API status: {healthQuery.data?.status ?? "loading..."}</p>
+    </div>
+  )
+}
+
+export function App() {
+  const [trpcClientInstance] = useState(() => trpcClient)
+
+  return (
+    <trpc.Provider client={trpcClientInstance} queryClient={queryClient}>
+      <QueryClientProvider client={queryClient}>
+        <AppContent />
+      </QueryClientProvider>
+    </trpc.Provider>
+  )
+}
