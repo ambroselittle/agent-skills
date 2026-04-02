@@ -120,7 +120,7 @@ hooks: {}                   # Hooks scoped to skill lifecycle.
 Use `!`shell command`` to run shell commands at invocation time. Output replaces the placeholder before Claude sees the content.
 
 ```yaml
-Current branch: !`git rev-parse --abbrev-ref HEAD`
+Current branch: !`~/.claude/skills/shared/scripts/context.sh current-branch`
 ```
 
 ### Supporting files
