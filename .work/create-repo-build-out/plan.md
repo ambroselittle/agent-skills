@@ -65,17 +65,17 @@ status: in-progress
 
 ---
 
-### Phase 4: Verify and init-git scripts
+### ~~Phase 4: Verify and init-git scripts~~ ✓
 
 **Goal:** The verification script (install, build, typecheck, lint, test, dev server smoke) and the git initialization script.
 
 **Tasks:**
-- [ ] `Build verification script` — `scripts/verify.py` takes a project directory path. Runs in sequence: `pnpm install`, `docker compose up -d` + wait for health, `pnpm db:push`, `pnpm build`, `pnpm typecheck`, `pnpm lint`, `pnpm test`. Then starts `pnpm dev` in background, waits for ports (API + web), does HTTP health check, kills dev servers. Reports each step as pass/fail with timing. Exits non-zero on first failure with clear error message. For the dev server check: parse expected ports from the template config rather than hardcoding.
-- [ ] `Build git init script` — `scripts/init_git.py` takes project directory, project name, template name, stack description (for commit message), and optional `--no-github` flag. Runs: `git init`, `git add -A`, `git commit` with a formatted initial commit message listing the stack and versions. If GitHub opted in: `gh repo create <name> --private --source=. --push`. Reports the GitHub URL on success. Handles: repo already exists (error with clear message), gh not authenticated (error with auth command).
-- [ ] `Test verify and init-git` — Unit tests with mocked subprocess calls verifying: correct command sequences, failure handling (what happens when `pnpm build` fails), port detection logic, git commit message format, gh repo create argument construction.
+- [x] `Build verification script` — `scripts/verify.py` takes a project directory path. Runs in sequence: `pnpm install`, `docker compose up -d` + wait for health, `pnpm db:push`, `pnpm build`, `pnpm typecheck`, `pnpm lint`, `pnpm test`. Then starts `pnpm dev` in background, waits for ports (API + web), does HTTP health check, kills dev servers. Reports each step as pass/fail with timing. Exits non-zero on first failure with clear error message. For the dev server check: parse expected ports from the template config rather than hardcoding.
+- [x] `Build git init script` — `scripts/init_git.py` takes project directory, project name, template name, stack description (for commit message), and optional `--no-github` flag. Runs: `git init`, `git add -A`, `git commit` with a formatted initial commit message listing the stack and versions. If GitHub opted in: `gh repo create <name> --private --source=. --push`. Reports the GitHub URL on success. Handles: repo already exists (error with clear message), gh not authenticated (error with auth command).
+- [x] `Test verify and init-git` — Unit tests with mocked subprocess calls verifying: correct command sequences, failure handling (what happens when `pnpm build` fails), port detection logic, git commit message format, gh repo create argument construction.
 
 **Verify (after all tasks in phase):**
-- [ ] `uv run pytest tests/ -v` — all tests pass
+- [x] `uv run pytest tests/ -v` — all tests pass (47 passing)
 - [ ] Integration: scaffold a fullstack-ts project to /tmp, run verify.py against it, confirm all checks pass
 
 ---
