@@ -11,7 +11,6 @@ import argparse
 import re
 import subprocess
 import sys
-import tempfile
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -256,7 +255,7 @@ def print_results(results: list[CheckResult]) -> None:
         print(f"{r.tool:<{tool_width}}  {found:<{ver_width}}  {required:<10}  {symbol} {r.status.value}")
 
 
-def generate_install_script(results: list[CheckResult]) -> Path | None:
+def generate_install_script(results: list[CheckResult], output_dir: Path) -> Path | None:
     """Generate a shell script to install/upgrade all failing tools.
 
     Returns the path to the generated script, or None if everything passed.
@@ -286,10 +285,19 @@ def generate_install_script(results: list[CheckResult]) -> Path | None:
         lines.append(r.install_command)
         lines.append("")
 
+    has_docker = any(r.tool == "docker" for r in failures)
+    if has_docker:
+        lines.append("echo ''")
+        lines.append("echo '┌─────────────────────────────────────────────────────────────┐'")
+        lines.append("echo '│  🐳 Docker Desktop may ask about Rosetta on first launch.   │'")
+        lines.append("echo '│  If you see a Rosetta installation error, click              │'")
+        lines.append("echo '│  \"Disable Rosetta\" — it is not needed on Apple Silicon.      │'")
+        lines.append("echo '└─────────────────────────────────────────────────────────────┘'")
+
     lines.append("echo ''")
     lines.append("echo 'Done! Re-run preflight to verify: uv run python -m scripts.preflight --template <template>'")
 
-    script_path = Path(tempfile.gettempdir()) / "create-repo-install.sh"
+    script_path = output_dir / "install-deps.sh"
     script_path.write_text("\n".join(lines) + "\n")
     script_path.chmod(0o755)
     return script_path
@@ -307,10 +315,16 @@ def main() -> None:
     results = preflight(args.template)
     print_results(results)
 
-    script_path = generate_install_script(results)
+    script_path = generate_install_script(results, Path.cwd())
     if script_path:
-        print(f"\nTo install everything that's missing, run:")
-        print(f"  bash {script_path}")
+        run_cmd = f"bash {script_path}"
+        # Copy the command to clipboard on macOS for easy pasting
+        try:
+            subprocess.run(["pbcopy"], input=run_cmd, text=True, timeout=5)
+            print(f"\nTo install everything that's missing, run (copied to clipboard):")
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            print(f"\nTo install everything that's missing, run:")
+        print(f"  {run_cmd}")
         sys.exit(1)
     else:
         print("\nAll checks passed!")

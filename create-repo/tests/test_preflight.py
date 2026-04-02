@@ -266,23 +266,24 @@ def test_preflight_template_specific_not_included_for_other_templates():
 # --- generate_install_script ---
 
 
-def test_generate_install_script_all_passing():
+def test_generate_install_script_all_passing(tmp_path):
     results = [
         CheckResult("git", "2.39+", "2.53.0", Status.OK, "xcode-select --install"),
         CheckResult("node", "22.0+", "22.22.2", Status.OK, "brew install fnm && fnm install 22"),
     ]
-    assert generate_install_script(results) is None
+    assert generate_install_script(results, tmp_path) is None
 
 
-def test_generate_install_script_with_failures():
+def test_generate_install_script_with_failures(tmp_path):
     results = [
         CheckResult("git", "2.39+", "2.53.0", Status.OK, "xcode-select --install"),
         CheckResult("pnpm", "10.0+", None, Status.MISSING, "brew install pnpm"),
         CheckResult("docker", "27.0+", "24.0.7", Status.OUTDATED, "brew install --cask docker"),
     ]
-    script_path = generate_install_script(results)
+    script_path = generate_install_script(results, tmp_path)
     assert script_path is not None
     assert script_path.exists()
+    assert script_path.name == "install-deps.sh"
 
     content = script_path.read_text()
     assert "#!/usr/bin/env bash" in content
@@ -291,15 +292,11 @@ def test_generate_install_script_with_failures():
     # Should not include passing tools
     assert "xcode-select" not in content
 
-    script_path.unlink()
 
-
-def test_generate_install_script_is_executable():
+def test_generate_install_script_is_executable(tmp_path):
     results = [
         CheckResult("pnpm", "10.0+", None, Status.MISSING, "brew install pnpm"),
     ]
-    script_path = generate_install_script(results)
+    script_path = generate_install_script(results, tmp_path)
     assert script_path is not None
     assert script_path.stat().st_mode & 0o755
-
-    script_path.unlink()
