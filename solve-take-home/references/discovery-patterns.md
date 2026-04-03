@@ -4,16 +4,20 @@ Where to find instructions, requirements, and constraints in a take-home repo. W
 
 ## Primary Instruction Files
 
-Check these first, in order. Most take-homes put everything in one of these:
+Check these first. Most take-homes put everything in one of these files. Look for each base name across common text formats: `.md`, `.txt`, `.html`, `.rst`, `.adoc` (e.g., `INSTRUCTIONS.md`, `INSTRUCTIONS.txt`, `INSTRUCTIONS.html`).
 
-- `README.md` — most common location; instructions are often the entire readme
-- `INSTRUCTIONS.md`
-- `PROMPT.md`
-- `CHALLENGE.md`
-- `ASSIGNMENT.md`
-- `REQUIREMENTS.md`
-- `SPEC.md`
-- `TODO.md`
+Base names, in priority order:
+
+- `README` — most common location; instructions are often the entire readme
+- `INSTRUCTIONS`
+- `PROMPT`
+- `CHALLENGE`
+- `ASSIGNMENT`
+- `REQUIREMENTS`
+- `SPEC`
+- `TODO`
+
+Also check for bare files with no extension (e.g., just `INSTRUCTIONS`).
 
 Read whichever exists. If multiple exist, read all — they may cover different aspects.
 

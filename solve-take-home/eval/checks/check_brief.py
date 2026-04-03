@@ -13,10 +13,15 @@ from pathlib import Path
 
 from eval.models import CheckResult
 
-# All instruction file patterns from discovery-patterns.md
+# Base names and extensions from discovery-patterns.md
+_BASE_NAMES = [
+    "README", "INSTRUCTIONS", "PROMPT", "CHALLENGE",
+    "ASSIGNMENT", "REQUIREMENTS", "SPEC", "TODO",
+]
+_EXTENSIONS = [".md", ".txt", ".html", ".rst", ".adoc", ""]
+
 INSTRUCTION_FILES = [
-    "README.md", "INSTRUCTIONS.md", "PROMPT.md", "CHALLENGE.md",
-    "ASSIGNMENT.md", "REQUIREMENTS.md", "SPEC.md", "TODO.md",
+    f"{name}{ext}" for name in _BASE_NAMES for ext in _EXTENSIONS
 ]
 
 
