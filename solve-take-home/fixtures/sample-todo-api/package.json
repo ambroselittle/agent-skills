@@ -1,0 +1,14 @@
+{
+  "name": "todo-api-challenge",
+  "version": "1.0.0",
+  "description": "Todo API take-home challenge",
+  "scripts": {
+    "dev": "echo 'Configure your dev server here'",
+    "build": "tsc",
+    "test": "echo 'Configure your test runner here'"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  }
+}
