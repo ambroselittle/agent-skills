@@ -9,7 +9,7 @@ Final checklist before shipping a take-home solution. Check the solution against
 - [ ] Every stated requirement is addressed and demonstrably working
 - [ ] Edge cases handled — not just the happy path
 - [ ] Error states considered — what happens when things go wrong?
-- [ ] Bonus/stretch goals attempted if time allows (shows initiative and curiosity)
+- [ ] **Bonus/stretch goals implemented** — with agentic development, there is almost never a reason to skip these. Bonus items exist because evaluators want to see them but didn't want to overwhelm human candidates with a huge required list. Treat them as required unless the stated time constraint is unusually tight (under 30 minutes) AND there are many bonus items. Completing bonus items is one of the easiest ways to stand out.
 
 ## Testing
 

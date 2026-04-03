@@ -81,6 +81,13 @@ Compile everything into a structured brief:
 2. <extracted requirement>
 ...
 
+**Bonus / Stretch Goals:**
+1. <extracted bonus item>
+2. <extracted bonus item>
+...
+
+> **Default: implement all bonus items.** With agentic development, time is rarely a constraint. Bonus items exist because evaluators want to see them but didn't want to overwhelm human candidates. Completing them is one of the easiest ways to stand out. Only skip bonus items if the stated time limit is under 30 minutes AND there are many of them.
+
 **Constraints:**
 - Stack: <prescribed or flexible>
 - Time limit: <if mentioned, else "none stated">
@@ -222,6 +229,10 @@ Present a final summary:
 - [x] <requirement 2> — <how>
 ...
 
+**Bonus items completed:**
+- [x] <bonus 1> — <how>
+...
+
 **Testing:**
 - <N> unit tests, <N> integration tests, <N> E2E tests
 
@@ -243,7 +254,8 @@ Present a final summary:
 
 - **The brief is the contract.** Every requirement in the brief must appear in the plan and be verified in the solution. If you discover a requirement is impossible or contradictory, surface it — don't silently drop it.
 - **Completeness beats elegance.** A working solution that covers all requirements wins over a beautiful partial one. Ship breadth first, then polish.
+- **Bonus items are requirements.** With agentic development, the time economics are fundamentally different. What took a human candidate 4 hours takes an AI agent minutes. Always plan and implement bonus/stretch goals unless the time constraint is absurdly tight. Completing them is one of the easiest ways to differentiate.
 - **Time awareness.** If a time limit was stated, track wall-clock time from first commit. Flag when 75% of time has elapsed. At that point, shift to shipping what's done over starting new features.
 - **The evaluator reads everything.** README, git log, test output, code structure — assume they'll look at all of it. No debugging artifacts, no TODOs left behind, no dead code.
-- **Don't over-engineer.** Match complexity to the challenge. A CRUD API doesn't need event sourcing. A CLI tool doesn't need a plugin architecture. Solve the stated problem well.
+- **Demonstrate senior+ thinking.** This is a take-home, not a throwaway prototype. Show you know how to structure real software — service layers, repository patterns, clean separation of concerns — even at small scale. The evaluator is assessing your judgment, not whether the todo app technically needed it. Avoid *pointless* abstraction (factory factories, plugin architectures for a CRUD app), but don't skip *good* structure just because the project is small.
 - **Test everything.** Tests are the most common differentiator. Even basic tests put you ahead of most candidates. Thorough tests put you in the top tier.
