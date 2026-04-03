@@ -1,0 +1,33 @@
+{
+  "name": "{{ scope }}/web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "{{ scope }}/types": "workspace:*",
+    "@tanstack/react-query": "{{ versions.tanstack_react_query }}",
+    "@trpc/client": "{{ versions.trpc_client }}",
+    "@trpc/react-query": "{{ versions.trpc_react_query }}",
+    "react": "{{ versions.react }}",
+    "react-dom": "{{ versions.react_dom }}"
+  },
+  "devDependencies": {
+    "@types/react": "{{ versions.types_react }}",
+    "@types/react-dom": "{{ versions.types_react_dom }}",
+    "@vitejs/plugin-react": "{{ versions.vitejs_plugin_react }}",
+    "tailwindcss": "{{ versions.tailwindcss }}",
+    "@tailwindcss/vite": "{{ versions.tailwindcss_vite }}",
+    "typescript": "{{ versions.typescript }}",
+    "vite": "{{ versions.vite }}",
+    "vitest": "{{ versions.vitest }}",
+    "@testing-library/react": "latest",
+    "@testing-library/jest-dom": "latest",
+    "jsdom": "latest"
+  }
+}
