@@ -1,6 +1,6 @@
 # Take-Home Evaluation Criteria
 
-Final checklist before shipping a take-home solution. Check the solution against every item below. Any gap found here is a gap the evaluator will find too.
+What evaluators look for in take-home solutions. **Read this BEFORE planning, not just before shipping.** These criteria shape how to build — architecture, testing strategy, documentation, git history — not just what to verify at the end. Use it twice: once during planning to ensure the approach meets these standards, and again before shipping as a final checklist. Any gap found here is a gap the evaluator will find too.
 
 ## Completeness
 

@@ -54,7 +54,13 @@ Wait for their response, then route to the appropriate path above.
 
 ### If working from a repo
 
-Read `${CLAUDE_SKILL_DIR}/references/discovery-patterns.md` for the search checklist, then work through it:
+Read both reference docs up front — they shape everything from architecture to testing strategy:
+- `${CLAUDE_SKILL_DIR}/references/discovery-patterns.md` — where to find instructions
+- `${CLAUDE_SKILL_DIR}/references/eval-criteria.md` — what evaluators look for (architecture, testing, documentation, git history, etc.)
+
+The eval criteria are NOT just a final checklist. They define how to build, not just what to verify. Read them now so the plan reflects senior+ architectural thinking, proper test strategy, and documentation expectations from the start.
+
+Then work through the discovery checklist:
 
 1. **Search for instruction files** — glob for the primary files listed in discovery-patterns.md. Read ALL that exist.
 2. **Scan implicit specs** — find test files, TODO stubs, type definitions. These define what to build.
@@ -136,13 +142,21 @@ After scaffolding (or skipping), confirm: **"Project structure is ready. Moving 
 Run `/start-work` with the synthesized brief as the work description.
 
 Frame it explicitly — pass:
-- The full brief text (requirements, constraints, acceptance criteria)
+- The full brief text (requirements, constraints, acceptance criteria, bonus items)
+- The eval criteria summary (architecture expectations, testing strategy, documentation standards, git history requirements) — these must inform the plan, not be applied as an afterthought
 - The submission format (so the plan accounts for it)
 - Any time constraints (so phases are scoped appropriately)
 
 When `/start-work` asks about scope classification, bias toward **medium or large**. Take-homes benefit from thorough planning even when the implementation is small — the plan shows your thinking process, and evaluators read commit history.
 
-After the plan is created, **verify coverage**: walk through each acceptance criterion and confirm at least one task addresses it. If there's a gap, surface it before proceeding.
+After the plan is created, **verify coverage against both the requirements AND the eval criteria**:
+- Does every requirement (including bonus items) have at least one task?
+- Does the plan include proper separation of concerns (service layer, data layer, etc.)?
+- Is there a testing phase with unit, integration, and E2E tests?
+- Is there a documentation task (README, API docs, design decisions)?
+- Will the commit history tell a coherent story?
+
+If there's a gap, surface it before proceeding.
 
 **"Plan created. Every requirement is covered. Ready to implement?"**
 
