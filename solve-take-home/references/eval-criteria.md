@@ -34,12 +34,13 @@ Final checklist before shipping a take-home solution. Check the solution against
 
 ## Architecture
 
-**Importance: moderate to high.** Scale your architecture to the problem. Over-engineering a small challenge is as bad as under-engineering a complex one.
+**Importance: moderate to high.** This is a take-home, not a production codebase — but the evaluator is assessing whether you *think* at a senior+ level. Don't optimize for "simplest thing that works for this small project." Demonstrate that you know how to structure real software, even at small scale. A clean service layer in a CRUD app isn't over-engineering — it's showing you understand separation of concerns. A repository pattern for a todo API isn't overkill — it's showing you'd scale well on their team. The line to avoid is *pointless abstraction* (plugin architectures, event buses, factory factories) — not *good structure*.
 
-- [ ] Separation of concerns: data layer, business logic, and presentation are distinct
-- [ ] Patterns appropriate for the scale of the challenge
+- [ ] Separation of concerns: data layer, business logic, and presentation are distinct — even if the app is small
+- [ ] Recognizable patterns applied appropriately: service layer, repository pattern, DTO/view models, middleware — show you know these exist and when to use them
 - [ ] Modularity — could a piece be swapped or extended without rewriting everything?
 - [ ] Consistent data flow patterns (no mixed paradigms without reason)
+- [ ] Evidence of intentional design decisions, not just "it works" — the evaluator should see choices that signal experience
 
 ## Documentation
 
