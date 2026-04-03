@@ -28,6 +28,7 @@ What evaluators look for in take-home solutions. **Read this BEFORE planning, no
 **Importance: high.** This is what evaluators read first. Sloppy code signals sloppy thinking.
 
 - [ ] Clean, readable, idiomatic for the language and framework
+- [ ] **Linting and formatting configured and passing** — Biome, ESLint, Ruff, or equivalent. This is table stakes, not a bonus. Zero-config to set up, no excuse to skip.
 - [ ] Well-structured: logical file organization, separation of concerns
 - [ ] Consistent naming conventions throughout
 - [ ] No dead code, no commented-out blocks, no debugging artifacts (`console.log`, `print`, `TODO`)
@@ -69,7 +70,6 @@ What evaluators look for in take-home solutions. **Read this BEFORE planning, no
 **Importance: differentiators.** None of these are required, but each one signals professional habits. They separate "gets the job done" from "would be great to work with."
 
 - [ ] CI pipeline configured (GitHub Actions or similar) — shows automation mindset
-- [ ] Linting and formatting configured and passing
 - [ ] Type safety enabled (TypeScript strict mode, Python type hints, etc.)
 - [ ] Docker setup for easy evaluation (`docker compose up` and it works)
 - [ ] Environment variable handling: `.env.example` with documentation
