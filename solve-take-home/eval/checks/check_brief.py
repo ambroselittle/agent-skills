@@ -13,59 +13,51 @@ from pathlib import Path
 
 from eval.models import CheckResult
 
+# All instruction file patterns from discovery-patterns.md
+INSTRUCTION_FILES = [
+    "README.md", "INSTRUCTIONS.md", "PROMPT.md", "CHALLENGE.md",
+    "ASSIGNMENT.md", "REQUIREMENTS.md", "SPEC.md", "TODO.md",
+]
 
-def extract_requirements_from_readme(readme_path: Path) -> list[str]:
-    """Extract requirement-like lines from a README.
 
-    Looks for numbered lists, bullet points under requirement-related headers,
-    and structured requirement sections.
+def _collect_instruction_text(source: Path) -> str:
+    """Collect instruction text from a directory or a single file.
+
+    For directories, reads all known instruction files.
+    For files, reads the file directly.
     """
-    if not readme_path.exists():
-        return []
+    if source.is_file():
+        return source.read_text()
 
-    text = readme_path.read_text()
-    requirements: list[str] = []
-
-    # Find numbered items (1. xxx, 2. xxx)
-    numbered = re.findall(r"^\s*\d+\.\s+\*\*(.+?)\*\*", text, re.MULTILINE)
-    requirements.extend(numbered)
-
-    # Find backtick-wrapped items that look like endpoints or commands
-    endpoints = re.findall(r"`((?:GET|POST|PUT|DELETE|PATCH)\s+\S+)`", text)
-    requirements.extend(endpoints)
-
-    return requirements
+    text = ""
+    for filename in INSTRUCTION_FILES:
+        path = source / filename
+        if path.exists():
+            text += path.read_text() + "\n"
+    return text
 
 
-def check_brief(fixture_dir: Path, rubric: dict) -> list[CheckResult]:
-    """Check that a brief synthesized from the fixture would be complete.
+def check_brief(source: Path, rubric: dict) -> list[CheckResult]:
+    """Check that a brief synthesized from the source would be complete.
 
-    Rather than running the actual skill (expensive), we verify that the
-    fixture's instruction files contain all the elements the rubric says
-    a correct brief should have.
+    Accepts a directory (repo fixture) or a file (text fixture). Rather
+    than running the actual skill (expensive), we verify that the source
+    contains all the elements the rubric says a correct brief should have.
     """
     checks: list[CheckResult] = []
     expected = rubric.get("brief", {})
 
-    # Read all instruction text from the fixture
-    instruction_text = ""
-    readme_path = fixture_dir / "README.md"
-    if readme_path.exists():
-        instruction_text = readme_path.read_text()
-
-    for alt in ["INSTRUCTIONS.md", "PROMPT.md", "CHALLENGE.md"]:
-        alt_path = fixture_dir / alt
-        if alt_path.exists():
-            instruction_text += "\n" + alt_path.read_text()
+    instruction_text = _collect_instruction_text(source)
+    label = "instructions" if source.is_dir() else "text"
 
     # Check: all expected requirements are extractable from instructions
     expected_requirements = expected.get("requirements", [])
     for req in expected_requirements:
         found = req.lower() in instruction_text.lower()
         checks.append(CheckResult(
-            f"brief: requirement '{req}' is in instructions",
+            f"brief: requirement '{req}' is in {label}",
             found,
-            None if found else f"Requirement '{req}' not found in instruction text",
+            None if found else f"Requirement '{req}' not found in {label}",
         ))
 
     # Check: expected acceptance criteria terms are present
@@ -73,7 +65,7 @@ def check_brief(fixture_dir: Path, rubric: dict) -> list[CheckResult]:
     for term in expected_criteria:
         found = term.lower() in instruction_text.lower()
         checks.append(CheckResult(
-            f"brief: acceptance term '{term}' is in instructions",
+            f"brief: acceptance term '{term}' is in {label}",
             found,
             None if found else f"Term '{term}' not found — brief may miss this criterion",
         ))
@@ -85,7 +77,7 @@ def check_brief(fixture_dir: Path, rubric: dict) -> list[CheckResult]:
         checks.append(CheckResult(
             f"brief: time limit '{expected_time_limit}' is detectable",
             found,
-            None if found else f"Time limit '{expected_time_limit}' not found in instructions",
+            None if found else f"Time limit '{expected_time_limit}' not found in {label}",
         ))
 
     # Check: submission format is detectable (if expected)

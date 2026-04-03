@@ -14,7 +14,7 @@ from pathlib import Path
 
 from eval.checks.check_brief import check_brief
 from eval.checks.check_discovery import check_discovery
-from eval.models import CheckResult, EvalResult
+from eval.models import EvalResult
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent
 FIXTURES_DIR = SKILL_ROOT / "fixtures"
@@ -44,55 +44,9 @@ def run_fixture_eval(fixture_name: str, fixture_dir: Path, rubric: dict) -> Eval
         discovery_checks = check_discovery(fixture_dir, fixture_rubric)
         result.checks.extend(discovery_checks)
 
-        brief_checks = check_brief(fixture_dir, fixture_rubric)
-        result.checks.extend(brief_checks)
-    else:
-        # For text-based fixtures (.md files), only run brief checks
-        # Brief checks need a directory — use the file's parent and
-        # handle the text file as if it were the README
-        result.checks.append(CheckResult(
-            "discovery: text-only fixture",
-            True,
-            "Text-only fixture — discovery phase would scaffold a repo",
-        ))
-
-        # For text fixtures, check that the text itself contains expected content
-        text_rubric = fixture_rubric.get("brief", {})
-        text = fixture_dir.read_text()
-
-        for req in text_rubric.get("requirements", []):
-            found = req.lower() in text.lower()
-            result.checks.append(CheckResult(
-                f"brief: requirement '{req}' is in text",
-                found,
-                None if found else f"Requirement '{req}' not found in text prompt",
-            ))
-
-        for term in text_rubric.get("acceptance_criteria_terms", []):
-            found = term.lower() in text.lower()
-            result.checks.append(CheckResult(
-                f"brief: acceptance term '{term}' is in text",
-                found,
-                None if found else f"Term '{term}' not found in text prompt",
-            ))
-
-        time_limit = text_rubric.get("time_limit")
-        if time_limit:
-            found = time_limit.lower() in text.lower()
-            result.checks.append(CheckResult(
-                f"brief: time limit '{time_limit}' is detectable",
-                found,
-                None if found else f"Time limit not found in text",
-            ))
-
-        submission = text_rubric.get("submission_format")
-        if submission:
-            found = submission.lower() in text.lower()
-            result.checks.append(CheckResult(
-                f"brief: submission format '{submission}' is detectable",
-                found,
-                None if found else f"Submission format not found in text",
-            ))
+    # Brief checks work for both directories and text files
+    brief_checks = check_brief(fixture_dir, fixture_rubric)
+    result.checks.extend(brief_checks)
 
     return result
 
@@ -126,8 +80,8 @@ def print_results(result: EvalResult) -> None:
     print(f"{'-' * name_width}  {'-' * 10}")
 
     for c in result.checks:
-        symbol = "\u2705" if c.passed else "\u274c"
-        print(f"{c.name:<{name_width}}  {symbol} {'pass' if c.passed else 'FAIL'}")
+        symbol = "PASS" if c.passed else "FAIL"
+        print(f"{c.name:<{name_width}}  {symbol}")
         if c.detail and not c.passed:
             print(f"  {c.detail}")
 

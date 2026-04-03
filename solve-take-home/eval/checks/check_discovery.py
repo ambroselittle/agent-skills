@@ -7,7 +7,6 @@ implicit specs (test stubs, TODOs, stack signals) are identified.
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 from eval.models import CheckResult
