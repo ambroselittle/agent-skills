@@ -54,11 +54,12 @@ Wait for their response, then route to the appropriate path above.
 
 ### If working from a repo
 
-Read both reference docs up front — they shape everything from architecture to testing strategy:
+Read all three reference docs up front — they shape everything from architecture to testing strategy:
 - `${CLAUDE_SKILL_DIR}/references/discovery-patterns.md` — where to find instructions
 - `${CLAUDE_SKILL_DIR}/references/eval-criteria.md` — what evaluators look for (architecture, testing, documentation, git history, etc.)
+- `${CLAUDE_SKILL_DIR}/references/design-philosophy.md` — how to think about architecture: domain coherence over technology layers, layers earn their existence, pragmatic colocation
 
-The eval criteria are NOT just a final checklist. They define how to build, not just what to verify. Read them now so the plan reflects senior+ architectural thinking, proper test strategy, and documentation expectations from the start.
+The eval criteria are NOT just a final checklist. They define how to build, not just what to verify. The design philosophy defines your architectural perspective — internalize it before proposing any architecture. Read them now so the plan reflects thoughtful design, proper test strategy, and documentation expectations from the start.
 
 Then work through the discovery checklist:
 
@@ -141,7 +142,9 @@ After scaffolding (or skipping), confirm: **"Project structure is ready. Moving 
 
 Before diving into task-level planning, propose the high-level architecture. This is the most important design decision and the hardest to change later — get alignment here first.
 
-Based on the requirements, bonus items, and eval criteria, present an architecture proposal:
+Frame this as **V1 of a real application that will grow** (see design-philosophy.md). Not a throwaway take-home, not an enterprise system. Every structural choice should be justified by a real problem it solves — testability, clarity, extensibility — not by "best practices say so."
+
+Based on the requirements, bonus items, eval criteria, and design philosophy, present an architecture proposal:
 
 ```markdown
 ## Proposed Architecture

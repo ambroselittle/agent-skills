@@ -36,11 +36,11 @@ What evaluators look for in take-home solutions. **Read this BEFORE planning, no
 
 **Importance: moderate to high.** This is a take-home, not a production codebase — but the evaluator is assessing whether you *think* at a senior+ level. Don't optimize for "simplest thing that works for this small project." Demonstrate that you know how to structure real software, even at small scale. A clean service layer in a CRUD app isn't over-engineering — it's showing you understand separation of concerns. A repository pattern for a todo API isn't overkill — it's showing you'd scale well on their team. The line to avoid is *pointless abstraction* (plugin architectures, event buses, factory factories) — not *good structure*.
 
-- [ ] Separation of concerns: data layer, business logic, and presentation are distinct — even if the app is small
-- [ ] Recognizable patterns applied appropriately: service layer, repository pattern, DTO/view models, middleware — show you know these exist and when to use them
-- [ ] Modularity — could a piece be swapped or extended without rewriting everything?
-- [ ] Consistent data flow patterns (no mixed paradigms without reason)
-- [ ] Evidence of intentional design decisions, not just "it works" — the evaluator should see choices that signal experience
+- [ ] Separation of concerns where it matters: business logic separated from HTTP handling, domain boundaries clear between modules. But don't add layers just for layers' sake — every layer must solve a real problem (testability, complexity management, genuine swappability). See `design-philosophy.md` for the full perspective.
+- [ ] Domain-oriented structure: code grouped by what it does (todos, auth, payments), not by technology (controllers, services, repositories). Related code lives together.
+- [ ] Modularity — could the next feature be added without rewriting existing code? Structure for the next feature, not the tenth.
+- [ ] Consistent patterns within the codebase — if one module has a service layer, they all should
+- [ ] Evidence of intentional design decisions, not just "it works" — the evaluator should see choices that signal experience and judgment about when to add structure and when simplicity is the right call
 
 ## Documentation
 
