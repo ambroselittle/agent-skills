@@ -38,6 +38,7 @@ Since we're framing this as V1 of a growing app: design so the next developer (o
 - Keep route handlers focused on request/response — delegate to domain functions
 - Collocate related code (a feature's routes, types, logic, and tests together)
 - Use consistent patterns within the codebase — if one module has a service, they all should
+- Encode architectural decisions in `CLAUDE.md` and `.claude/rules/` — if a convention matters enough to follow, it matters enough to write down where both humans and AI agents will find it
 
 **Don't:**
 - Add a repository interface over a database you're not swapping

@@ -170,6 +170,10 @@ Based on the requirements, bonus items, eval criteria, and design philosophy, pr
 - Integration tests: API endpoints (real server, in-memory storage)
 - E2E tests: full user flows (if frontend exists)
 
+**Agentic scaffolding:**
+- `CLAUDE.md`: project overview, structure, build/test/lint commands, key conventions
+- `.claude/rules/`: <list rules needed — e.g., testing patterns, module boundaries, type conventions>
+
 **Why this approach:**
 <1-2 sentences on why this architecture fits the challenge and demonstrates senior+ thinking>
 ```

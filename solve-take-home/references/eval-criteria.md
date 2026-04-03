@@ -52,6 +52,8 @@ What evaluators look for in take-home solutions. **Read this BEFORE planning, no
 - [ ] API documentation if there are endpoints (routes, request/response shapes)
 - [ ] Inline comments only where logic is genuinely non-obvious
 - [ ] Setup instructions actually work — run them yourself from a clean state
+- [ ] **`CLAUDE.md`** at project root — orients AI agents (and humans) to the codebase: what the project does, how it's structured, key conventions, how to build/test/lint. This is the agentic equivalent of a good README and shows awareness of modern AI-assisted development workflows. Think of it as onboarding docs for the next developer, whether human or AI.
+- [ ] **`.claude/rules/`** for non-obvious conventions — testing patterns, module boundaries, type conventions, anything an agent (or new team member) would get wrong without guidance. Keep rules focused and actionable, not aspirational.
 
 ## Git History
 
@@ -72,6 +74,7 @@ What evaluators look for in take-home solutions. **Read this BEFORE planning, no
 - [ ] Docker setup for easy evaluation (`docker compose up` and it works)
 - [ ] Environment variable handling: `.env.example` with documentation
 - [ ] Pre-commit hooks or quality gates
+- [ ] **Agentic scaffolding** — `CLAUDE.md` and `.claude/rules/` configured (see Documentation section). This signals that you build software with AI-assisted workflows in mind — an increasingly valued skill. A well-written `CLAUDE.md` also doubles as excellent developer onboarding documentation.
 
 ## Common Pitfalls
 
