@@ -22,6 +22,7 @@ def versions() -> dict:
         "vite": "6.3.0",
         "vitest": "3.1.1",
         "hono": "4.7.6",
+        "hono_node_server": "1.19.12",
         "tailwindcss": "4.1.3",
         "tailwindcss_vite": "4.1.3",
         "prisma": "6.6.0",
