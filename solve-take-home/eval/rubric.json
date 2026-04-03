@@ -1,0 +1,67 @@
+{
+  "fixtures": {
+    "sample-todo-api": {
+      "discovery": {
+        "primary_instruction_files": ["README.md"],
+        "instruction_keywords": [
+          "CRUD",
+          "todo",
+          "RESTful",
+          "validation",
+          "3 hours"
+        ],
+        "test_file_patterns": ["__tests__/*.test.ts"],
+        "test_markers": ["test.todo"],
+        "stack_signal_files": ["package.json", "tsconfig.json"]
+      },
+      "brief": {
+        "requirements": [
+          "POST /todos",
+          "GET /todos",
+          "GET /todos/:id",
+          "PUT /todos/:id",
+          "DELETE /todos/:id",
+          "title",
+          "validation"
+        ],
+        "acceptance_criteria_terms": [
+          "CRUD",
+          "validation",
+          "error",
+          "tests",
+          "documentation"
+        ],
+        "time_limit": "3 hours",
+        "submission_format": "pull request",
+        "endpoint_count": 5
+      }
+    },
+    "sample-text-prompt": {
+      "discovery": {
+        "primary_instruction_files": [],
+        "instruction_keywords": [],
+        "test_file_patterns": [],
+        "test_markers": [],
+        "stack_signal_files": []
+      },
+      "brief": {
+        "requirements": [
+          "POST /api/shorten",
+          "GET /api/:code",
+          "stats",
+          "click count",
+          "frontend"
+        ],
+        "acceptance_criteria_terms": [
+          "shorten",
+          "redirect",
+          "analytics",
+          "copy-to-clipboard"
+        ],
+        "time_limit": "4 hours",
+        "submission_format": "github repository",
+        "endpoint_count": 3
+      }
+    }
+  }
+}
