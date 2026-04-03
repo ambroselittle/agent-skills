@@ -213,6 +213,8 @@ Run `/hack full auto` to execute the plan end-to-end.
 
 Between hack phases, check:
 - **Coverage** — are we still on track for all acceptance criteria?
+- **Tests with every feature** — each feature task should include its unit and integration tests. Don't defer all testing to a separate phase at the end — tests written alongside the code are more thorough and show the evaluator a professional workflow. The plan should already reflect this from the architecture's testing strategy.
+- **Tests pass before moving on** — don't accumulate broken tests across phases. Each commit should leave the test suite green.
 - **Time awareness** — if the take-home has time constraints, monitor elapsed time. Flag if a phase is taking disproportionate time.
 - **Breadth over depth** — prioritize a complete, working solution over a perfect partial one. Ship all requirements before polishing any single one.
 
