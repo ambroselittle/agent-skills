@@ -6,8 +6,8 @@
 # to the main repo where your changes don't exist yet. This script swaps the
 # symlink to point at the worktree so you can test interactively.
 #
-# Run `./undev-skill.sh <skill-name>` to restore the original symlink,
-# or re-run `./setup.sh` to reset all skills.
+# Run `./restore-skill.sh <skill-name>` to restore the original symlink,
+# or re-run `./setup.sh` from the main repo to reset all skills.
 
 set -euo pipefail
 
