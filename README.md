@@ -14,6 +14,7 @@ General-purpose engineering workflow skills for AI coding agents, following the 
 | **learn** | Route lessons from a work item to skill updates, repo-local rules, or user memory. |
 | **fix-tests** | Diagnose and fix CI test failures. Finds failing tests, groups by root cause, and fixes methodically. |
 | **create-repo** | Bootstrap a new monorepo from a template (fullstack-ts, fullstack-graphql, fullstack-python, api-ts, api-python, swift-ts). Resolves current versions, scaffolds, verifies, and commits. |
+| **solve-take-home** | Solve a coding take-home challenge end-to-end. Discovers instructions, scaffolds if needed, plans, implements, polishes against evaluation criteria, and ships. |
 | **make-skill** | Create a new agent skill through an interactive interview process. |
 
 ## Workflow

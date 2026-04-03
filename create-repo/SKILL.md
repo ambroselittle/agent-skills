@@ -2,7 +2,6 @@
 name: create-repo
 description: Bootstrap a new monorepo project from a template. Scaffolds the full stack, installs dependencies, verifies everything builds and tests pass, creates a git repo, and optionally pushes to GitHub. Say "create-repo" or "create repo" to start an interactive interview, or pass a template directly like "create-repo fullstack-ts my-app".
 argument-hint: "[template] [project-name]"
-disable-model-invocation: true
 ---
 
 # Create Repo: Bootstrap a New Project
@@ -158,7 +157,7 @@ Before scaffolding, resolve the latest stable versions of all dependencies in th
 
 - **Agent 1 — Frontend core:** react, react-dom, @types/react, @types/react-dom, vite, @vitejs/plugin-react
 - **Agent 2 — Styling:** tailwindcss, @tailwindcss/vite
-- **Agent 3 — API & RPC:** hono, @hono/trpc-server, @trpc/server, @trpc/client, @trpc/react-query, @tanstack/react-query
+- **Agent 3 — API & RPC:** hono, @hono/node-server, @hono/trpc-server, @trpc/server, @trpc/client, @trpc/react-query, @tanstack/react-query
 - **Agent 4 — Database:** @prisma/client, prisma
 - **Agent 5 — Dev tools:** typescript, @biomejs/biome, vitest, playwright, @playwright/test
 
