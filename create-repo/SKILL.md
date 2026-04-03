@@ -2,7 +2,6 @@
 name: create-repo
 description: Bootstrap a new monorepo project from a template. Scaffolds the full stack, installs dependencies, verifies everything builds and tests pass, creates a git repo, and optionally pushes to GitHub. Say "create-repo" or "create repo" to start an interactive interview, or pass a template directly like "create-repo fullstack-ts my-app".
 argument-hint: "[template] [project-name]"
-disable-model-invocation: true
 ---
 
 # Create Repo: Bootstrap a New Project
