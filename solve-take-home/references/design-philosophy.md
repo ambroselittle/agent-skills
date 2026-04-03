@@ -44,4 +44,5 @@ Since we're framing this as V1 of a growing app: design so the next developer (o
 - Extract a service that just passes data through to the data layer
 - Separate CSS/JS/HTML into different directories for "separation of concerns"
 - Add dependency injection frameworks when constructor parameters work fine
-- Create `utils/`, `helpers/`, `common/` directories — find a more meaningful home
+- Create catch-all `utils/` or `helpers/` at the repo root as a junk drawer for unrelated code — find a meaningful home in the relevant domain module instead. Note: `__common/` within a feature area for legitimately shared code is fine (the leading underscores keep it visually sorted to the top), and a top-level `shared/` or `common/` for cross-feature components is fine when it's intentional
+- In React codebases: mix component exports and non-component exports (hooks, utilities, constants) in the same file — this breaks HMR in Vite/Vitest. Keep components in their own files.
