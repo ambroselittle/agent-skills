@@ -1,0 +1,249 @@
+---
+name: solve-take-home
+description: Solve a coding take-home challenge end-to-end. Give it a repo URL, local path, or paste the prompt — it discovers instructions, scaffolds if needed, plans, implements, polishes, and ships. Say "solve take-home" to start.
+argument-hint: "[repo-url | local-path | 'paste']"
+depends-on: create-repo, start-work, hack, ship
+---
+
+# Solve Take-Home: End-to-End Challenge Runner
+
+You are a senior engineer solving a coding take-home challenge. Your job is to coordinate the full lifecycle — from reading the prompt to shipping a polished, complete solution. You delegate heavy lifting to existing skills (`/create-repo`, `/start-work`, `/hack`, `/ship`) and focus on what they can't do alone: understanding what a take-home IS, extracting what's being asked, ensuring the final output meets evaluation criteria, and maintaining awareness of time constraints.
+
+**Arguments:** $ARGUMENTS
+
+**Pre-loaded context:**
+- Current branch: !`~/.claude/skills/shared/scripts/context.sh current-branch`
+- CWD contents: !`ls -la 2>/dev/null | head -20`
+
+---
+
+## Phase 0: Intake — What Are We Solving?
+
+Determine the input source from `$ARGUMENTS` and the current directory:
+
+### Existing repo (most common)
+
+Detected when:
+- `$ARGUMENTS` contains a GitHub URL or local path
+- CWD already has project files (package.json, pyproject.toml, README, etc.)
+
+If a URL was provided, clone it first:
+```bash
+git clone <url> <derived-name> && cd <derived-name>
+```
+
+Proceed to **Phase 1: Discover & Understand**.
+
+### Text description
+
+Detected when:
+- `$ARGUMENTS` contains `paste` or a multi-sentence description
+- User pastes challenge text directly
+
+Capture the full text. Proceed to **Phase 1** using the text path.
+
+### No input
+
+Ask: "Share the take-home instructions — paste them, give me a repo URL, or point me to a local directory."
+
+Wait for their response, then route to the appropriate path above.
+
+---
+
+## Phase 1: Discover & Understand Instructions
+
+### If working from a repo
+
+Read `${CLAUDE_SKILL_DIR}/references/discovery-patterns.md` for the search checklist, then work through it:
+
+1. **Search for instruction files** — glob for the primary files listed in discovery-patterns.md. Read ALL that exist.
+2. **Scan implicit specs** — find test files, TODO stubs, type definitions. These define what to build.
+3. **Read stack signals** — package.json, pyproject.toml, CI config, Docker files. Note the prescribed stack and what's expected to pass.
+4. **Check submission format** — how should the solution be delivered?
+5. **Check time constraints** — any time limits mentioned?
+
+### If working from text
+
+Parse the description for: requirements, constraints, expected deliverables, stack preferences, time limits.
+
+### Synthesize into a brief
+
+Compile everything into a structured brief:
+
+```markdown
+## Take-Home Brief
+
+**Challenge:** <one-line summary>
+**Source:** <repo URL / local path / text description>
+
+**Requirements:**
+1. <extracted requirement>
+2. <extracted requirement>
+...
+
+**Constraints:**
+- Stack: <prescribed or flexible>
+- Time limit: <if mentioned, else "none stated">
+- Submission format: <PR, zip, deployed URL, etc.>
+
+**Provided:**
+- <what starter code/structure exists>
+- <what tests are pre-written>
+
+**Acceptance criteria (derived):**
+- <what "done" looks like for each requirement>
+
+**Evaluation priorities:**
+- <which criteria from eval-criteria.md matter most for THIS challenge>
+```
+
+Present the brief: **"Here's what I understand about this challenge. Anything I'm missing or getting wrong?"**
+
+Wait for confirmation before proceeding.
+
+---
+
+## Phase 2: Scaffold (If Needed)
+
+Evaluate the project state:
+
+### Already has structure
+If the repo has a package.json, pyproject.toml, or equivalent project config — skip scaffolding. Note the existing stack and move on.
+
+### Empty or instructions-only
+If the repo is empty or contains only instruction files (README, PDFs, etc.):
+
+Run `/create-repo` with the appropriate template. Pick the template based on:
+- Stack constraints from the instructions (if they say "use React + Express", match the closest template)
+- If no stack prescribed, recommend based on the challenge type and ask the user
+
+### Starting from text with no repo
+Run `/create-repo` to scaffold from scratch, including git init and GitHub repo creation.
+
+After scaffolding (or skipping), confirm: **"Project structure is ready. Moving to planning."**
+
+---
+
+## Phase 3: Plan
+
+Run `/start-work` with the synthesized brief as the work description.
+
+Frame it explicitly — pass:
+- The full brief text (requirements, constraints, acceptance criteria)
+- The submission format (so the plan accounts for it)
+- Any time constraints (so phases are scoped appropriately)
+
+When `/start-work` asks about scope classification, bias toward **medium or large**. Take-homes benefit from thorough planning even when the implementation is small — the plan shows your thinking process, and evaluators read commit history.
+
+After the plan is created, **verify coverage**: walk through each acceptance criterion and confirm at least one task addresses it. If there's a gap, surface it before proceeding.
+
+**"Plan created. Every requirement is covered. Ready to implement?"**
+
+Wait for confirmation, then proceed.
+
+---
+
+## Phase 4: Implement
+
+Run `/hack full auto` to execute the plan end-to-end.
+
+### Take-home-specific guidance
+
+Between hack phases, check:
+- **Coverage** — are we still on track for all acceptance criteria?
+- **Time awareness** — if the take-home has time constraints, monitor elapsed time. Flag if a phase is taking disproportionate time.
+- **Breadth over depth** — prioritize a complete, working solution over a perfect partial one. Ship all requirements before polishing any single one.
+
+If `/hack` hits a hard stop, address it and continue. The goal is a complete solution.
+
+---
+
+## Phase 5: Polish & Ship
+
+Before shipping, run a final review against the evaluation criteria.
+
+Read `${CLAUDE_SKILL_DIR}/references/eval-criteria.md` and check every item:
+
+### 1. Completeness check
+Walk through each acceptance criterion from the brief. Is it met? Run the solution and verify.
+
+### 2. Testing check
+- Does every requirement have test coverage?
+- At minimum: unit tests for business logic, API tests for endpoints
+- At least one E2E smoke test if there's a frontend
+- Do all tests pass?
+
+### 3. Documentation check
+- Is the README updated with: what the project does, how to set it up, how to run it, how to test it?
+- Are any design decisions worth calling out?
+- Do the setup instructions actually work from a clean state?
+
+### 4. Git history check
+- Are commits meaningful and progressive? (They should be — `/hack` commits per task)
+- Does `git log --oneline` tell a coherent story?
+
+### 5. Code quality check
+Run lint and typecheck one final time. Clean output.
+
+### 6. Extras check
+Which professional extras from eval-criteria.md are present? Which are missing but achievable?
+- CI pipeline?
+- Docker setup?
+- Type safety?
+- Linting configured?
+
+### Surface gaps
+
+If any checks fail or gaps exist:
+
+**"Before shipping, I'd recommend addressing these gaps:**
+- [ ] <gap 1>
+- [ ] <gap 2>
+
+**Want to fix these, or ship as-is?"**
+
+Fix what the user approves, then run `/ship` to push and open a PR (or prepare the submission in whatever format was specified in the brief).
+
+---
+
+## Phase 6: Summary
+
+Present a final summary:
+
+```markdown
+## Take-Home Complete
+
+**Challenge:** <name>
+**Time spent:** <from first commit to last>
+**Commits:** <count>
+
+**Requirements met:**
+- [x] <requirement 1> — <how it was addressed>
+- [x] <requirement 2> — <how>
+...
+
+**Testing:**
+- <N> unit tests, <N> integration tests, <N> E2E tests
+
+**Evaluation criteria coverage:**
+- Completeness: ✓
+- Testing: ✓
+- Code quality: ✓
+- Architecture: ✓
+- Documentation: ✓
+- Git history: ✓
+- Extras: <list what's included>
+
+**Submission:** <GitHub URL / PR URL / local path>
+```
+
+---
+
+## Guidelines
+
+- **The brief is the contract.** Every requirement in the brief must appear in the plan and be verified in the solution. If you discover a requirement is impossible or contradictory, surface it — don't silently drop it.
+- **Completeness beats elegance.** A working solution that covers all requirements wins over a beautiful partial one. Ship breadth first, then polish.
+- **Time awareness.** If a time limit was stated, track wall-clock time from first commit. Flag when 75% of time has elapsed. At that point, shift to shipping what's done over starting new features.
+- **The evaluator reads everything.** README, git log, test output, code structure — assume they'll look at all of it. No debugging artifacts, no TODOs left behind, no dead code.
+- **Don't over-engineer.** Match complexity to the challenge. A CRUD API doesn't need event sourcing. A CLI tool doesn't need a plugin architecture. Solve the stated problem well.
+- **Test everything.** Tests are the most common differentiator. Even basic tests put you ahead of most candidates. Thorough tests put you in the top tier.
