@@ -33,6 +33,9 @@ What evaluators look for in take-home solutions. **Read this BEFORE planning, no
 - [ ] Consistent naming conventions throughout
 - [ ] No dead code, no commented-out blocks, no debugging artifacts (`console.log`, `print`, `TODO`)
 - [ ] Error handling where appropriate — input validation, edge cases, graceful failures
+- [ ] **Type safety enabled** — TypeScript strict mode, Python type hints, or equivalent. Not optional.
+- [ ] **Environment variable handling** — `.env.example` with documentation, no hardcoded secrets or config
+- [ ] **Pre-commit hooks or quality gates** — lint/format on commit at minimum. Trivial to set up, signals professional discipline.
 
 ## Architecture
 
@@ -67,14 +70,10 @@ What evaluators look for in take-home solutions. **Read this BEFORE planning, no
 
 ## Professional Extras
 
-**Importance: differentiators.** None of these are required, but each one signals professional habits. They separate "gets the job done" from "would be great to work with."
+**Importance: differentiators.** These are genuinely situational — include them when they add value for the specific challenge.
 
 - [ ] CI pipeline configured (GitHub Actions or similar) — shows automation mindset
-- [ ] Type safety enabled (TypeScript strict mode, Python type hints, etc.)
-- [ ] Docker setup for easy evaluation (`docker compose up` and it works)
-- [ ] Environment variable handling: `.env.example` with documentation
-- [ ] Pre-commit hooks or quality gates
-- [ ] **Agentic scaffolding** — `CLAUDE.md` and `.claude/rules/` configured (see Documentation section). This signals that you build software with AI-assisted workflows in mind — an increasingly valued skill. A well-written `CLAUDE.md` also doubles as excellent developer onboarding documentation.
+- [ ] Docker setup — only when it genuinely helps the evaluator run the project (e.g., database dependencies, complex environment). Don't add Docker to a simple Node app that runs with `npm start`.
 
 ## Common Pitfalls
 
