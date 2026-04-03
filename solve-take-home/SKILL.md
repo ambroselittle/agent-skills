@@ -137,34 +137,75 @@ After scaffolding (or skipping), confirm: **"Project structure is ready. Moving 
 
 ---
 
-## Phase 3: Plan
+## Phase 3: Architecture
 
-Run `/start-work` with the synthesized brief as the work description.
+Before diving into task-level planning, propose the high-level architecture. This is the most important design decision and the hardest to change later — get alignment here first.
+
+Based on the requirements, bonus items, and eval criteria, present an architecture proposal:
+
+```markdown
+## Proposed Architecture
+
+**Layers:**
+- **Router / Controller layer** — HTTP handlers, request validation, response shaping. No business logic.
+- **Service layer** — Business logic, orchestration, validation rules. Framework-agnostic and independently testable.
+- **Repository / Data layer** — Data access abstraction. Swappable storage (in-memory for tests, real DB for production).
+- <additional layers as needed: middleware, DTOs/view models, etc.>
+
+**Key patterns:**
+- <e.g., Repository pattern for data access — abstracts storage, enables easy testing>
+- <e.g., Dependency injection via constructor params — services receive repositories, not the other way around>
+- <e.g., Error handling middleware — centralized, consistent error responses>
+
+**How requirements map to this:**
+- <Requirement 1> → <which layers/components handle it>
+- <Requirement 2> → <which layers/components>
+- <Bonus item> → <how it fits into the architecture>
+
+**Testing strategy:**
+- Unit tests: service layer logic (mocked repositories)
+- Integration tests: API endpoints (real server, in-memory storage)
+- E2E tests: full user flows (if frontend exists)
+
+**Why this approach:**
+<1-2 sentences on why this architecture fits the challenge and demonstrates senior+ thinking>
+```
+
+Present it: **"Here's how I'd structure this. Want to adjust anything before I plan the detailed tasks?"**
+
+Wait for confirmation. This is the key design gate — the user should agree on the shape before you fill in the details.
+
+---
+
+## Phase 4: Plan
+
+Run `/start-work` with the synthesized brief AND the approved architecture as the work description.
 
 Frame it explicitly — pass:
 - The full brief text (requirements, constraints, acceptance criteria, bonus items)
-- The eval criteria summary (architecture expectations, testing strategy, documentation standards, git history requirements) — these must inform the plan, not be applied as an afterthought
+- The approved architecture (layers, patterns, requirement mapping, testing strategy)
+- The eval criteria summary (documentation standards, git history requirements, professional extras) — these must inform the plan, not be applied as an afterthought
 - The submission format (so the plan accounts for it)
 - Any time constraints (so phases are scoped appropriately)
 
 When `/start-work` asks about scope classification, bias toward **medium or large**. Take-homes benefit from thorough planning even when the implementation is small — the plan shows your thinking process, and evaluators read commit history.
 
-After the plan is created, **verify coverage against both the requirements AND the eval criteria**:
+After the plan is created, **verify coverage against the requirements, architecture, AND eval criteria**:
 - Does every requirement (including bonus items) have at least one task?
-- Does the plan include proper separation of concerns (service layer, data layer, etc.)?
-- Is there a testing phase with unit, integration, and E2E tests?
+- Do the tasks follow the approved architecture (not shortcuts that skip layers)?
+- Is there a testing phase with unit, integration, and E2E tests per the testing strategy?
 - Is there a documentation task (README, API docs, design decisions)?
 - Will the commit history tell a coherent story?
 
 If there's a gap, surface it before proceeding.
 
-**"Plan created. Every requirement is covered. Ready to implement?"**
+**"Plan created. Every requirement is covered and aligned with the architecture. Ready to implement?"**
 
 Wait for confirmation, then proceed.
 
 ---
 
-## Phase 4: Implement
+## Phase 5: Implement
 
 Run `/hack full auto` to execute the plan end-to-end.
 
@@ -179,7 +220,7 @@ If `/hack` hits a hard stop, address it and continue. The goal is a complete sol
 
 ---
 
-## Phase 5: Polish & Ship
+## Phase 6: Polish & Ship
 
 Before shipping, run a final review against the evaluation criteria.
 
@@ -227,7 +268,7 @@ Fix what the user approves, then run `/ship` to push and open a PR (or prepare t
 
 ---
 
-## Phase 6: Summary
+## Phase 7: Summary
 
 Present a final summary:
 
