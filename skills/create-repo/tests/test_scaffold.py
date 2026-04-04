@@ -36,8 +36,8 @@ def versions() -> dict:
         "types_react": "19.1.2",
         "types_react_dom": "19.1.2",
         "vitejs_plugin_react": "4.4.1",
-        "playwright": "1.52.0",
-        "playwright_test": "1.52.0",
+        "playwright": "1.59.1",
+        "playwright_test": "1.59.1",
         "prisma_adapter_pg": "7.5.0",
         "pnpm": "10.33.0",
     }
