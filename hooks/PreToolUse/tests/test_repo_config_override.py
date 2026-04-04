@@ -47,6 +47,32 @@ def test_override_allows_denied_path(tmp_path):
     assert result["decision"] == "proceed"
 
 
+def test_override_allows_bash_read_of_denied_path(tmp_path):
+    """A Bash command reading an allowed .env path should also be overridden."""
+    _repo_config_cache.clear()
+
+    repo = tmp_path / "myrepo"
+    config_dir = repo / ".agent-skills"
+    config_dir.mkdir(parents=True)
+    (config_dir / "config.json").write_text(json.dumps({
+        "hooks": {
+            "PreToolUse": {
+                "rules": [
+                    {
+                        "rule": "block-env-reads",
+                        "allowedPaths": [".eval-runs/**/.env*"],
+                    }
+                ]
+            }
+        }
+    }))
+
+    env_path = str(repo / ".eval-runs" / "test" / ".env.ports")
+    payload = _payload("Bash", {"command": f"wc -l {env_path}"})
+    result = evaluate(payload, [_env_deny_rule()], repo_root=str(repo))
+    assert result["decision"] == "proceed"
+
+
 def test_override_does_not_affect_non_matching_paths(tmp_path):
     """Paths not matching allowedPaths should still be denied."""
     _repo_config_cache.clear()

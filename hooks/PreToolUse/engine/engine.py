@@ -45,21 +45,44 @@ def _get_rule_overrides(config: dict | None, rule_id: str | None) -> dict | None
 
 
 def _path_matches_allowed(payload: dict, allowed_paths: list[str], repo_root: str, cwd: str) -> bool:
-    """Check if the tool call's file path matches any allowed path pattern."""
+    """Check if all file paths in the tool call match at least one allowed pattern."""
     from resolver import matches_path_pattern
+    from operations.filesystem import _path_args, _split_subcommands, _READ_COMMANDS, _WRITE_COMMANDS, _DELETE_COMMANDS, _python_open_paths
 
+    tool_name = payload.get("tool_name", "")
     tool_input = payload.get("tool_input", {})
 
-    # Extract the file path from the payload
-    file_path = tool_input.get("file_path", "")
-    if not file_path:
-        # For Bash commands, this doesn't apply
+    # Collect all file paths from the payload
+    paths: list[str] = []
+
+    if tool_name in ("Read", "Edit", "Write"):
+        fp = tool_input.get("file_path", "")
+        if fp:
+            paths.append(fp)
+    elif tool_name == "Bash":
+        command = tool_input.get("command", "")
+        for tokens in _split_subcommands(command):
+            if not tokens:
+                continue
+            from pathlib import Path as P
+            cmd = P(tokens[0]).name
+            if cmd in _READ_COMMANDS | _WRITE_COMMANDS | _DELETE_COMMANDS:
+                paths.extend(_path_args(tokens))
+        paths.extend(_python_open_paths(command))
+
+    if not paths:
         return False
 
-    for pattern in allowed_paths:
-        if matches_path_pattern(file_path, pattern, repo_root, cwd):
-            return True
-    return False
+    # ALL paths must match at least one allowed pattern
+    for p in paths:
+        matched = False
+        for pattern in allowed_paths:
+            if matches_path_pattern(p, pattern, repo_root, cwd):
+                matched = True
+                break
+        if not matched:
+            return False
+    return True
 
 
 def evaluate(payload: dict, rules: list, repo_root: str | None = None) -> dict:
