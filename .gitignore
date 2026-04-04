@@ -29,4 +29,5 @@ dist/
 
 # Project
 .work/
+.superset/
 install-deps.sh

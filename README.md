@@ -25,15 +25,30 @@ The core skills form a pipeline:
 /start-work → /plan-review (optional) → /hack → /ship → /code-review → /learn
 ```
 
+## Repo Structure
+
+```
+skills/          # Agent skills (symlinked into ~/.claude/skills/)
+hooks/           # PreToolUse hook engine, rules, and tests
+templates/       # CLAUDE.md guidance templates (core + per-user)
+setup.sh         # Installs everything into ~/.claude/
+```
+
 ## Setup
 
-Run `setup.sh` to symlink skills and shared resources into `~/.claude/skills/`:
+Run `setup.sh` to install skills, hooks, permissions, and CLAUDE.md guidance:
 
 ```bash
 ./setup.sh
 ```
 
-This creates symlinks so skills stay in sync with the repo — no need to re-run after edits.
+This:
+1. Symlinks skills into `~/.claude/skills/`
+2. Installs the PreToolUse hook engine and rules into `~/.claude/hooks/`
+3. Merges allow/deny permissions into `~/.claude/settings.json`
+4. Upserts an `<agent-skills-guidance>` block in `~/.claude/CLAUDE.md` from templates (core + optional per-user by GitHub username)
+
+Idempotent — re-run after pulling updates. In a worktree, only skills with changes on the branch are relinked; the rest stay pointed at main.
 
 ## License
 

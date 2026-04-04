@@ -19,14 +19,14 @@ if [[ $# -eq 0 ]]; then
   echo "Usage: dev-skill.sh <skill-name> [skill-name ...]"
   echo ""
   echo "Available skills in this worktree:"
-  for d in "$REPO_ROOT"/*/; do
+  for d in "$REPO_ROOT"/skills/*/; do
     [[ -f "$d/SKILL.md" ]] && echo "  $(basename "$d")"
   done
   exit 1
 fi
 
 for skill in "$@"; do
-  skill_dir="$REPO_ROOT/$skill"
+  skill_dir="$REPO_ROOT/skills/$skill"
   target="$CLAUDE_SKILLS_DIR/$skill"
   backup="$target.main-repo"
 

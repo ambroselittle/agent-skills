@@ -1,0 +1,46 @@
+{
+  "description": "Rules merged into ~/.claude/settings.json permissions by setup.sh. Allows are needed because skill command-frontmatter invocations do not trigger PreToolUse hooks. Denies are fallbacks for critical operations.",
+  "allow": [
+    "Bash(~/.claude/skills/*/scripts/*.sh)",
+    "Bash(~/.claude/skills/*/scripts/*.sh *)",
+    "Read",
+    "Write",
+    "Edit",
+    "Glob",
+    "Grep",
+    "NotebookEdit",
+    "WebFetch",
+    "WebSearch",
+    "Agent",
+    "Skill",
+    "ToolSearch",
+    "ListMcpResourcesTool",
+    "ReadMcpResourceTool",
+    "LSP",
+    "TaskCreate",
+    "TaskGet",
+    "TaskList",
+    "TaskOutput",
+    "TaskStop",
+    "TaskUpdate",
+    "TodoWrite",
+    "AskUserQuestion",
+    "EnterPlanMode",
+    "ExitPlanMode",
+    "EnterWorktree",
+    "ExitWorktree",
+    "CronCreate",
+    "CronDelete",
+    "CronList",
+    "mcp__*"
+  ],
+  "deny": [
+    "Bash(sudo *)",
+    "Bash(rm -rf /)",
+    "Bash(rm -rf ~*)",
+    "Bash(rm -fr ~*)",
+    "Bash(rm -r ~*)"
+  ],
+  "removed": [
+  ]
+}
