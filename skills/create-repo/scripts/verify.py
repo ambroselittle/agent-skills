@@ -183,6 +183,18 @@ def verify(
     if not step.passed:
         return result
 
+    # Step 7b: Install Playwright browsers (before dev server, can be slow)
+    playwright_config = project_dir / "apps" / "web" / "playwright.config.ts"
+    if playwright_config.exists():
+        step = run_step(
+            "playwright install",
+            ["pnpm", "--filter", "**/web", "exec", "playwright", "install", "chromium"],
+            project_dir,
+            timeout=120,
+        )
+        result.steps.append(step)
+        # Non-fatal — E2E tests will fail but other checks can continue
+
     # Step 8: Dev server smoke check
     dev_proc = subprocess.Popen(
         ["pnpm", "dev"],
