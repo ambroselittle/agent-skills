@@ -216,6 +216,15 @@ Wait for confirmation, then proceed.
 
 Run `/hack full auto` to execute the plan end-to-end.
 
+### When building on a `/create-repo` scaffold
+
+The scaffold includes sample content that may be useful or need cleanup:
+- A **User model**, `user.list`/`user.create` routes, and seed data are included as working examples
+- If users are relevant to the challenge: extend the existing User model and routes
+- If users are irrelevant: run `pnpm cleanup-samples` first to strip sample content cleanly
+- Always build on the existing router structure in `apps/api/src/router.ts`
+- Extend `prisma/seed.ts` for challenge-specific test data rather than creating a separate seeding mechanism
+
 ### Take-home-specific guidance
 
 Between hack phases, check:
