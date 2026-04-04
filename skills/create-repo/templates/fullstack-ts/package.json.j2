@@ -18,5 +18,8 @@
     "turbo": "latest",
     "typescript": "{{ versions.typescript }}"
   },
-  "packageManager": "pnpm@{{ versions.pnpm }}"
+  "packageManager": "pnpm@{{ versions.pnpm }}",
+  "pnpm": {
+    "onlyBuiltDependencies": ["@prisma/engines", "prisma", "esbuild"]
+  }
 }
