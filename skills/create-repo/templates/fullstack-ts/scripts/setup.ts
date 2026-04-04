@@ -1,8 +1,10 @@
 import { readFileSync, writeFileSync, existsSync } from "fs"
 import { execSync } from "child_process"
-import { join } from "path"
+import { dirname, join } from "path"
+import { fileURLToPath } from "url"
 
-const root = join(import.meta.dirname, "..")
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const root = join(__dirname, "..")
 
 // 1. Discover ports
 console.log("Discovering free ports...")
