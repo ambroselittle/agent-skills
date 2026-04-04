@@ -79,6 +79,22 @@ def check_health(url: str, timeout: float = 10) -> bool:
         return False
 
 
+def _kill_process_group(pgid: int) -> None:
+    """Kill an entire process group, ignoring errors if already dead."""
+    import os
+    import signal
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.killpg(pgid, sig)
+        except (ProcessLookupError, PermissionError):
+            return
+        try:
+            os.waitpid(-pgid, os.WNOHANG)
+        except ChildProcessError:
+            return
+        time.sleep(0.5)
+
+
 def verify(
     project_dir: Path,
     api_port: int = 3001,
@@ -224,6 +240,12 @@ def verify(
         env=dev_env,
         start_new_session=True,  # Own process group so we can kill all children
     )
+
+    # Safety net: kill the process group on interpreter exit (ctrl-c, crash, etc.)
+    import atexit
+    dev_pgid = os.getpgid(dev_proc.pid)
+    atexit.register(_kill_process_group, dev_pgid)
+
     try:
         start = time.monotonic()
         api_up = wait_for_port(api_port, timeout=30)
@@ -290,18 +312,11 @@ def verify(
             result.steps.append(step)
     finally:
         # Kill the entire process group (pnpm + turbo + vite + api child processes)
-        import signal
         try:
-            os.killpg(os.getpgid(dev_proc.pid), signal.SIGTERM)
+            pgid = os.getpgid(dev_proc.pid)
+            _kill_process_group(pgid)
         except (ProcessLookupError, PermissionError):
             pass
-        try:
-            dev_proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            try:
-                os.killpg(os.getpgid(dev_proc.pid), signal.SIGKILL)
-            except (ProcessLookupError, PermissionError):
-                pass
 
     return result
 
