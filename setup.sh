@@ -329,9 +329,11 @@ section "Registering MCP servers"
 
 _register_mcp() {
   local name="$1"
-  shift
-  # Check if already registered (claude mcp list includes all scopes)
-  if command -v claude &>/dev/null && claude mcp list 2>/dev/null | grep -q "^$name:"; then
+  local check_cmd="$2"
+  shift 2
+  # Check if already registered by looking for the command in mcp list output.
+  # We match on command (not name) since users may register under a different name.
+  if command -v claude &>/dev/null && claude mcp list 2>/dev/null | grep -q "$check_cmd"; then
     skip "$name already registered"
     return
   fi
@@ -344,11 +346,11 @@ _register_mcp() {
   if claude mcp add --scope user "$name" "$@" 2>/dev/null; then
     ok "$name"
   else
-    warn "$name — registration failed (run manually: claude mcp add $name $*)"
+    warn "$name — registration failed (run manually: claude mcp add --scope user $name $*)"
   fi
 }
 
-_register_mcp "playwright" -- npx @playwright/mcp@latest
+_register_mcp "playwright" "@playwright/mcp" -- npx @playwright/mcp@latest
 
 # --------------------------------------------------------------------------- #
 # 5. Upsert <agent-skills-guidance> block in CLAUDE.md                        #
