@@ -6,11 +6,14 @@
   "scripts": {
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
+    "postgenerate": "tsx scripts/generate-barrel.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@prisma/client": "{{ versions.prisma_client }}"
+    "@prisma/client": "{{ versions.prisma_client }}",
+    "@prisma/adapter-pg": "{{ versions.prisma_adapter_pg }}",
+    "dotenv": "latest"
   },
   "devDependencies": {
     "prisma": "{{ versions.prisma }}",
