@@ -55,7 +55,7 @@ jobs:
         with:
           node-version: 22
 
-      - name: Scaffold and verify fullstack-ts
-        run: cd skills/create-repo && uv run pytest tests/test_eval.py -v -m e2e --timeout=300
+      - name: Scaffold and verify all templates
+        run: make test-scaffolds TEMPLATE=all
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/eval_project_dev

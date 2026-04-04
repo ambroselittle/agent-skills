@@ -90,18 +90,20 @@ cd hooks/PreToolUse && uvx pytest tests/ -v
 cd skills/create-repo && uv run pytest tests/ -v -m "not e2e"
 ```
 
-### create-repo scaffold E2E (needs pnpm, node, Docker or Postgres, ~3min)
+### Scaffold E2E — interactive picker (needs pnpm, node, Docker or Postgres, ~3min)
 ```bash
-cd skills/create-repo && uv run pytest tests/ -v -m e2e
+make test-scaffolds                        # interactive — pick a template or all
+make test-scaffolds TEMPLATE=fullstack-ts  # specific template
+make test-scaffolds TEMPLATE=all           # all templates
 ```
 
-In CI, set `DATABASE_URL` env var and the E2E test auto-skips docker compose.
+In CI, set `DATABASE_URL` env var and the test auto-skips docker compose.
 
 ## CI
 
 GitHub Actions (`.github/workflows/ci.yml`) runs on push to PR branches and main:
 - **Unit tests** — hook engine + create-repo unit/structural (~30s)
-- **Scaffold E2E** — scaffolds fullstack-ts, runs full verify pipeline with Postgres service container (~3min)
+- **Scaffold E2E** — scaffolds all templates, runs full verify pipeline with Postgres service container (~3min)
 
 ## setup.sh
 

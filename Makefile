@@ -1,4 +1,4 @@
-.PHONY: init test test-hooks test-create-repo test-e2e
+.PHONY: init test test-hooks test-create-repo test-scaffolds
 
 # Copy .work/ from the main repo into this worktree.
 # Safe to run in the main repo too — it no-ops when source == destination.
@@ -22,6 +22,7 @@ test-hooks:
 test-create-repo:
 	cd skills/create-repo && uv run pytest tests/ -v -m "not e2e"
 
-# Full scaffold E2E — needs pnpm, node, Docker (or DATABASE_URL for external Postgres)
-test-e2e:
-	cd skills/create-repo && uv run pytest tests/ -v -m e2e --timeout=300
+# Full scaffold E2E — interactive picker, needs pnpm, node, Docker (or DATABASE_URL)
+# Usage: make test-scaffolds [TEMPLATE=fullstack-ts]
+test-scaffolds:
+	cd skills/create-repo && uv run python ../../scripts/test-scaffolds.py $(TEMPLATE)
