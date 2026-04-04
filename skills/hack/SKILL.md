@@ -107,6 +107,10 @@ Each agent receives:
 
 Only implement a task yourself when it genuinely can't be delegated (e.g. it depends on the result of another task you just completed).
 
+### E2E test authoring
+
+When a task adds user-facing functionality and the project has Playwright configured (`playwright.config.ts` exists), consider whether `.scenario.md` files should be written and `/author-e2e` called to generate E2E tests as part of the task. This is especially relevant for tasks that add new pages, forms, or interactive flows. If the plan already includes E2E tasks, follow those — don't add extra ones.
+
 ### Stay in scope
 
 Only implement what the plan says for this phase. If you discover something adjacent that needs fixing, add it to the plan's **Out of Scope** section and keep moving. Do not expand scope mid-phase.
@@ -125,6 +129,7 @@ For each task:
 1. **Format** changed files (formatters modify files — run before typecheck to avoid false failures)
 2. **Lint** changed files
 3. **Targeted tests** for this task's changes, if applicable
+4. **E2E tests** — if the project has a `playwright.config.ts` and E2E tests exist, include the E2E test command (e.g. `pnpm test:e2e`, or whatever CLAUDE.md specifies) in the verification run. Skip this step if no Playwright setup exists.
 
 If checks fail: fix and re-run once. If still failing: **stop and report** — don't loop. Describe what failed and what you tried. In full auto mode, this is a hard stop (see below).
 
