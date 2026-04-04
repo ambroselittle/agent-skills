@@ -206,11 +206,20 @@ def verify(
         # Non-fatal — E2E tests will fail but other checks can continue
 
     # Step 8: Dev server smoke check
+    # Pass port env vars so the dev servers use the discovered ports
+    import os
+    dev_env = {
+        **os.environ,
+        "PORT": str(api_port),
+        "WEB_PORT": str(web_port),
+        "VITE_API_PORT": str(api_port),
+    }
     dev_proc = subprocess.Popen(
         ["pnpm", "dev"],
         cwd=project_dir,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        env=dev_env,
     )
     try:
         start = time.monotonic()

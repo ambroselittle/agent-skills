@@ -2,12 +2,13 @@ import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 
+const webPort = Number(process.env.WEB_PORT) || 3000
 const apiPort = process.env.VITE_API_PORT || "3001"
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
-    port: 3000,
+    port: webPort,
     proxy: {
       "/api": {
         target: `http://localhost:${apiPort}`,
