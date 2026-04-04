@@ -221,6 +221,7 @@ Run `/hack full auto` to execute the plan end-to-end.
 Between hack phases, check:
 - **Coverage** — are we still on track for all acceptance criteria?
 - **Tests with every feature** — each feature task should include its unit and integration tests. Don't defer all testing to a separate phase at the end — tests written alongside the code are more thorough and show the evaluator a professional workflow. The plan should already reflect this from the architecture's testing strategy.
+- **E2E tests with every feature** — after each feature phase, call `/author-e2e` with a description of the feature's happy-path user flow to generate `.scenario.md` files and Playwright tests. Don't defer E2E authoring to polish — write tests alongside the features they cover. This shows evaluators a professional testing workflow and catches integration issues early.
 - **Tests pass before moving on** — don't accumulate broken tests across phases. Each commit should leave the test suite green.
 - **Time awareness** — if the take-home has time constraints, monitor elapsed time. Flag if a phase is taking disproportionate time.
 - **Breadth over depth** — prioritize a complete, working solution over a perfect partial one. Ship all requirements before polishing any single one.
@@ -241,8 +242,11 @@ Walk through each acceptance criterion from the brief. Is it met? Run the soluti
 ### 2. Testing check
 - Does every requirement have test coverage?
 - At minimum: unit tests for business logic, API tests for endpoints
-- At least one E2E smoke test if there's a frontend
+- Every main feature should have a happy-path E2E test authored via `/author-e2e`. At minimum, a smoke test that the app loads and core navigation works. Run all E2E tests (`pnpm test:e2e`) and confirm they pass. Scenario files should be present in `e2e/scenarios/`.
 - Do all tests pass?
+
+### 2b. Ad-hoc browser verification (if Playwright MCP available)
+If Playwright MCP is registered, supplement the scripted E2E tests with ad-hoc browser exploration: navigate to each major feature, try edge cases, take screenshots as evidence. This catches the class of bugs where tests pass but the app doesn't actually work (wrong port, missing env var, broken build). This is supplementary — not a replacement for scripted tests, and not a hard requirement if Playwright MCP is unavailable.
 
 ### 3. Documentation check
 - Is the README updated with: what the project does, how to set it up, how to run it, how to test it?
