@@ -178,6 +178,10 @@ def run_eval(
                     timeout=30,
                 )
 
+            # Clean up the eval run directory to avoid accumulating node_modules
+            if output_dir is None and project_dir.exists():
+                shutil.rmtree(project_dir.parent, ignore_errors=True)
+
     return result
 
 

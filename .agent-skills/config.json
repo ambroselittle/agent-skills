@@ -4,7 +4,10 @@
       "rules": [
         {
           "rule": "block-env-reads",
-          "allowedPaths": [".eval-runs/**/.env*", ".eval-runs/**/.envrc"]
+          "allowedPaths": [
+            "skills/create-repo/.eval-runs/**/.env*",
+            "skills/create-repo/.eval-runs/**/.envrc"
+          ]
         }
       ]
     }

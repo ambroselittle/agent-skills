@@ -222,6 +222,7 @@ def verify(
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         env=dev_env,
+        start_new_session=True,  # Own process group so we can kill all children
     )
     try:
         start = time.monotonic()
@@ -287,11 +288,19 @@ def verify(
                     step = StepResult("e2e tests", False, e2e_elapsed, error)
             result.steps.append(step)
     finally:
-        dev_proc.terminate()
+        # Kill the entire process group (pnpm + turbo + vite + api child processes)
+        import signal
+        try:
+            os.killpg(os.getpgid(dev_proc.pid), signal.SIGTERM)
+        except (ProcessLookupError, PermissionError):
+            pass
         try:
             dev_proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
-            dev_proc.kill()
+            try:
+                os.killpg(os.getpgid(dev_proc.pid), signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
 
     return result
 
