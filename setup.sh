@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Sets up agent skills: links skills into ~/.claude/skills/, installs hook rules,
-# merges settings.json permissions, and upserts CLAUDE.md guidance.
-# Run after cloning or adding new skills.
+# Sets up agent skills: links skills, installs hooks, merges permissions,
+# registers MCP servers, and upserts CLAUDE.md guidance.
+# Idempotent — safe to re-run anytime.
 
 set -euo pipefail
 
@@ -12,14 +12,36 @@ CLAUDE_SETTINGS="$CLAUDE_DIR/settings.json"
 CLAUDE_MD="$CLAUDE_DIR/CLAUDE.md"
 HOOKS_DIR="$CLAUDE_DIR/hooks"
 
+# --------------------------------------------------------------------------- #
+# UX helpers                                                                  #
+# --------------------------------------------------------------------------- #
+
+_bold="\033[1m"
+_dim="\033[2m"
+_green="\033[32m"
+_yellow="\033[33m"
+_red="\033[31m"
+_cyan="\033[36m"
+_reset="\033[0m"
+
+section() { printf "\n${_bold}${_cyan}▸ %s${_reset}\n" "$1"; }
+ok()      { printf "  ${_green}✓${_reset} %s\n" "$1"; }
+skip()    { printf "  ${_dim}· %s${_reset}\n" "$1"; }
+warn()    { printf "  ${_yellow}⚠ %s${_reset}\n" "$1"; }
+fail()    { printf "  ${_red}✗ %s${_reset}\n" "$1"; }
+
+printf "\n${_bold}🛠  Agent Skills Setup${_reset}\n"
+
 mkdir -p "$CLAUDE_SKILLS_DIR"
 
 # --------------------------------------------------------------------------- #
-# Python version check (hook engine needs 3.11+ for str | None syntax)        #
+# Prerequisites                                                               #
 # --------------------------------------------------------------------------- #
 
+section "Checking prerequisites"
+
 if ! command -v python3 &>/dev/null; then
-  echo "ERROR: python3 not found. The PreToolUse hook engine requires Python 3.11+."
+  fail "python3 not found — the hook engine requires Python 3.11+"
   exit 1
 fi
 
@@ -27,11 +49,23 @@ py_version="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.vers
 py_major="${py_version%%.*}"
 py_minor="${py_version##*.}"
 if [[ "$py_major" -lt 3 ]] || { [[ "$py_major" -eq 3 ]] && [[ "$py_minor" -lt 11 ]]; }; then
-  echo "ERROR: Python $py_version found, but 3.11+ is required (for union type syntax)."
-  echo "  Install a newer Python or update your PATH so python3 resolves to 3.11+."
+  fail "Python $py_version found, but 3.11+ required (for union type syntax)"
+  printf "     Install a newer Python or update your PATH.\n"
   exit 1
 fi
-echo "Python $py_version OK"
+ok "Python $py_version"
+
+if command -v gh &>/dev/null; then
+  ok "GitHub CLI (gh)"
+else
+  warn "GitHub CLI (gh) not found — personal template lookup will be skipped"
+fi
+
+if command -v claude &>/dev/null; then
+  ok "Claude CLI"
+else
+  warn "Claude CLI not found — MCP server registration will be skipped"
+fi
 
 # --------------------------------------------------------------------------- #
 # Worktree detection                                                          #
@@ -48,9 +82,6 @@ if git -C "$SCRIPT_DIR" rev-parse --is-inside-work-tree &>/dev/null; then
   if [[ "$worktree_root" != "$main_repo" ]]; then
     IS_WORKTREE=true
     MAIN_REPO="$main_repo"
-    echo "Worktree detected — only linking skills changed on this branch."
-    echo "  Main repo: $MAIN_REPO"
-    echo ""
   fi
 fi
 
@@ -58,13 +89,17 @@ fi
 # 1. Link skills                                                              #
 # --------------------------------------------------------------------------- #
 
+section "Linking skills"
+
+if $IS_WORKTREE; then
+  printf "  ${_dim}Worktree mode — only linking skills changed on this branch${_reset}\n"
+fi
+
 # In a worktree: only relink skills with changes on the current branch.
 # Everything else stays linked to main repo.
 _changed_skills=()
 if $IS_WORKTREE; then
-  # Get skills modified on this branch (vs main) or with uncommitted changes
   while IFS= read -r file; do
-    # Extract skill name from paths like skills/<name>/...
     if [[ "$file" == skills/* ]]; then
       skill="${file#skills/}"
       skill="${skill%%/*}"
@@ -74,61 +109,56 @@ if $IS_WORKTREE; then
     git -C "$SCRIPT_DIR" diff --name-only main... -- skills/ 2>/dev/null
     git -C "$SCRIPT_DIR" diff --name-only -- skills/ 2>/dev/null
   )
-  # Deduplicate
   _changed_skills=($(printf '%s\n' "${_changed_skills[@]}" | sort -u))
 fi
 
 _should_link_skill() {
   local skill_name="$1"
   if ! $IS_WORKTREE; then
-    return 0  # Main repo: link everything
+    return 0
   fi
   for s in "${_changed_skills[@]}"; do
     [[ "$s" == "$skill_name" ]] && return 0
   done
-  return 1  # Worktree but skill not changed: skip
+  return 1
 }
 
-echo "Linking skills from $SCRIPT_DIR/skills/..."
+_linked=0
+_skipped=0
 for skill_dir in "$SCRIPT_DIR"/skills/*/; do
   [[ -d "$skill_dir" ]] || continue
   skill_name="$(basename "$skill_dir")"
-
-  # Skip non-skill directories (no SKILL.md) — shared/ is handled separately
   [[ -f "$skill_dir/SKILL.md" ]] || continue
 
   if ! _should_link_skill "$skill_name"; then
-    echo "  $skill_name: unchanged, keeping main link"
+    ((_skipped++)) || true
     continue
   fi
 
   target="$CLAUDE_SKILLS_DIR/$skill_name"
 
-  # Remove existing symlink to replace it (worktree or main)
   if [[ -L "$target" ]]; then
     existing="$(readlink "$target")"
     if [[ "$existing" == "$skill_dir" || "$existing" == "${skill_dir%/}" ]]; then
-      echo "  $skill_name: already linked"
+      ((_skipped++)) || true
       continue
     fi
-    # Different target — replace it
     rm -f "$target"
   elif [[ -e "$target" ]]; then
-    echo "  $skill_name: WARNING - non-symlink exists at $target, skipping"
+    warn "$skill_name: non-symlink exists at $target, skipping"
     continue
   fi
 
   ln -s "${skill_dir%/}" "$target"
   if $IS_WORKTREE; then
-    echo "  $skill_name: dev-linked (worktree)"
+    ok "$skill_name → worktree"
   else
-    echo "  $skill_name: linked"
+    ok "$skill_name"
   fi
+  ((_linked++)) || true
 done
 
-# Link shared resources (agents, scripts used by multiple skills)
-# In a worktree, link shared if any skill under shared/ changed, or if
-# any changed skill might depend on shared (always link from worktree).
+# Link shared resources
 shared_source="$SCRIPT_DIR/skills/shared"
 shared_target="$CLAUDE_SKILLS_DIR/shared"
 
@@ -141,30 +171,31 @@ if [[ -d "$shared_source" ]]; then
   if $_link_shared; then
     if [[ -L "$shared_target" ]]; then
       existing="$(readlink "$shared_target")"
-      if [[ "$existing" == "$shared_source" ]]; then
-        echo "  shared: already linked"
-      else
+      if [[ "$existing" != "$shared_source" ]]; then
         rm -f "$shared_target"
         ln -s "$shared_source" "$shared_target"
-        echo "  shared: linked"
+        ok "shared"
+        ((_linked++)) || true
       fi
-    elif [[ -e "$shared_target" ]]; then
-      echo "  shared: WARNING - non-symlink exists at $shared_target, skipping"
-    else
+    elif [[ ! -e "$shared_target" ]]; then
       ln -s "$shared_source" "$shared_target"
-      echo "  shared: linked"
+      ok "shared"
+      ((_linked++)) || true
     fi
-  else
-    echo "  shared: unchanged, keeping main link"
   fi
 fi
 
+if [[ $_linked -eq 0 ]]; then
+  skip "All skills already linked ($_skipped up to date)"
+else
+  printf "  ${_dim}$_linked linked, $_skipped already up to date${_reset}\n"
+fi
+
 # --------------------------------------------------------------------------- #
-# 2. Install PreToolUse hook rules                                            #
+# 2. Install PreToolUse hook                                                  #
 # --------------------------------------------------------------------------- #
 
-echo ""
-echo "Installing PreToolUse hook rules..."
+section "Installing PreToolUse hook"
 
 hook_source="$SCRIPT_DIR/hooks/PreToolUse/rules.json"
 hook_target_dir="$HOOKS_DIR/pre-tool-use"
@@ -173,40 +204,74 @@ hook_target="$hook_target_dir/hook-rules.json"
 if [[ -f "$hook_source" ]]; then
   mkdir -p "$hook_target_dir"
 
-  # Always overwrite the engine with repo version
+  # Engine
   if [[ -d "$SCRIPT_DIR/hooks/PreToolUse/engine" ]]; then
-    # Remove legacy src/ directory if present
     [[ -d "$hook_target_dir/src" ]] && rm -rf "$hook_target_dir/src"
     rm -rf "$hook_target_dir/engine"
     cp -r "$SCRIPT_DIR/hooks/PreToolUse/engine" "$hook_target_dir/engine"
-    echo "  Installed hook engine to $hook_target_dir/engine"
+    ok "Hook engine"
   fi
 
-  # Install the entry point script
+  # Entry point
   if [[ -f "$SCRIPT_DIR/hooks/PreToolUse/pre-tool-use.sh" ]]; then
     cp "$SCRIPT_DIR/hooks/PreToolUse/pre-tool-use.sh" "$HOOKS_DIR/pre-tool-use.sh"
     chmod +x "$HOOKS_DIR/pre-tool-use.sh"
-    echo "  Installed hook entry point to $HOOKS_DIR/pre-tool-use.sh"
+    ok "Entry point → $HOOKS_DIR/pre-tool-use.sh"
   fi
 
-  # Always overwrite rules with repo version
+  # Rules
   cp "$hook_source" "$hook_target"
-  echo "  Installed hook rules to $hook_target"
+  ok "Hook rules"
+
+  # Ensure hook is registered in settings.json
+  python3 - "$CLAUDE_SETTINGS" <<'PYEOF'
+import json
+import sys
+
+settings_path = sys.argv[1]
+hook_command = "~/.claude/hooks/pre-tool-use.sh"
+
+try:
+    with open(settings_path) as f:
+        settings = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    settings = {}
+
+hooks = settings.setdefault("hooks", {})
+pre_tool_use = hooks.setdefault("PreToolUse", [])
+
+# Check if already registered
+already = any(
+    hook_command in h.get("command", "")
+    for entry in pre_tool_use
+    for h in entry.get("hooks", [])
+)
+
+if not already:
+    pre_tool_use.append({
+        "hooks": [{"type": "command", "command": hook_command}]
+    })
+    with open(settings_path, "w") as f:
+        json.dump(settings, f, indent=2)
+        f.write("\n")
+    print("  \033[32m✓\033[0m Hook registered in settings.json")
+else:
+    print("  \033[2m· Hook already registered in settings.json\033[0m")
+PYEOF
+
 else
-  echo "  WARNING: $hook_source not found, skipping hook rules"
+  warn "$hook_source not found, skipping hook installation"
 fi
 
 # --------------------------------------------------------------------------- #
 # 3. Merge built-in rules into settings.json permissions                      #
 # --------------------------------------------------------------------------- #
 
-echo ""
-echo "Merging permissions into settings.json..."
+section "Merging permissions"
 
 builtin_rules="$SCRIPT_DIR/hooks/PreToolUse/built-in-rules.json"
 
 if [[ -f "$builtin_rules" ]]; then
-  # Use Python for reliable JSON merging
   python3 - "$CLAUDE_SETTINGS" "$builtin_rules" <<'PYEOF'
 import json
 import sys
@@ -214,75 +279,100 @@ import sys
 settings_path = sys.argv[1]
 rules_path = sys.argv[2]
 
-# Load or create settings
 try:
     with open(settings_path) as f:
         settings = json.load(f)
 except (FileNotFoundError, json.JSONDecodeError):
     settings = {}
 
-# Load built-in rules
 with open(rules_path) as f:
     rules = json.load(f)
 
-# Ensure permissions structure exists
 if "permissions" not in settings:
     settings["permissions"] = {}
 
-# Collect rules to remove (intentionally retired from repo)
 removed = set(rules.get("removed", []))
 
-# Merge allow rules — union of existing and repo-managed, minus removed
 existing_allow = set(settings["permissions"].get("allow", []))
 repo_allow = set(rules.get("allow", []))
 settings["permissions"]["allow"] = sorted((existing_allow | repo_allow) - removed)
 
-# Merge deny rules — union of existing and repo-managed, minus removed
 existing_deny = set(settings["permissions"].get("deny", []))
 repo_deny = set(rules.get("deny", []))
 settings["permissions"]["deny"] = sorted((existing_deny | repo_deny) - removed)
-
-removed_count = len(removed & (existing_allow | existing_deny))
-if removed_count:
-    print(f"  Removed {removed_count} retired rules from settings.json")
 
 with open(settings_path, "w") as f:
     json.dump(settings, f, indent=2)
     f.write("\n")
 
-print(f"  Merged {len(repo_allow)} allow and {len(repo_deny)} deny rules into {settings_path}")
+new_allow = repo_allow - existing_allow
+new_deny = repo_deny - existing_deny
+removed_count = len(removed & (existing_allow | existing_deny))
+
+if new_allow or new_deny:
+    print(f"  \033[32m✓\033[0m {len(new_allow)} allow + {len(new_deny)} deny rules added")
+else:
+    print(f"  \033[2m· All {len(repo_allow)} allow + {len(repo_deny)} deny rules already present\033[0m")
+
+if removed_count:
+    print(f"  \033[32m✓\033[0m {removed_count} retired rules removed")
 PYEOF
 else
-  echo "  WARNING: $builtin_rules not found, skipping permissions merge"
+  warn "$builtin_rules not found, skipping permissions merge"
 fi
 
 # --------------------------------------------------------------------------- #
-# 4. Upsert <agent-skills-guidance> block in CLAUDE.md                        #
+# 4. Register MCP servers                                                     #
 # --------------------------------------------------------------------------- #
 
-echo ""
-echo "Updating CLAUDE.md guidance..."
+section "Registering MCP servers"
+
+_register_mcp() {
+  local name="$1"
+  shift
+  # Check if already registered (claude mcp list includes all scopes)
+  if command -v claude &>/dev/null && claude mcp list 2>/dev/null | grep -q "^$name:"; then
+    skip "$name already registered"
+    return
+  fi
+
+  if ! command -v claude &>/dev/null; then
+    skip "$name — claude CLI not available"
+    return
+  fi
+
+  if claude mcp add --scope user "$name" "$@" 2>/dev/null; then
+    ok "$name"
+  else
+    warn "$name — registration failed (run manually: claude mcp add $name $*)"
+  fi
+}
+
+_register_mcp "playwright" -- npx @playwright/mcp@latest
+
+# --------------------------------------------------------------------------- #
+# 5. Upsert <agent-skills-guidance> block in CLAUDE.md                        #
+# --------------------------------------------------------------------------- #
+
+section "Updating CLAUDE.md"
 
 core_template="$SCRIPT_DIR/templates/user-claude.md"
 
 if [[ -f "$core_template" ]]; then
-  # Determine GitHub username for personal template lookup
   gh_user=""
   if command -v gh &>/dev/null; then
     gh_user="$(gh api user --jq .login 2>/dev/null || true)"
   fi
 
-  # Build the fenced block content: core + optional personal
   block_content="$(cat "$core_template")"
 
   if [[ -n "$gh_user" ]] && [[ -f "$SCRIPT_DIR/templates/${gh_user}.md" ]]; then
     block_content="${block_content}
 
 $(cat "$SCRIPT_DIR/templates/${gh_user}.md")"
-    echo "  Including personal template for $gh_user"
+    ok "Personal template for $gh_user"
   fi
 
-  # Upsert the fenced block in CLAUDE.md
   python3 - "$CLAUDE_MD" "$block_content" <<'PYEOF'
 import sys
 from pathlib import Path
@@ -301,18 +391,15 @@ if claude_md.exists():
     existing = claude_md.read_text()
 
     if open_tag in existing and close_tag in existing:
-        # Replace existing block
         before = existing[:existing.index(open_tag)]
         after = existing[existing.index(close_tag) + len(close_tag):]
         updated = before + fenced_block + after
         action = "Updated"
     elif open_tag in existing or close_tag in existing:
-        # Malformed — one tag without the other. Warn and prepend.
-        print("  WARNING: Found orphaned agent-skills-guidance tag — prepending fresh block")
+        print("  \033[33m⚠\033[0m Orphaned tag found — prepending fresh block")
         updated = fenced_block + "\n\n" + existing
-        action = "Prepended (orphaned tag found)"
+        action = "Prepended"
     else:
-        # No block yet — prepend
         updated = fenced_block + "\n\n" + existing
         action = "Prepended"
 else:
@@ -320,11 +407,14 @@ else:
     action = "Created"
 
 claude_md.write_text(updated)
-print(f"  {action} agent-skills-guidance block in {claude_md_path}")
+print(f"  \033[32m✓\033[0m {action} guidance block in {claude_md_path}")
 PYEOF
 else
-  echo "  WARNING: $core_template not found, skipping CLAUDE.md update"
+  warn "$core_template not found, skipping CLAUDE.md update"
 fi
 
-echo ""
-echo "Done."
+# --------------------------------------------------------------------------- #
+# Done                                                                        #
+# --------------------------------------------------------------------------- #
+
+printf "\n${_bold}${_green}✓ Setup complete${_reset}\n\n"
