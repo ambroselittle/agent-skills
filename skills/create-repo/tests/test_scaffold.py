@@ -25,9 +25,9 @@ def versions() -> dict:
         "hono_node_server": "1.19.12",
         "tailwindcss": "4.1.3",
         "tailwindcss_vite": "4.1.3",
-        "prisma": "6.6.0",
-        "prisma_client": "6.6.0",
-        "biomejs_biome": "1.9.4",
+        "prisma": "7.5.0",
+        "prisma_client": "7.5.0",
+        "biomejs_biome": "2.0.0",
         "trpc_server": "11.1.0",
         "trpc_client": "11.1.0",
         "trpc_react_query": "11.1.0",
@@ -38,7 +38,7 @@ def versions() -> dict:
         "vitejs_plugin_react": "4.4.1",
         "playwright": "1.52.0",
         "playwright_test": "1.52.0",
-        "prisma_adapter_pg": "6.6.0",
+        "prisma_adapter_pg": "7.5.0",
         "pnpm": "10.33.0",
     }
 
