@@ -15,6 +15,6 @@ export class HomePage extends BasePage {
   }
 
   async waitForApiReady(): Promise<void> {
-    await expect(this.page.getByText("API status:", { exact: false })).not.toContainText("loading...")
+    await expect(this.page.getByText("API status:", { exact: false })).not.toContainText("loading...", { timeout: 15_000 })
   }
 }

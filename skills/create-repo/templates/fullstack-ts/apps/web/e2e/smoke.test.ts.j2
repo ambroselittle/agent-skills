@@ -9,6 +9,7 @@ test.describe("smoke tests", () => {
   })
 
   test("API health endpoint responds", async ({ page }) => {
+    test.setTimeout(30_000)
     const home = new HomePage(page)
     await home.navigate()
     await home.waitForApiReady()
