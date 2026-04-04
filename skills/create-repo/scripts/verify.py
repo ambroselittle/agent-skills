@@ -219,8 +219,8 @@ def verify(
     dev_proc = subprocess.Popen(
         ["pnpm", "dev"],
         cwd=project_dir,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
         env=dev_env,
         start_new_session=True,  # Own process group so we can kill all children
     )
@@ -241,6 +241,7 @@ def verify(
             result.steps.append(StepResult("dev server (web)", False, elapsed, f"Port {web_port} not reachable"))
         else:
             result.steps.append(StepResult("dev server (web)", True, elapsed))
+
 
         # Step 9: E2E tests (while dev server is running)
         if api_up and web_up:
