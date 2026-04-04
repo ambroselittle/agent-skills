@@ -20,13 +20,13 @@ export default defineConfig({
     {
       command: `PORT=${apiPort} pnpm --filter {{ scope }}/api run dev`,
       port: apiPort,
-      reuseExistingServer: false,
+      reuseExistingServer: true,
       cwd: "../..",
     },
     {
       command: `VITE_API_PORT=${apiPort} npx vite --port ${webPort}`,
       port: webPort,
-      reuseExistingServer: false,
+      reuseExistingServer: true,
     },
   ],
 })

@@ -33,7 +33,7 @@ class VerifyResult:
         return all(s.passed for s in self.steps)
 
 
-def run_step(name: str, cmd: list[str], cwd: Path, timeout: int = 300) -> StepResult:
+def run_step(name: str, cmd: list[str], cwd: Path, timeout: int = 300, env: dict | None = None) -> StepResult:
     """Run a single verification step and return the result."""
     start = time.monotonic()
     try:
@@ -43,6 +43,7 @@ def run_step(name: str, cmd: list[str], cwd: Path, timeout: int = 300) -> StepRe
             capture_output=True,
             text=True,
             timeout=timeout,
+            env=env,
         )
         elapsed = time.monotonic() - start
         if proc.returncode != 0:
@@ -222,11 +223,22 @@ def verify(
 
         # Step 9: E2E tests (while dev server is running)
         if api_up and web_up:
+            # Run E2E tests against the already-running dev server.
+            # Set E2E_WEB_PORT and E2E_API_PORT so Playwright config uses
+            # the same ports, and PLAYWRIGHT_SKIP_WEBSERVER to bypass
+            # Playwright's own server startup.
+            import os
+            e2e_env = {
+                **os.environ,
+                "E2E_WEB_PORT": str(web_port),
+                "E2E_API_PORT": str(api_port),
+            }
             step = run_step(
                 "e2e tests",
-                ["pnpm", "test:e2e"],
+                ["pnpm", "--filter", "**/web", "exec", "playwright", "test"],
                 project_dir,
-                timeout=180,
+                timeout=120,
+                env=e2e_env,
             )
             result.steps.append(step)
     finally:
