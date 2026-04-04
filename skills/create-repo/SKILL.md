@@ -229,7 +229,7 @@ The script renders `templates/common/` (shared across all templates) and `templa
 After scaffolding and before verification, run the setup script to initialize ports and environment:
 
 ```bash
-cd <output-dir> && pnpm setup
+cd <output-dir> && pnpm project:setup
 ```
 
 This discovers free ports, writes `.env.ports`, generates root `.env` and per-package `.env` files, and sets `COMPOSE_PROJECT_NAME` for Docker isolation. This makes verification deterministic — no missing `.env` failures.
@@ -251,8 +251,8 @@ This runs the full pipeline in sequence: `pnpm install` → `prisma generate` �
 **If verification passes:** Mark task completed and continue.
 
 **If verification fails:** The script reports which step failed and the error output. Diagnose and fix the issue, then re-run. If the failure is caused by a breaking change in a dependency (e.g., major version upgrade of Prisma, Biome, etc.), track the fix — it becomes a template improvement candidate for the Step 9 report. Common fixes:
-- Port conflict → change the port in the config or re-run `pnpm setup`
-- Missing `.env` → run `pnpm setup` to generate from `.env.example`
+- Port conflict → change the port in the config or re-run `pnpm project:setup`
+- Missing `.env` → run `pnpm project:setup` to generate from `.env.example`
 - Type errors → fix the generated code
 - Test failures → fix the test or the code it tests
 

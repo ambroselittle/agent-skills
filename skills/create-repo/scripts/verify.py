@@ -103,7 +103,7 @@ def verify(
     # Only if the project has a setup script — scaffolded projects do
     setup_script = project_dir / "scripts" / "setup.ts"
     if setup_script.exists():
-        step = run_step("setup", ["pnpm", "setup"], project_dir, timeout=30)
+        step = run_step("setup", ["pnpm", "project:setup"], project_dir, timeout=30)
         result.steps.append(step)
         if not step.passed:
             return result
