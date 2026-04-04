@@ -15,6 +15,25 @@ HOOKS_DIR="$CLAUDE_DIR/hooks"
 mkdir -p "$CLAUDE_SKILLS_DIR"
 
 # --------------------------------------------------------------------------- #
+# Python version check (hook engine needs 3.11+ for str | None syntax)        #
+# --------------------------------------------------------------------------- #
+
+if ! command -v python3 &>/dev/null; then
+  echo "ERROR: python3 not found. The PreToolUse hook engine requires Python 3.11+."
+  exit 1
+fi
+
+py_version="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+py_major="${py_version%%.*}"
+py_minor="${py_version##*.}"
+if [[ "$py_major" -lt 3 ]] || { [[ "$py_major" -eq 3 ]] && [[ "$py_minor" -lt 11 ]]; }; then
+  echo "ERROR: Python $py_version found, but 3.11+ is required (for union type syntax)."
+  echo "  Install a newer Python or update your PATH so python3 resolves to 3.11+."
+  exit 1
+fi
+echo "Python $py_version OK"
+
+# --------------------------------------------------------------------------- #
 # Worktree detection                                                          #
 # --------------------------------------------------------------------------- #
 
@@ -210,15 +229,22 @@ with open(rules_path) as f:
 if "permissions" not in settings:
     settings["permissions"] = {}
 
-# Merge allow rules — union of existing and repo-managed
+# Collect rules to remove (intentionally retired from repo)
+removed = set(rules.get("removed", []))
+
+# Merge allow rules — union of existing and repo-managed, minus removed
 existing_allow = set(settings["permissions"].get("allow", []))
 repo_allow = set(rules.get("allow", []))
-settings["permissions"]["allow"] = sorted(existing_allow | repo_allow)
+settings["permissions"]["allow"] = sorted((existing_allow | repo_allow) - removed)
 
-# Merge deny rules — union of existing and repo-managed
+# Merge deny rules — union of existing and repo-managed, minus removed
 existing_deny = set(settings["permissions"].get("deny", []))
 repo_deny = set(rules.get("deny", []))
-settings["permissions"]["deny"] = sorted(existing_deny | repo_deny)
+settings["permissions"]["deny"] = sorted((existing_deny | repo_deny) - removed)
+
+removed_count = len(removed & (existing_allow | existing_deny))
+if removed_count:
+    print(f"  Removed {removed_count} retired rules from settings.json")
 
 with open(settings_path, "w") as f:
     json.dump(settings, f, indent=2)

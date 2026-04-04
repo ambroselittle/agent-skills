@@ -16,7 +16,7 @@ fi
 
 INPUT="$(cat)"
 
-if OUTPUT="$(echo "$INPUT" | python3.13 "$INTERPRETER" 2> >(tee /tmp/hook-error.txt >&2))"; then
+if OUTPUT="$(echo "$INPUT" | python3 "$INTERPRETER" 2> >(tee /tmp/hook-error.txt >&2))"; then
     echo "$OUTPUT"
 else
     ERROR_MSG="$(cat /tmp/hook-error.txt 2>/dev/null | head -3 | tr '\n' ' ')"

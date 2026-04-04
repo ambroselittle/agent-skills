@@ -40,5 +40,7 @@
     "Bash(rm -rf ~*)",
     "Bash(rm -fr ~*)",
     "Bash(rm -r ~*)"
+  ],
+  "removed": [
   ]
 }

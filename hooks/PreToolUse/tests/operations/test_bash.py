@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from operations.bash import _UNSAFE, _extract_command_names, matches_bash_safe
+# Note: _SAFE was removed — only denylist mode is supported now.
 from engine import evaluate
 
 
@@ -94,11 +95,6 @@ class TestMatchesBashSafe:
         """
         assert matches_bash_safe(bash("rm -rf /path")) is True
 
-    def test_rm_blocked_in_allowlist(self):
-        """rm is NOT in _SAFE — blocked in allowlist (legacy) mode."""
-        allowlist_rule = {"mode": "allowlist"}
-        assert matches_bash_safe(bash("rm -rf /path"), allowlist_rule) is False
-
     def test_sudo_blocked(self):
         """sudo is in _UNSAFE — blocked in denylist mode."""
         assert matches_bash_safe(bash("sudo make install")) is False
@@ -106,11 +102,6 @@ class TestMatchesBashSafe:
     def test_unknown_cli_allowed_in_denylist(self):
         """An unknown CLI tool not in _UNSAFE is allowed in denylist mode."""
         assert matches_bash_safe(bash("rdme docs upload file.md --key $KEY")) is True
-
-    def test_unknown_cli_blocked_in_allowlist(self):
-        """An unknown CLI tool not in _SAFE is blocked in allowlist (legacy) mode."""
-        allowlist_rule = {"mode": "allowlist"}
-        assert matches_bash_safe(bash("rdme docs upload file.md --key $KEY"), allowlist_rule) is False
 
     def test_empty_command(self):
         assert matches_bash_safe(bash("")) is False
