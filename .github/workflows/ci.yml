@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Hook engine tests
+        run: cd hooks/PreToolUse && uvx pytest tests/ -v
+
+      - name: create-repo tests (unit + structural eval)
+        run: cd skills/create-repo && uv run pytest tests/ -v -m "not e2e"
+
+  scaffold-e2e:
+    name: Scaffold E2E
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: eval_project_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Scaffold and verify fullstack-ts
+        run: cd skills/create-repo && uv run pytest tests/test_eval.py -v -m e2e --timeout=300
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/eval_project_dev

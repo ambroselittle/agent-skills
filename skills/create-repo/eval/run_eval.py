@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from eval.checks.check_structure import check_structure
 from eval.models import CheckResult, EvalResult
 from scripts.scaffold import scaffold
+from scripts.verify import verify as run_verify
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 EVAL_RUNS_DIR = PROJECT_ROOT / ".eval-runs"
@@ -98,11 +99,21 @@ def get_versions(template: str) -> dict:
     return FALLBACK_VERSIONS
 
 
-def run_eval(template: str, output_dir: Path | None = None) -> EvalResult:
-    """Run the full eval for a template.
+def run_eval(
+    template: str,
+    output_dir: Path | None = None,
+    full: bool = False,
+    skip_docker: bool = False,
+) -> EvalResult:
+    """Run eval for a template.
 
-    Scaffolds a test project and runs all structural checks against it.
-    Eval output goes to .eval-runs/<template>-<timestamp>/.
+    Scaffolds a test project and runs structural checks. When full=True,
+    also runs the complete verification pipeline (install, build, typecheck,
+    lint, test, dev server, E2E).
+
+    Args:
+        full: Run the full verification pipeline after structural checks.
+        skip_docker: Skip docker compose steps (Postgres already available).
     """
     result = EvalResult(template=template)
     versions = get_versions(template)
@@ -131,7 +142,60 @@ def run_eval(template: str, output_dir: Path | None = None) -> EvalResult:
     structure_checks = check_structure(project_dir, template)
     result.checks.extend(structure_checks)
 
+    # Step 3: Full verification (optional — install, build, test, etc.)
+    if full:
+        if not result.passed:
+            result.checks.append(CheckResult(
+                "verify (skipped)", False, "Structural checks failed — skipping verification",
+            ))
+            return result
+
+        # Write .env files for the scaffolded project so Prisma/API can find DATABASE_URL
+        _write_env_files(project_dir)
+
+        verify_result = run_verify(project_dir, skip_docker=skip_docker)
+        for step in verify_result.steps:
+            result.checks.append(CheckResult(
+                f"verify: {step.name}",
+                step.passed,
+                step.error,
+            ))
+
     return result
+
+
+def _write_env_files(project_dir: Path) -> None:
+    """Write minimal .env files so the scaffolded project can run.
+
+    Uses DATABASE_URL from the environment if set (e.g., CI), otherwise
+    falls back to the default local Postgres URL.
+    """
+    import os
+
+    db_url = os.environ.get(
+        "DATABASE_URL",
+        "postgresql://postgres:postgres@localhost:5432/eval_project_dev",
+    )
+
+    # Root .env
+    (project_dir / ".env").write_text(
+        f"DATABASE_URL={db_url}\n"
+        f"API_PORT=3001\n"
+        f"WEB_PORT=3000\n"
+    )
+
+    # Per-package .env files
+    db_dir = project_dir / "packages" / "db"
+    if db_dir.exists():
+        (db_dir / ".env").write_text(f"DATABASE_URL={db_url}\n")
+
+    api_dir = project_dir / "apps" / "api"
+    if api_dir.exists():
+        (api_dir / ".env").write_text(f"DATABASE_URL={db_url}\nAPI_PORT=3001\n")
+
+    web_dir = project_dir / "apps" / "web"
+    if web_dir.exists():
+        (web_dir / ".env").write_text(f"WEB_PORT=3000\nVITE_API_PORT=3001\n")
 
 
 def print_results(result: EvalResult) -> None:
@@ -165,6 +229,16 @@ def main() -> None:
         "--output",
         help="Output directory (default: .eval-runs/)",
     )
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="Run full verification (install, build, test) — requires pnpm, node, and Postgres",
+    )
+    parser.add_argument(
+        "--skip-docker",
+        action="store_true",
+        help="Skip docker compose (Postgres already available, e.g., CI)",
+    )
     args = parser.parse_args()
 
     templates = AVAILABLE_TEMPLATES if args.template == "all" else [args.template]
@@ -172,7 +246,7 @@ def main() -> None:
 
     for template in templates:
         output = Path(args.output) if args.output else None
-        result = run_eval(template, output)
+        result = run_eval(template, output, full=args.full, skip_docker=args.skip_docker)
         print_results(result)
         if not result.passed:
             all_passed = False

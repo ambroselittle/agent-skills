@@ -78,8 +78,18 @@ def check_health(url: str, timeout: float = 10) -> bool:
         return False
 
 
-def verify(project_dir: Path, api_port: int = 3001, web_port: int = 3000) -> VerifyResult:
-    """Run the full verification suite against a scaffolded project."""
+def verify(
+    project_dir: Path,
+    api_port: int = 3001,
+    web_port: int = 3000,
+    skip_docker: bool = False,
+) -> VerifyResult:
+    """Run the full verification suite against a scaffolded project.
+
+    Args:
+        skip_docker: Skip docker compose up and pg_isready steps. Use when
+            Postgres is already available (e.g., CI service container).
+    """
     project_dir = Path(project_dir).resolve()
     result = VerifyResult()
 
@@ -105,33 +115,34 @@ def verify(project_dir: Path, api_port: int = 3001, web_port: int = 3000) -> Ver
     result.steps.append(step)
     # Non-fatal — continue even if format step fails
 
-    # Step 2: Start Postgres
-    step = run_step("docker compose up", ["docker", "compose", "up", "-d"], project_dir, timeout=60)
-    result.steps.append(step)
-    if not step.passed:
-        return result
+    # Step 2: Start Postgres (skip if already available, e.g., CI service container)
+    if not skip_docker:
+        step = run_step("docker compose up", ["docker", "compose", "up", "-d"], project_dir, timeout=60)
+        result.steps.append(step)
+        if not step.passed:
+            return result
 
-    # Wait for Postgres health check
-    step = run_step(
-        "postgres health",
-        ["docker", "compose", "exec", "-T", "postgres", "pg_isready", "-U", "postgres"],
-        project_dir,
-        timeout=30,
-    )
-    # Retry a few times for Postgres startup
-    for _ in range(5):
-        if step.passed:
-            break
-        time.sleep(2)
+        # Wait for Postgres health check
         step = run_step(
             "postgres health",
             ["docker", "compose", "exec", "-T", "postgres", "pg_isready", "-U", "postgres"],
             project_dir,
-            timeout=10,
+            timeout=30,
         )
-    result.steps.append(step)
-    if not step.passed:
-        return result
+        # Retry a few times for Postgres startup
+        for _ in range(5):
+            if step.passed:
+                break
+            time.sleep(2)
+            step = run_step(
+                "postgres health",
+                ["docker", "compose", "exec", "-T", "postgres", "pg_isready", "-U", "postgres"],
+                project_dir,
+                timeout=10,
+            )
+        result.steps.append(step)
+        if not step.passed:
+            return result
 
     # Step 3: Push database schema
     step = run_step("db push", ["pnpm", "db:push"], project_dir, timeout=60)
@@ -235,9 +246,10 @@ def main() -> None:
     parser.add_argument("project_dir", help="Path to the scaffolded project")
     parser.add_argument("--api-port", type=int, default=3001, help="API server port (default: 3001)")
     parser.add_argument("--web-port", type=int, default=3000, help="Web server port (default: 3000)")
+    parser.add_argument("--skip-docker", action="store_true", help="Skip docker compose (Postgres already available)")
     args = parser.parse_args()
 
-    result = verify(Path(args.project_dir), api_port=args.api_port, web_port=args.web_port)
+    result = verify(Path(args.project_dir), api_port=args.api_port, web_port=args.web_port, skip_docker=args.skip_docker)
     print_results(result)
 
     if not result.passed:
