@@ -18,7 +18,7 @@ What evaluators look for in take-home solutions. **Read this BEFORE planning, no
 - [ ] Unit tests cover business logic and core functions
 - [ ] Integration or API tests cover endpoints (if applicable)
 - [ ] Edge cases tested: empty inputs, invalid data, boundary conditions
-- [ ] **E2E tests for every feature's happy path** (if there is a UI). Not just one smoke test — each user-facing feature should have at least one E2E test that walks through its primary flow. These prove the feature actually works end-to-end, not just that individual units pass in isolation. Use Playwright with Page Object Model for maintainability.
+- [ ] **E2E tests for every feature's happy path** (if there is a UI). Not just one smoke test — each user-facing feature should have at least one E2E test that walks through its primary flow. These prove the feature actually works end-to-end, not just that individual units pass in isolation. Use Playwright with Page Object Model for maintainability. Use `/author-e2e` to generate scenario files and Playwright tests — it enforces POM structure and flakiness best practices.
 - [ ] Tests actually run and pass — not just stubs or skipped tests
 - [ ] Test runner configured so `npm test` / `pytest` / equivalent just works
 - [ ] E2E tests runnable via a single command (`npm run test:e2e` or similar)
