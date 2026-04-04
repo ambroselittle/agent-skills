@@ -16,17 +16,22 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
-  webServer: [
-    {
-      command: `PORT=${apiPort} pnpm --filter {{ scope }}/api run dev`,
-      port: apiPort,
-      reuseExistingServer: true,
-      cwd: "../..",
-    },
-    {
-      command: `VITE_API_PORT=${apiPort} npx vite --port ${webPort}`,
-      port: webPort,
-      reuseExistingServer: true,
-    },
-  ],
+  // Skip webServer when servers are already running (e.g., verify pipeline, CI)
+  ...(process.env.PLAYWRIGHT_SKIP_WEBSERVER
+    ? {}
+    : {
+        webServer: [
+          {
+            command: `PORT=${apiPort} pnpm --filter {{ scope }}/api run dev`,
+            port: apiPort,
+            reuseExistingServer: true,
+            cwd: "../..",
+          },
+          {
+            command: `VITE_API_PORT=${apiPort} npx vite --port ${webPort}`,
+            port: webPort,
+            reuseExistingServer: true,
+          },
+        ],
+      }),
 })

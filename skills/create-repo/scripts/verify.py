@@ -241,14 +241,32 @@ def verify(
                 **os.environ,
                 "E2E_WEB_PORT": str(web_port),
                 "E2E_API_PORT": str(api_port),
+                "PLAYWRIGHT_SKIP_WEBSERVER": "1",
             }
-            step = run_step(
-                "e2e tests",
-                ["pnpm", "--filter", "**/web", "exec", "playwright", "test"],
-                project_dir,
-                timeout=120,
-                env=e2e_env,
-            )
+            # Run Playwright directly instead of via run_step — Playwright's
+            # webServer spawns child processes that hang if stdout is captured.
+            e2e_start = time.monotonic()
+            try:
+                e2e_proc = subprocess.run(
+                    ["pnpm", "--filter", "**/web", "exec", "playwright", "test"],
+                    cwd=project_dir,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    timeout=120,
+                    env=e2e_env,
+                )
+                e2e_elapsed = time.monotonic() - e2e_start
+                if e2e_proc.returncode != 0:
+                    error = e2e_proc.stdout.strip()
+                    if len(error) > 2000:
+                        error = error[:2000] + "\n... (truncated)"
+                    step = StepResult("e2e tests", False, e2e_elapsed, error)
+                else:
+                    step = StepResult("e2e tests", True, e2e_elapsed)
+            except subprocess.TimeoutExpired:
+                e2e_elapsed = time.monotonic() - e2e_start
+                step = StepResult("e2e tests", False, e2e_elapsed, "Timed out after 120s")
             result.steps.append(step)
     finally:
         dev_proc.terminate()
