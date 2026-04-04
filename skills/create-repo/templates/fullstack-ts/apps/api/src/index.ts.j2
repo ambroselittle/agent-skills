@@ -12,6 +12,7 @@ app.get("/api/health", (c) => c.json({ status: "ok" }))
 app.use(
   "/api/trpc/*",
   trpcServer({
+    endpoint: "/api/trpc",
     router: appRouter,
     createContext,
   }),

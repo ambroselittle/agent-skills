@@ -8,10 +8,17 @@ test.describe("smoke tests", () => {
     await expect(await home.getHeading()).toHaveText("{{ project_name }}", { exact: true })
   })
 
-  test("API health endpoint responds", async ({ request }) => {
+  test("API health endpoint responds via proxy", async ({ request }) => {
     const response = await request.get("/api/health")
     expect(response.ok()).toBeTruthy()
     const body = await response.json()
     expect(body.status).toBe("ok")
+  })
+
+  test("tRPC health query resolves in the browser", async ({ page }) => {
+    const home = new HomePage(page)
+    await home.navigate()
+    await home.waitForApiReady()
+    await expect(await home.getApiStatus()).toContainText("ok")
   })
 })
