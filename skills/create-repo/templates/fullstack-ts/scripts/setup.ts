@@ -37,18 +37,19 @@ const rootEnv = [
 writeFileSync(join(root, ".env"), rootEnv + "\n")
 
 // 5. Generate per-package .env files
-const packageEnvs: Record<string, string[]> = {
-  "packages/db": ["DATABASE_URL"],
-  "apps/api": ["DATABASE_URL", "API_PORT"],
-  "apps/web": ["WEB_PORT", "VITE_API_PORT"],
+// Keys are env var names to write; values are the source key from ports.
+const packageEnvs: Record<string, Record<string, string>> = {
+  "packages/db": { DATABASE_URL: "DATABASE_URL" },
+  "apps/api": { DATABASE_URL: "DATABASE_URL", PORT: "API_PORT" },
+  "apps/web": { WEB_PORT: "WEB_PORT", VITE_API_PORT: "API_PORT" },
 }
 
-for (const [pkg, vars] of Object.entries(packageEnvs)) {
+for (const [pkg, varMap] of Object.entries(packageEnvs)) {
   const pkgDir = join(root, pkg)
   if (!existsSync(pkgDir)) continue
-  const content = vars
-    .filter((v) => ports[v] || process.env[v])
-    .map((v) => `${v}=${ports[v] || process.env[v]}`)
+  const content = Object.entries(varMap)
+    .filter(([, src]) => ports[src])
+    .map(([dest, src]) => `${dest}=${ports[src]}`)
     .join("\n")
   writeFileSync(join(pkgDir, ".env"), content + "\n")
   console.log(`Wrote ${pkg}/.env`)
