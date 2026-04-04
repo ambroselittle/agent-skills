@@ -24,7 +24,7 @@ from scripts.scaffold import scaffold
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 EVAL_RUNS_DIR = PROJECT_ROOT / ".eval-runs"
-VERSION_CACHE_DIR = PROJECT_ROOT / ".version-cache"
+VERSION_CACHE_DIR = Path.home() / ".agent-skills" / ".version-cache"
 
 # Default TTL for cached versions (24 hours)
 VERSION_CACHE_TTL_SECONDS = 86400

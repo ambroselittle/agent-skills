@@ -87,7 +87,16 @@ After template is resolved, batch the remaining questions in a single `AskUserQu
 - The user will likely choose "Other" and type their own name. That's expected.
 - Validate: no spaces, no uppercase, no special chars beyond hyphens.
 
-**Question 2 — Customizations:**
+**Question 2 — Output directory:**
+- header: `"Location"`
+- question: `"Where should the project be created?"`
+- options:
+  - label: `"./<project-name> (Recommended)"`, description: `"Create in a subdirectory of the current working directory"`
+  - label: `"~/Code/<project-name>"`, description: `"Create in your Code directory"`
+- The user will likely choose "Other" and type their own path. That's expected.
+- Resolve `~` and relative paths. The scaffold `--output` flag receives this value.
+
+**Question 3 — Customizations:**
 - header: `"Stack"`
 - question: `"Any changes to the default stack?"`
 - options:
@@ -95,7 +104,7 @@ After template is resolved, batch the remaining questions in a single `AskUserQu
   - label: `"Let me specify"`, description: `"I want to swap out or add specific technologies"`
 - If they pick "Let me specify", ask a follow-up for details.
 
-**Question 3 — GitHub:**
+**Question 4 — GitHub:**
 - header: `"GitHub"`
 - question: `"Create a private GitHub repo and push?"`
 - options:
@@ -173,7 +182,7 @@ If any incompatibility is detected, resolve it before proceeding (typically by p
 
 Write the merged results to a `versions.json` file for the scaffold step.
 
-**Version caching:** After resolving, save the versions to `${CLAUDE_SKILL_DIR}/.version-cache/<template>.json` using the format:
+**Version caching:** After resolving, save the versions to `~/.agent-skills/.version-cache/<template>.json` using the format:
 ```json
 {
   "cached_at": <unix-timestamp>,
