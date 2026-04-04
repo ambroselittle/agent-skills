@@ -243,30 +243,37 @@ def verify(
                 "E2E_API_PORT": str(api_port),
                 "PLAYWRIGHT_SKIP_WEBSERVER": "1",
             }
-            # Run Playwright directly instead of via run_step — Playwright's
-            # webServer spawns child processes that hang if stdout is captured.
+            # Run Playwright with output piped to a temp file to avoid
+            # subprocess.PIPE blocking issues with Chromium's output volume.
+            import tempfile
             e2e_start = time.monotonic()
-            try:
-                e2e_proc = subprocess.run(
-                    ["pnpm", "--filter", "**/web", "exec", "playwright", "test"],
-                    cwd=project_dir,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    timeout=120,
-                    env=e2e_env,
-                )
-                e2e_elapsed = time.monotonic() - e2e_start
-                if e2e_proc.returncode != 0:
-                    error = e2e_proc.stdout.strip()
-                    if len(error) > 2000:
-                        error = error[:2000] + "\n... (truncated)"
+            with tempfile.NamedTemporaryFile(mode="w+", suffix=".log", delete=False) as e2e_log:
+                try:
+                    e2e_proc = subprocess.run(
+                        ["pnpm", "--filter", "**/web", "exec", "playwright", "test"],
+                        cwd=project_dir,
+                        stdout=e2e_log,
+                        stderr=subprocess.STDOUT,
+                        timeout=120,
+                        env=e2e_env,
+                    )
+                    e2e_elapsed = time.monotonic() - e2e_start
+                    if e2e_proc.returncode != 0:
+                        e2e_log.seek(0)
+                        error = e2e_log.read().strip()
+                        if len(error) > 2000:
+                            error = error[:2000] + "\n... (truncated)"
+                        step = StepResult("e2e tests", False, e2e_elapsed, error)
+                    else:
+                        step = StepResult("e2e tests", True, e2e_elapsed)
+                except subprocess.TimeoutExpired:
+                    e2e_elapsed = time.monotonic() - e2e_start
+                    e2e_log.seek(0)
+                    partial = e2e_log.read().strip()
+                    error = f"Timed out after 120s"
+                    if partial:
+                        error += f"\nPartial output:\n{partial[:1000]}"
                     step = StepResult("e2e tests", False, e2e_elapsed, error)
-                else:
-                    step = StepResult("e2e tests", True, e2e_elapsed)
-            except subprocess.TimeoutExpired:
-                e2e_elapsed = time.monotonic() - e2e_start
-                step = StepResult("e2e tests", False, e2e_elapsed, "Timed out after 120s")
             result.steps.append(step)
     finally:
         dev_proc.terminate()
