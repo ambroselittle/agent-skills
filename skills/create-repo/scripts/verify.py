@@ -89,6 +89,22 @@ def verify(project_dir: Path, api_port: int = 3001, web_port: int = 3000) -> Ver
     if not step.passed:
         return result
 
+    # Step 1b: Generate Prisma client (triggers barrel postgenerate script)
+    step = run_step(
+        "prisma generate",
+        ["pnpm", "--filter", "**/db", "exec", "prisma", "generate"],
+        project_dir,
+        timeout=60,
+    )
+    result.steps.append(step)
+    if not step.passed:
+        return result
+
+    # Step 1c: Auto-format with Biome (fix formatting drift from generation)
+    step = run_step("biome format", ["pnpm", "lint:fix"], project_dir, timeout=60)
+    result.steps.append(step)
+    # Non-fatal — continue even if format step fails
+
     # Step 2: Start Postgres
     step = run_step("docker compose up", ["docker", "compose", "up", "-d"], project_dir, timeout=60)
     result.steps.append(step)

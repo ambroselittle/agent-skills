@@ -20,6 +20,27 @@ TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 J2_EXTENSION = ".j2"
 
 
+def normalize_version_key(package_name: str) -> str:
+    """Normalize an npm package name to a template variable key.
+
+    Examples:
+        @hono/node-server -> hono_node_server
+        @prisma/client -> prisma_client
+        @biomejs/biome -> biomejs_biome
+        react -> react
+    """
+    key = package_name.lstrip("@")
+    return key.replace("/", "_").replace("-", "_").replace(".", "_")
+
+
+def normalize_versions(versions: dict) -> dict:
+    """Accept versions in either npm-name or underscore-key format and normalize."""
+    normalized = {}
+    for key, value in versions.items():
+        normalized[normalize_version_key(key)] = value
+    return normalized
+
+
 def build_context(project_name: str, versions: dict) -> dict:
     """Build the Jinja2 template context from project config."""
     # Derive the npm scope from the project name (e.g., my-app -> @my-app)
@@ -27,7 +48,7 @@ def build_context(project_name: str, versions: dict) -> dict:
     return {
         "project_name": project_name,
         "scope": scope,
-        "versions": versions,
+        "versions": normalize_versions(versions),
     }
 
 
