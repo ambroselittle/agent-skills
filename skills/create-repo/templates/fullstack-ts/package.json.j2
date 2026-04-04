@@ -10,7 +10,8 @@
     "typecheck": "turbo typecheck",
     "db:push": "turbo db:push --filter={{ scope }}/db",
     "db:studio": "pnpm --filter={{ scope }}/db exec prisma studio",
-    "db:seed": "turbo db:seed --filter={{ scope }}/db"
+    "db:seed": "turbo db:seed --filter={{ scope }}/db",
+    "test:e2e": "turbo test:e2e"
   },
   "devDependencies": {
     "@biomejs/biome": "{{ versions.biomejs_biome }}",
