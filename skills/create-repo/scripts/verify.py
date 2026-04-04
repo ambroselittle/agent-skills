@@ -250,8 +250,8 @@ def verify(
             with tempfile.NamedTemporaryFile(mode="w+", suffix=".log", delete=False) as e2e_log:
                 try:
                     e2e_proc = subprocess.run(
-                        ["pnpm", "--filter", "**/web", "exec", "playwright", "test"],
-                        cwd=project_dir,
+                        ["npx", "playwright", "test"],
+                        cwd=project_dir / "apps" / "web",
                         stdout=e2e_log,
                         stderr=subprocess.STDOUT,
                         timeout=120,
