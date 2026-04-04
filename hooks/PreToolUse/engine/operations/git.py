@@ -126,12 +126,18 @@ def matches_git_force_push(payload: dict, rule: dict) -> bool:
         branch = _extract_push_branch(tokens)
 
         if deny_branches:
-            if branch is None:
-                return True
-            if _branch_matches_any(branch, deny_branches):
+            # Only deny when we can positively identify the branch as denied.
+            # branch=None means no explicit branch (pushes tracking branch) —
+            # we can't confirm it's main, so don't assume the worst.
+            if branch is not None and _branch_matches_any(branch, deny_branches):
                 return True
 
         if allow_branches:
+            # Wildcard: * means "any branch" — allow even when branch is
+            # unspecified (tracking branch push), since deny already had
+            # its chance to match on known-bad branches.
+            if branch is None and "*" in allow_branches:
+                return True
             if branch is not None and _branch_matches_any(branch, allow_branches):
                 return True
 
