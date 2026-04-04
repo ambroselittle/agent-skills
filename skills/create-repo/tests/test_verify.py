@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
 import pytest
+
+_skip_in_ci = pytest.mark.skipif(
+    os.environ.get("CI") == "true",
+    reason="Process-group mocks interact badly with CI runner (kills PG 1)",
+)
 
 from scripts.verify import StepResult, VerifyResult, run_step, verify
 
@@ -116,6 +122,7 @@ def test_verify_runs_correct_command_sequence():
     assert "docker" in commands_run
 
 
+@_skip_in_ci
 def test_verify_runs_e2e_when_servers_are_up():
     """E2E tests should run when both API and web servers are reachable."""
     commands_run = []
@@ -144,6 +151,7 @@ def test_verify_runs_e2e_when_servers_are_up():
     assert len(e2e_steps) == 1
 
 
+@_skip_in_ci
 def test_verify_skips_e2e_when_server_down():
     """E2E tests should NOT run when the web server is unreachable."""
     def fake_run(cmd, **kwargs):
