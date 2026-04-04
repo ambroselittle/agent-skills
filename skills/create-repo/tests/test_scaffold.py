@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.scaffold import build_context, scaffold
+from scripts.scaffold import build_context, normalize_version_key, scaffold
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -38,8 +38,33 @@ def versions() -> dict:
         "vitejs_plugin_react": "4.4.1",
         "playwright": "1.52.0",
         "playwright_test": "1.52.0",
+        "prisma_adapter_pg": "6.6.0",
         "pnpm": "10.33.0",
     }
+
+
+# --- normalize_version_key ---
+
+
+def test_normalize_version_key_scoped():
+    assert normalize_version_key("@hono/node-server") == "hono_node_server"
+    assert normalize_version_key("@prisma/client") == "prisma_client"
+    assert normalize_version_key("@biomejs/biome") == "biomejs_biome"
+
+
+def test_normalize_version_key_simple():
+    assert normalize_version_key("react") == "react"
+    assert normalize_version_key("typescript") == "typescript"
+
+
+def test_normalize_version_key_already_normalized():
+    assert normalize_version_key("hono_node_server") == "hono_node_server"
+
+
+def test_build_context_normalizes_versions():
+    ctx = build_context("my-app", {"@prisma/client": "6.0.0", "react": "19.0.0"})
+    assert ctx["versions"]["prisma_client"] == "6.0.0"
+    assert ctx["versions"]["react"] == "19.0.0"
 
 
 # --- build_context ---
@@ -95,6 +120,18 @@ def test_scaffold_fullstack_ts_creates_expected_structure(tmp_path, versions):
     assert (output / "apps" / "web" / "e2e" / "smoke.test.ts").exists()
     assert (output / ".claude" / "rules" / "e2e-testing.md").exists()
     assert (output / ".claude" / "rules" / "flakiness-practices.md").exists()
+
+    # Prisma 7 files
+    assert (output / "packages" / "db" / "prisma.config.ts").exists()
+    assert (output / "packages" / "db" / "scripts" / "generate-barrel.ts").exists()
+
+    # Scripts
+    assert (output / "scripts" / "cleanup-samples.ts").exists()
+    assert (output / "scripts" / "discover-ports.ts").exists()
+    assert (output / "scripts" / "setup.ts").exists()
+
+    # Vite
+    assert (output / "apps" / "web" / "src" / "vite-env.d.ts").exists()
 
     # Packages
     assert (output / "packages" / "db" / "package.json").exists()

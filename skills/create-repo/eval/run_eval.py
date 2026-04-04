@@ -42,6 +42,7 @@ FALLBACK_VERSIONS = {
     "tailwindcss_vite": "4.1.3",
     "prisma": "6.6.0",
     "prisma_client": "6.6.0",
+    "prisma_adapter_pg": "6.6.0",
     "biomejs_biome": "1.9.4",
     "trpc_server": "11.1.0",
     "trpc_client": "11.1.0",
