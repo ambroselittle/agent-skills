@@ -187,6 +187,11 @@ def verify(
     if not step.passed:
         return result
 
+    # Step 3b: Seed database
+    step = run_step("db seed", ["pnpm", "db:seed"], project_dir, timeout=60)
+    result.steps.append(step)
+    # Non-fatal — tests can run without seed data
+
     # Step 4: Build
     step = run_step("build", ["pnpm", "build"], project_dir, timeout=120)
     result.steps.append(step)
