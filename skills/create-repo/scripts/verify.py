@@ -109,7 +109,7 @@ def verify(
         if not step.passed:
             return result
 
-        # Read discovered API port so verify uses it (web port stays at vite's default)
+        # Read discovered ports so verify uses the same ones as the dev servers
         ports_file = project_dir / ".env.ports"
         if ports_file.exists():
             for line in ports_file.read_text().splitlines():
@@ -117,6 +117,8 @@ def verify(
                     key, val = line.split("=", 1)
                     if key == "API_PORT":
                         api_port = int(val)
+                    elif key == "WEB_PORT":
+                        web_port = int(val)
 
     # Step 1c: Generate Prisma client + barrel exports
     step = run_step(
