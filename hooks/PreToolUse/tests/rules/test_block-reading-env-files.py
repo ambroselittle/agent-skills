@@ -5,6 +5,7 @@ from engine import evaluate
 REPO = "/repo/myproject"
 
 RULE_DESCRIPTION = "Block reading .env files — apply even inside repos since they may contain secrets"
+RULE_ID = "block-env-reads"
 
 
 def _payload(tool_name, tool_input, cwd=REPO):

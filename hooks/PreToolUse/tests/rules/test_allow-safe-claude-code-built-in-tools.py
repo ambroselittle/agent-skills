@@ -3,6 +3,7 @@
 from engine import evaluate
 
 RULE_DESCRIPTION = "Allow safe Claude Code built-in tools"
+RULE_ID = "allow-builtin-tools"
 
 
 def _tool(name, cwd="/repo"):

@@ -5,6 +5,7 @@ from pathlib import Path
 from engine import evaluate
 
 RULE_DESCRIPTION = "Allow writes to ~/.agent-skills/ — shared cache and state for agent skills"
+RULE_ID = "allow-write-agent-skills"
 
 REPO = "/repo/myproject"
 HOME = str(Path.home())

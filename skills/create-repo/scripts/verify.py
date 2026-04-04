@@ -99,10 +99,19 @@ def verify(
     if not step.passed:
         return result
 
-    # Step 1b: Generate Prisma client (triggers barrel postgenerate script)
+    # Step 1b: Run project setup (port discovery + .env generation)
+    # Only if the project has a setup script — scaffolded projects do
+    setup_script = project_dir / "scripts" / "setup.ts"
+    if setup_script.exists():
+        step = run_step("setup", ["pnpm", "setup"], project_dir, timeout=30)
+        result.steps.append(step)
+        if not step.passed:
+            return result
+
+    # Step 1c: Generate Prisma client + barrel exports
     step = run_step(
         "prisma generate",
-        ["pnpm", "--filter", "**/db", "exec", "prisma", "generate"],
+        ["pnpm", "--filter", "**/db", "run", "generate"],
         project_dir,
         timeout=60,
     )
@@ -110,7 +119,7 @@ def verify(
     if not step.passed:
         return result
 
-    # Step 1c: Auto-format with Biome (fix formatting drift from generation)
+    # Step 1d: Auto-format with Biome (fix formatting drift from generation)
     step = run_step("biome format", ["pnpm", "lint:fix"], project_dir, timeout=60)
     result.steps.append(step)
     # Non-fatal — continue even if format step fails

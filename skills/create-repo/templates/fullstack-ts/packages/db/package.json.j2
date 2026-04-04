@@ -4,9 +4,9 @@
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
+    "generate": "prisma generate && tsx scripts/generate-barrel.ts",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "postgenerate": "tsx scripts/generate-barrel.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit"
   },

@@ -3,6 +3,7 @@
 from engine import evaluate
 
 RULE_DESCRIPTION = "Block gh api DELETE calls — these are irreversible"
+RULE_ID = "block-gh-api-delete"
 
 
 def _payload(command, cwd="/repo"):

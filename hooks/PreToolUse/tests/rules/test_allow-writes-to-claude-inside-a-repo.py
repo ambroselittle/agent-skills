@@ -3,6 +3,7 @@
 from engine import evaluate
 
 RULE_DESCRIPTION = "Allow writes to .claude/ inside a repo"
+RULE_ID = "allow-write-claude-dir"
 
 REPO = "/repo/myproject"
 

@@ -3,7 +3,63 @@
 Evaluates all hook rules against a tool call payload.
 Priority: deny > ask > allow > proceed (no match).
 """
+import json
+import os
 import re
+
+_repo_config_cache: dict[str, dict | None] = {}
+
+
+def _load_repo_config(repo_root: str | None) -> dict | None:
+    """Load .agent-skills/config.json from repo root, with caching."""
+    if repo_root is None:
+        return None
+    if repo_root in _repo_config_cache:
+        return _repo_config_cache[repo_root]
+
+    config_path = os.path.join(repo_root, ".agent-skills", "config.json")
+    config = None
+    try:
+        with open(config_path) as f:
+            config = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+
+    _repo_config_cache[repo_root] = config
+    return config
+
+
+def _get_rule_overrides(config: dict | None, rule_id: str | None) -> dict | None:
+    """Get per-repo overrides for a specific rule by id."""
+    if config is None or rule_id is None:
+        return None
+    rules = (
+        config.get("hooks", {})
+        .get("PreToolUse", {})
+        .get("rules", [])
+    )
+    for rule_override in rules:
+        if rule_override.get("rule") == rule_id:
+            return rule_override
+    return None
+
+
+def _path_matches_allowed(payload: dict, allowed_paths: list[str], repo_root: str, cwd: str) -> bool:
+    """Check if the tool call's file path matches any allowed path pattern."""
+    from resolver import matches_path_pattern
+
+    tool_input = payload.get("tool_input", {})
+
+    # Extract the file path from the payload
+    file_path = tool_input.get("file_path", "")
+    if not file_path:
+        # For Bash commands, this doesn't apply
+        return False
+
+    for pattern in allowed_paths:
+        if matches_path_pattern(file_path, pattern, repo_root, cwd):
+            return True
+    return False
 
 
 def evaluate(payload: dict, rules: list, repo_root: str | None = None) -> dict:
@@ -22,7 +78,7 @@ def evaluate(payload: dict, rules: list, repo_root: str | None = None) -> dict:
 
     cwd = payload.get("cwd", "")
 
-    decisions: list[tuple[str, str]] = []
+    decisions: list[tuple[str, str, dict]] = []
 
     for rule in rules:
         operation = rule.get("operation")
@@ -59,16 +115,25 @@ def evaluate(payload: dict, rules: list, repo_root: str | None = None) -> dict:
             matched = _match_pattern(payload, pattern)
 
         if matched:
-            decisions.append((action, reason))
+            decisions.append((action, reason, rule))
+
+    # Load per-repo config for override checking
+    repo_config = _load_repo_config(repo_root)
 
     # Priority: deny > ask > allow
-    for action, reason in decisions:
+    for action, reason, rule_ref in decisions:
         if action == "deny":
+            # Check for per-repo override
+            rule_id = rule_ref.get("id") if rule_ref else None
+            overrides = _get_rule_overrides(repo_config, rule_id)
+            if overrides and "allowedPaths" in overrides:
+                if _path_matches_allowed(payload, overrides["allowedPaths"], repo_root or "", cwd):
+                    continue  # Skip this deny — path is allowed by repo config
             return {"decision": "deny", "reason": reason}
-    for action, reason in decisions:
+    for action, reason, rule_ref in decisions:
         if action == "ask":
             return {"decision": "ask", "reason": reason}
-    for action, reason in decisions:
+    for action, reason, rule_ref in decisions:
         if action == "allow":
             return {"decision": "allow"}
 

@@ -1,0 +1,12 @@
+{
+  "hooks": {
+    "PreToolUse": {
+      "rules": [
+        {
+          "rule": "block-env-reads",
+          "allowedPaths": [".eval-runs/**/.env*", ".eval-runs/**/.envrc"]
+        }
+      ]
+    }
+  }
+}

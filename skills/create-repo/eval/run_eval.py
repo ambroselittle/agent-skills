@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone
@@ -150,25 +151,40 @@ def run_eval(
             ))
             return result
 
-        # Write .env files for the scaffolded project so Prisma/API can find DATABASE_URL
-        _write_env_files(project_dir)
+        # In CI (skip_docker=True), write .env files before verify since
+        # pnpm setup won't discover ports (Postgres is a service container).
+        # Locally, verify.py runs pnpm setup which handles .env generation.
+        if skip_docker:
+            _write_ci_env_files(project_dir)
 
-        verify_result = run_verify(project_dir, skip_docker=skip_docker)
-        for step in verify_result.steps:
-            result.checks.append(CheckResult(
-                f"verify: {step.name}",
-                step.passed,
-                step.error,
-            ))
+        try:
+            verify_result = run_verify(
+                project_dir,
+                skip_docker=skip_docker,
+            )
+            for step in verify_result.steps:
+                result.checks.append(CheckResult(
+                    f"verify: {step.name}",
+                    step.passed,
+                    step.error,
+                ))
+        finally:
+            # Clean up Docker resources if we started them
+            if not skip_docker:
+                subprocess.run(
+                    ["docker", "compose", "down", "-v", "--remove-orphans"],
+                    cwd=project_dir,
+                    capture_output=True,
+                    timeout=30,
+                )
 
     return result
 
 
-def _write_env_files(project_dir: Path) -> None:
-    """Write minimal .env files so the scaffolded project can run.
+def _write_ci_env_files(project_dir: Path) -> None:
+    """Write .env files for CI where Postgres is a service container.
 
-    Uses DATABASE_URL from the environment if set (e.g., CI), otherwise
-    falls back to the default local Postgres URL.
+    Uses DATABASE_URL from the environment. Locally, pnpm setup handles this.
     """
     import os
 
@@ -180,6 +196,7 @@ def _write_env_files(project_dir: Path) -> None:
     # Root .env
     (project_dir / ".env").write_text(
         f"DATABASE_URL={db_url}\n"
+        f"DB_PORT=5432\n"
         f"API_PORT=3001\n"
         f"WEB_PORT=3000\n"
     )
@@ -191,7 +208,7 @@ def _write_env_files(project_dir: Path) -> None:
 
     api_dir = project_dir / "apps" / "api"
     if api_dir.exists():
-        (api_dir / ".env").write_text(f"DATABASE_URL={db_url}\nAPI_PORT=3001\n")
+        (api_dir / ".env").write_text(f"DATABASE_URL={db_url}\nPORT=3001\n")
 
     web_dir = project_dir / "apps" / "web"
     if web_dir.exists():

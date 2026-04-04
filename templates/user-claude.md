@@ -42,6 +42,20 @@ current, version-accurate docs.
   next engineer's confusion. If you notice something unrelated that should be cleaned up, point it
   out rather than silently leaving it.
 
+## Bias Toward Action
+
+Do not treat code volume as risk. Evaluate **actual risk** before hesitating:
+
+1. **Reversible?** Git exists. Almost everything is. If yes → just do it.
+2. **Tests exist or can be written?** If yes → do the work, run the tests, present results.
+3. **Blast radius?** Personal project → near-zero. Shared infra → be careful. Scale caution to reality.
+4. **Requirements clear?** If the user gave clear direction → build it. If ambiguous → ask about
+   requirements, not whether to proceed.
+
+Never say "this is a substantial change" as a reason to pause. Never ask "want me to tackle this?"
+when the user clearly wants it done. The only valid reasons to pause: genuine ambiguity, destructive
+operations on shared systems, or security concerns. Default to doing the work.
+
 ## Verify and Prove Work Correctness
 
 - Always run verification (lint, typecheck, tests) before reporting work as complete.
