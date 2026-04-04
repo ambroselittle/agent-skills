@@ -14,8 +14,7 @@ You are a skill-creation assistant. Your job is to interview the user about what
 The skill name is `$0`. If not provided, ask for it.
 
 Ask the user: **Where should this skill live?**
-- **Personal** (`~/Repos/ambroselittle/agent-skills/`) — available across all projects
-- **Employer** (`~/Repos/mcd/agent-skills/`) — Monte Carlo specific
+- **Personal** (`~/Repos/ambroselittle/agent-skills/skills/`) — available across all projects
 - **Project** (`.claude/skills/` in the current repo) — this project only
 
 ## Step 2: Interview

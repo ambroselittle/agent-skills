@@ -15,8 +15,60 @@ HOOKS_DIR="$CLAUDE_DIR/hooks"
 mkdir -p "$CLAUDE_SKILLS_DIR"
 
 # --------------------------------------------------------------------------- #
+# Worktree detection                                                          #
+# --------------------------------------------------------------------------- #
+
+IS_WORKTREE=false
+MAIN_REPO=""
+
+if git -C "$SCRIPT_DIR" rev-parse --is-inside-work-tree &>/dev/null; then
+  worktree_root="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
+  git_common="$(git -C "$SCRIPT_DIR" rev-parse --git-common-dir)"
+  main_repo="$(cd "$git_common" && cd .. && pwd)"
+
+  if [[ "$worktree_root" != "$main_repo" ]]; then
+    IS_WORKTREE=true
+    MAIN_REPO="$main_repo"
+    echo "Worktree detected — only linking skills changed on this branch."
+    echo "  Main repo: $MAIN_REPO"
+    echo ""
+  fi
+fi
+
+# --------------------------------------------------------------------------- #
 # 1. Link skills                                                              #
 # --------------------------------------------------------------------------- #
+
+# In a worktree: only relink skills with changes on the current branch.
+# Everything else stays linked to main repo.
+_changed_skills=()
+if $IS_WORKTREE; then
+  # Get skills modified on this branch (vs main) or with uncommitted changes
+  while IFS= read -r file; do
+    # Extract skill name from paths like skills/<name>/...
+    if [[ "$file" == skills/* ]]; then
+      skill="${file#skills/}"
+      skill="${skill%%/*}"
+      _changed_skills+=("$skill")
+    fi
+  done < <(
+    git -C "$SCRIPT_DIR" diff --name-only main... -- skills/ 2>/dev/null
+    git -C "$SCRIPT_DIR" diff --name-only -- skills/ 2>/dev/null
+  )
+  # Deduplicate
+  _changed_skills=($(printf '%s\n' "${_changed_skills[@]}" | sort -u))
+fi
+
+_should_link_skill() {
+  local skill_name="$1"
+  if ! $IS_WORKTREE; then
+    return 0  # Main repo: link everything
+  fi
+  for s in "${_changed_skills[@]}"; do
+    [[ "$s" == "$skill_name" ]] && return 0
+  done
+  return 1  # Worktree but skill not changed: skip
+}
 
 echo "Linking skills from $SCRIPT_DIR/skills/..."
 for skill_dir in "$SCRIPT_DIR"/skills/*/; do
@@ -26,43 +78,65 @@ for skill_dir in "$SCRIPT_DIR"/skills/*/; do
   # Skip non-skill directories (no SKILL.md) — shared/ is handled separately
   [[ -f "$skill_dir/SKILL.md" ]] || continue
 
+  if ! _should_link_skill "$skill_name"; then
+    echo "  $skill_name: unchanged, keeping main link"
+    continue
+  fi
+
   target="$CLAUDE_SKILLS_DIR/$skill_name"
 
+  # Remove existing symlink to replace it (worktree or main)
   if [[ -L "$target" ]]; then
     existing="$(readlink "$target")"
     if [[ "$existing" == "$skill_dir" || "$existing" == "${skill_dir%/}" ]]; then
       echo "  $skill_name: already linked"
       continue
-    else
-      echo "  $skill_name: WARNING - symlink exists pointing to $existing, skipping"
-      continue
     fi
+    # Different target — replace it
+    rm -f "$target"
   elif [[ -e "$target" ]]; then
     echo "  $skill_name: WARNING - non-symlink exists at $target, skipping"
     continue
   fi
 
   ln -s "${skill_dir%/}" "$target"
-  echo "  $skill_name: linked"
+  if $IS_WORKTREE; then
+    echo "  $skill_name: dev-linked (worktree)"
+  else
+    echo "  $skill_name: linked"
+  fi
 done
 
 # Link shared resources (agents, scripts used by multiple skills)
+# In a worktree, link shared if any skill under shared/ changed, or if
+# any changed skill might depend on shared (always link from worktree).
 shared_source="$SCRIPT_DIR/skills/shared"
 shared_target="$CLAUDE_SKILLS_DIR/shared"
 
 if [[ -d "$shared_source" ]]; then
-  if [[ -L "$shared_target" ]]; then
-    existing="$(readlink "$shared_target")"
-    if [[ "$existing" == "$shared_source" ]]; then
-      echo "  shared: already linked"
+  _link_shared=true
+  if $IS_WORKTREE && [[ ${#_changed_skills[@]} -eq 0 ]]; then
+    _link_shared=false
+  fi
+
+  if $_link_shared; then
+    if [[ -L "$shared_target" ]]; then
+      existing="$(readlink "$shared_target")"
+      if [[ "$existing" == "$shared_source" ]]; then
+        echo "  shared: already linked"
+      else
+        rm -f "$shared_target"
+        ln -s "$shared_source" "$shared_target"
+        echo "  shared: linked"
+      fi
+    elif [[ -e "$shared_target" ]]; then
+      echo "  shared: WARNING - non-symlink exists at $shared_target, skipping"
     else
-      echo "  shared: WARNING - symlink exists pointing to $existing, skipping"
+      ln -s "$shared_source" "$shared_target"
+      echo "  shared: linked"
     fi
-  elif [[ -e "$shared_target" ]]; then
-    echo "  shared: WARNING - non-symlink exists at $shared_target, skipping"
   else
-    ln -s "$shared_source" "$shared_target"
-    echo "  shared: linked"
+    echo "  shared: unchanged, keeping main link"
   fi
 fi
 
