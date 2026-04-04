@@ -171,6 +171,16 @@ def verify(project_dir: Path, api_port: int = 3001, web_port: int = 3000) -> Ver
             result.steps.append(StepResult("dev server (web)", False, elapsed, f"Port {web_port} not reachable"))
         else:
             result.steps.append(StepResult("dev server (web)", True, elapsed))
+
+        # Step 9: E2E tests (while dev server is running)
+        if api_up and web_up:
+            step = run_step(
+                "e2e tests",
+                ["pnpm", "test:e2e"],
+                project_dir,
+                timeout=180,
+            )
+            result.steps.append(step)
     finally:
         dev_proc.terminate()
         try:
