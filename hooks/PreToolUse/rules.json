@@ -135,6 +135,14 @@
       "action": "allow"
     },
     {
+      "description": "Allow writes to ~/.agent-skills/ — shared cache and state for agent skills",
+      "operation": "write-path",
+      "paths": [
+        "~/.agent-skills/**"
+      ],
+      "action": "allow"
+    },
+    {
       "description": "Allow safe Claude Code built-in tools",
       "operation": "tool-name",
       "names": [
