@@ -3,6 +3,7 @@
 from engine import evaluate
 
 RULE_DESCRIPTION = "Block force push to main or master"
+RULE_ID = "block-force-push-main"
 
 
 def _payload(command, cwd="/repo"):

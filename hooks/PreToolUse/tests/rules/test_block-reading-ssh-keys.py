@@ -8,6 +8,7 @@ HOME = str(Path.home())
 REPO = "/repo/myproject"
 
 RULE_DESCRIPTION = "Block reading SSH keys"
+RULE_ID = "block-ssh-reads"
 
 
 def _payload(tool_name, tool_input, cwd=REPO):

@@ -8,6 +8,7 @@ HOME = str(Path.home())
 REPO = "/repo/myproject"
 
 RULE_DESCRIPTION = "Block reading macOS Keychain files"
+RULE_ID = "block-keychain-reads"
 
 
 def _payload(tool_name, tool_input, cwd=REPO):

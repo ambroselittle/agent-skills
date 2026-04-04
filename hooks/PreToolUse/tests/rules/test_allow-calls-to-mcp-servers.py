@@ -3,6 +3,7 @@
 from engine import evaluate
 
 RULE_DESCRIPTION = "Allow calls to MCP servers"
+RULE_ID = "allow-mcp"
 
 
 def _mcp(tool_name):

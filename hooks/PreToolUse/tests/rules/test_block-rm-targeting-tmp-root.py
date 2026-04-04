@@ -12,6 +12,7 @@ Allowed:   rm -rf /tmp/my-dir   (specific subdirectory — safe to allow)
 from engine import evaluate
 
 RULE_DESCRIPTION = "Block rm targeting /tmp root — removing the entire temp directory is likely unintended; specify a subdirectory"
+RULE_ID = "block-rm-tmp"
 
 
 def _bash(command, cwd="/repo"):

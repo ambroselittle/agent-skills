@@ -3,6 +3,7 @@
 from engine import evaluate
 
 RULE_DESCRIPTION = "Allow reset hard to remote refs — approved workflow for syncing local to origin"
+RULE_ID = "allow-reset-hard-remote"
 
 
 def _payload(command, cwd="/repo"):

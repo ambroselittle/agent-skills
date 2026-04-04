@@ -3,6 +3,7 @@
 from engine import evaluate
 
 RULE_DESCRIPTION = "Block piping network content to a shell"
+RULE_ID = "block-pipe-to-shell"
 
 
 def _bash(command, cwd="/repo"):

@@ -87,7 +87,16 @@ After template is resolved, batch the remaining questions in a single `AskUserQu
 - The user will likely choose "Other" and type their own name. That's expected.
 - Validate: no spaces, no uppercase, no special chars beyond hyphens.
 
-**Question 2 — Customizations:**
+**Question 2 — Output directory:**
+- header: `"Location"`
+- question: `"Where should the project be created?"`
+- options:
+  - label: `"./<project-name> (Recommended)"`, description: `"Create in a subdirectory of the current working directory"`
+  - label: `"~/Code/<project-name>"`, description: `"Create in your Code directory"`
+- The user will likely choose "Other" and type their own path. That's expected.
+- Resolve `~` and relative paths. The scaffold `--output` flag receives this value.
+
+**Question 3 — Customizations:**
 - header: `"Stack"`
 - question: `"Any changes to the default stack?"`
 - options:
@@ -95,7 +104,7 @@ After template is resolved, batch the remaining questions in a single `AskUserQu
   - label: `"Let me specify"`, description: `"I want to swap out or add specific technologies"`
 - If they pick "Let me specify", ask a follow-up for details.
 
-**Question 3 — GitHub:**
+**Question 4 — GitHub:**
 - header: `"GitHub"`
 - question: `"Create a private GitHub repo and push?"`
 - options:
@@ -158,7 +167,7 @@ Before scaffolding, resolve the latest stable versions of all dependencies in th
 - **Agent 1 — Frontend core:** react, react-dom, @types/react, @types/react-dom, vite, @vitejs/plugin-react
 - **Agent 2 — Styling:** tailwindcss, @tailwindcss/vite
 - **Agent 3 — API & RPC:** hono, @hono/node-server, @hono/trpc-server, @trpc/server, @trpc/client, @trpc/react-query, @tanstack/react-query
-- **Agent 4 — Database:** @prisma/client, prisma
+- **Agent 4 — Database:** @prisma/client, prisma, @prisma/adapter-pg, dotenv
 - **Agent 5 — Dev tools:** typescript, @biomejs/biome, vitest, playwright, @playwright/test
 
 Each agent should run `npm view <package> version` for each package and return the results. On failure (network error, package not found), the agent should report the error clearly.
@@ -173,7 +182,7 @@ If any incompatibility is detected, resolve it before proceeding (typically by p
 
 Write the merged results to a `versions.json` file for the scaffold step.
 
-**Version caching:** After resolving, save the versions to `${CLAUDE_SKILL_DIR}/.version-cache/<template>.json` using the format:
+**Version caching:** After resolving, save the versions to `~/.agent-skills/.version-cache/<template>.json` using the format:
 ```json
 {
   "cached_at": <unix-timestamp>,
@@ -215,6 +224,18 @@ The script renders `templates/common/` (shared across all templates) and `templa
 
 ---
 
+## Step 5b: Setup Environment
+
+After scaffolding and before verification, run the setup script to initialize ports and environment:
+
+```bash
+cd <output-dir> && pnpm project:setup
+```
+
+This discovers free ports, writes `.env.ports`, generates root `.env` and per-package `.env` files, and sets `COMPOSE_PROJECT_NAME` for Docker isolation. This makes verification deterministic — no missing `.env` failures.
+
+---
+
 ## Step 6: Install & Verify
 
 **Mark task in_progress.**
@@ -225,13 +246,13 @@ Run the verification script:
 cd ${CLAUDE_SKILL_DIR} && uv run python -m scripts.verify <output-dir>
 ```
 
-This runs the full pipeline in sequence: `pnpm install` → `docker compose up` → `db push` → `build` → `typecheck` → `lint` → `test` → dev server smoke check. It reports per-step pass/fail with timing.
+This runs the full pipeline in sequence: `pnpm install` → `prisma generate` → `biome format` → `docker compose up` → `db push` → `build` → `typecheck` → `lint` → `test` → dev server smoke check → E2E tests. It reports per-step pass/fail with timing.
 
 **If verification passes:** Mark task completed and continue.
 
-**If verification fails:** The script reports which step failed and the error output. Diagnose and fix the issue, then re-run. Common fixes:
-- Port conflict → change the port in the config
-- Missing `.env` → create one from `.env.example`
+**If verification fails:** The script reports which step failed and the error output. Diagnose and fix the issue, then re-run. If the failure is caused by a breaking change in a dependency (e.g., major version upgrade of Prisma, Biome, etc.), track the fix — it becomes a template improvement candidate for the Step 9 report. Common fixes:
+- Port conflict → change the port in the config or re-run `pnpm project:setup`
+- Missing `.env` → run `pnpm project:setup` to generate from `.env.example`
 - Type errors → fix the generated code
 - Test failures → fix the test or the code it tests
 
@@ -281,6 +302,17 @@ Report results, then suggest what to do next:
 > - Run `/start-work` to plan your first feature
 > - The starter includes a basic health check — start building from there
 > - Tests run with `pnpm test` (Vitest/pytest depending on template)"
+
+---
+
+## Step 9: Template Improvement Report
+
+If any fixes were needed during verification (Step 6) — e.g., a dependency version introduced a breaking change that the templates don't account for — write a summary of template changes needed to `.work/create-repo-template-fixes/plan.md` in the agent-skills repo. Include:
+- What broke and why (dependency version change, config format change, etc.)
+- Exact file changes needed in the templates
+- Whether the fix should be deterministic (template/script change) or kept as AI-handled
+
+This ensures template improvements are tracked and can be applied by a follow-up agent.
 
 ---
 

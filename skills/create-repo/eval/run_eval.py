@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone
@@ -21,10 +22,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from eval.checks.check_structure import check_structure
 from eval.models import CheckResult, EvalResult
 from scripts.scaffold import scaffold
+from scripts.verify import verify as run_verify
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 EVAL_RUNS_DIR = PROJECT_ROOT / ".eval-runs"
-VERSION_CACHE_DIR = PROJECT_ROOT / ".version-cache"
+VERSION_CACHE_DIR = Path.home() / ".agent-skills" / ".version-cache"
 
 # Default TTL for cached versions (24 hours)
 VERSION_CACHE_TTL_SECONDS = 86400
@@ -40,9 +42,10 @@ FALLBACK_VERSIONS = {
     "hono_node_server": "1.19.12",
     "tailwindcss": "4.1.3",
     "tailwindcss_vite": "4.1.3",
-    "prisma": "6.6.0",
-    "prisma_client": "6.6.0",
-    "biomejs_biome": "1.9.4",
+    "prisma": "7.5.0",
+    "prisma_client": "7.5.0",
+    "prisma_adapter_pg": "7.5.0",
+    "biomejs_biome": "2.0.0",
     "trpc_server": "11.1.0",
     "trpc_client": "11.1.0",
     "trpc_react_query": "11.1.0",
@@ -51,8 +54,8 @@ FALLBACK_VERSIONS = {
     "types_react": "19.1.2",
     "types_react_dom": "19.1.2",
     "vitejs_plugin_react": "4.4.1",
-    "playwright": "1.52.0",
-    "playwright_test": "1.52.0",
+    "playwright": "1.59.1",
+    "playwright_test": "1.59.1",
     "pnpm": "10.33.0",
 }
 
@@ -97,11 +100,21 @@ def get_versions(template: str) -> dict:
     return FALLBACK_VERSIONS
 
 
-def run_eval(template: str, output_dir: Path | None = None) -> EvalResult:
-    """Run the full eval for a template.
+def run_eval(
+    template: str,
+    output_dir: Path | None = None,
+    full: bool = False,
+    skip_docker: bool = False,
+) -> EvalResult:
+    """Run eval for a template.
 
-    Scaffolds a test project and runs all structural checks against it.
-    Eval output goes to .eval-runs/<template>-<timestamp>/.
+    Scaffolds a test project and runs structural checks. When full=True,
+    also runs the complete verification pipeline (install, build, typecheck,
+    lint, test, dev server, E2E).
+
+    Args:
+        full: Run the full verification pipeline after structural checks.
+        skip_docker: Skip docker compose steps (Postgres already available).
     """
     result = EvalResult(template=template)
     versions = get_versions(template)
@@ -130,7 +143,80 @@ def run_eval(template: str, output_dir: Path | None = None) -> EvalResult:
     structure_checks = check_structure(project_dir, template)
     result.checks.extend(structure_checks)
 
+    # Step 3: Full verification (optional — install, build, test, etc.)
+    if full:
+        if not result.passed:
+            result.checks.append(CheckResult(
+                "verify (skipped)", False, "Structural checks failed — skipping verification",
+            ))
+            return result
+
+        # In CI (skip_docker=True), write .env files before verify since
+        # pnpm setup won't discover ports (Postgres is a service container).
+        # Locally, verify.py runs pnpm setup which handles .env generation.
+        if skip_docker:
+            _write_ci_env_files(project_dir)
+
+        try:
+            verify_result = run_verify(
+                project_dir,
+                skip_docker=skip_docker,
+            )
+            for step in verify_result.steps:
+                result.checks.append(CheckResult(
+                    f"verify: {step.name}",
+                    step.passed,
+                    step.error,
+                ))
+        finally:
+            # Clean up Docker resources if we started them
+            if not skip_docker:
+                subprocess.run(
+                    ["docker", "compose", "down", "-v", "--remove-orphans"],
+                    cwd=project_dir,
+                    capture_output=True,
+                    timeout=30,
+                )
+
+            # Clean up the eval run directory to avoid accumulating node_modules
+            if output_dir is None and project_dir.exists():
+                shutil.rmtree(project_dir.parent, ignore_errors=True)
+
     return result
+
+
+def _write_ci_env_files(project_dir: Path) -> None:
+    """Write .env files for CI where Postgres is a service container.
+
+    Uses DATABASE_URL from the environment. Locally, pnpm setup handles this.
+    """
+    import os
+
+    db_url = os.environ.get(
+        "DATABASE_URL",
+        "postgresql://postgres:postgres@localhost:5432/eval_project_dev",
+    )
+
+    # Root .env
+    (project_dir / ".env").write_text(
+        f"DATABASE_URL={db_url}\n"
+        f"DB_PORT=5432\n"
+        f"API_PORT=3001\n"
+        f"WEB_PORT=3000\n"
+    )
+
+    # Per-package .env files
+    db_dir = project_dir / "packages" / "db"
+    if db_dir.exists():
+        (db_dir / ".env").write_text(f"DATABASE_URL={db_url}\n")
+
+    api_dir = project_dir / "apps" / "api"
+    if api_dir.exists():
+        (api_dir / ".env").write_text(f"DATABASE_URL={db_url}\nPORT=3001\n")
+
+    web_dir = project_dir / "apps" / "web"
+    if web_dir.exists():
+        (web_dir / ".env").write_text(f"WEB_PORT=3000\nVITE_API_PORT=3001\n")
 
 
 def print_results(result: EvalResult) -> None:
@@ -164,6 +250,16 @@ def main() -> None:
         "--output",
         help="Output directory (default: .eval-runs/)",
     )
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="Run full verification (install, build, test) — requires pnpm, node, and Postgres",
+    )
+    parser.add_argument(
+        "--skip-docker",
+        action="store_true",
+        help="Skip docker compose (Postgres already available, e.g., CI)",
+    )
     args = parser.parse_args()
 
     templates = AVAILABLE_TEMPLATES if args.template == "all" else [args.template]
@@ -171,7 +267,7 @@ def main() -> None:
 
     for template in templates:
         output = Path(args.output) if args.output else None
-        result = run_eval(template, output)
+        result = run_eval(template, output, full=args.full, skip_docker=args.skip_docker)
         print_results(result)
         if not result.passed:
             all_passed = False

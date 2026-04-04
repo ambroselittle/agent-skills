@@ -3,6 +3,7 @@
 from engine import evaluate
 
 RULE_DESCRIPTION = "Allow Bash commands — block only known-dangerous tools (denylist mode)"
+RULE_ID = "allow-bash-safe"
 
 
 def _bash(command, cwd="/repo"):

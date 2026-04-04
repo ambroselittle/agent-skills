@@ -5,6 +5,7 @@ from engine import evaluate
 REPO = "/repo/myproject"
 
 RULE_DESCRIPTION = "Block rm targeting home directory — rm ~/ would destroy the user environment"
+RULE_ID = "block-rm-home"
 
 
 def _payload(command, cwd=REPO):

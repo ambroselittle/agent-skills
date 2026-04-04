@@ -1,6 +1,7 @@
 {
   "hook-rules": [
     {
+      "id": "block-ssh-reads",
       "description": "Block reading SSH keys",
       "operation": "read-path",
       "paths": [
@@ -10,6 +11,7 @@
       "reason": "SSH key access not permitted — ask the user to check manually"
     },
     {
+      "id": "block-aws-reads",
       "description": "Block reading AWS credentials",
       "operation": "read-path",
       "paths": [
@@ -20,6 +22,7 @@
       "reason": "AWS credential access not permitted"
     },
     {
+      "id": "block-env-reads",
       "description": "Block reading .env files — apply even inside repos since they may contain secrets",
       "operation": "read-path",
       "paths": [
@@ -31,6 +34,7 @@
       "reason": "Env files may contain secrets — read environment values another way or ask the user"
     },
     {
+      "id": "block-keychain-reads",
       "description": "Block reading macOS Keychain files",
       "operation": "read-path",
       "paths": [
@@ -41,6 +45,7 @@
       "reason": "Keychain database access not permitted — these contain stored credentials and secrets"
     },
     {
+      "id": "block-force-push-main",
       "description": "Block force push to main or master",
       "operation": "git-force-push",
       "deny-branches": [
@@ -51,6 +56,7 @@
       "reason": "Force pushing to main/master is not permitted — use a PR"
     },
     {
+      "id": "allow-force-push-branches",
       "description": "Allow force push to feature branches (e.g. after rebase)",
       "operation": "git-force-push",
       "allow-branches": [
@@ -59,6 +65,7 @@
       "action": "allow"
     },
     {
+      "id": "allow-reset-hard-remote",
       "description": "Allow reset hard to remote refs — approved workflow for syncing local to origin",
       "operation": "git-reset-hard",
       "allow-targets": [
@@ -67,6 +74,7 @@
       "action": "allow"
     },
     {
+      "id": "block-reset-hard-local",
       "description": "Block reset hard to local refs — rewrites or discards local commit history",
       "operation": "git-reset-hard",
       "deny-targets": [
@@ -78,6 +86,7 @@
       "reason": "Rewinding local commits can cause data loss — confirm this is intentional before proceeding"
     },
     {
+      "id": "block-push-main",
       "description": "Block direct push to main or master — these require a PR",
       "operation": "git-push-direct",
       "deny-branches": [
@@ -88,6 +97,7 @@
       "reason": "Direct push to main/master not permitted — open a PR"
     },
     {
+      "id": "block-gh-api-delete",
       "description": "Block gh api DELETE calls — these are irreversible",
       "operation": "gh-api",
       "deny-methods": [
@@ -97,36 +107,42 @@
       "reason": "Destructive GitHub API operations require manual confirmation from the user"
     },
     {
+      "id": "block-gh-repo-delete",
       "description": "Block repo deletion via gh",
       "pattern": "gh repo delete",
       "action": "deny",
       "reason": "Repository deletion is irreversible"
     },
     {
+      "id": "block-rm-home",
       "description": "Block rm targeting home directory — rm ~/ would destroy the user environment",
       "pattern": "rm\\b[^&|;\\n]*\\s~/",
       "action": "deny",
       "reason": "Removing files from the home directory root requires manual confirmation"
     },
     {
+      "id": "block-rm-git",
       "description": "Block recursive rm on .git directory — would destroy repository history",
       "pattern": "rm\\b[^\\n]*-[a-zA-Z]*r[a-zA-Z]*[^\\n]*(?:\\s|/)\\.git(?:/)?(?:\\s|$)",
       "action": "deny",
       "reason": "Removing the .git directory would destroy repository history — do this manually if intentional"
     },
     {
+      "id": "block-rm-tmp",
       "description": "Block rm targeting /tmp root — removing the entire temp directory is likely unintended; specify a subdirectory",
       "pattern": "rm\\b[^\\n]*\\s/tmp(?:/\\*|/?(?:\\s|$))",
       "action": "deny",
       "reason": "Removing /tmp entirely or all its contents requires manual confirmation — specify a subdirectory instead (e.g. /tmp/my-build-dir)"
     },
     {
+      "id": "block-pipe-to-shell",
       "description": "Block piping network content to a shell",
       "pattern": "\\|\\s*(?:bash|sh|zsh|fish|ksh|dash|csh|tcsh)\\b",
       "action": "deny",
       "reason": "Piping directly to a shell is a common code-execution attack — download the script first, inspect it, then run it"
     },
     {
+      "id": "allow-write-claude-dir",
       "description": "Allow writes to .claude/ inside a repo",
       "operation": "write-path",
       "paths": [
@@ -135,6 +151,16 @@
       "action": "allow"
     },
     {
+      "id": "allow-write-agent-skills",
+      "description": "Allow writes to ~/.agent-skills/ — shared cache and state for agent skills",
+      "operation": "write-path",
+      "paths": [
+        "~/.agent-skills/**"
+      ],
+      "action": "allow"
+    },
+    {
+      "id": "allow-builtin-tools",
       "description": "Allow safe Claude Code built-in tools",
       "operation": "tool-name",
       "names": [
@@ -171,12 +197,14 @@
       "action": "allow"
     },
     {
+      "id": "allow-bash-safe",
       "description": "Allow Bash commands — block only known-dangerous tools (denylist mode)",
       "operation": "bash-safe",
       "mode": "denylist",
       "action": "allow"
     },
     {
+      "id": "allow-mcp",
       "description": "Allow calls to MCP servers",
       "operation": "mcp-any",
       "action": "allow"

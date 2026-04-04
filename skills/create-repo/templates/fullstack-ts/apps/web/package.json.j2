@@ -7,9 +7,12 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "{{ scope }}/api": "workspace:*",
     "{{ scope }}/types": "workspace:*",
     "@tanstack/react-query": "{{ versions.tanstack_react_query }}",
     "@trpc/client": "{{ versions.trpc_client }}",
@@ -26,8 +29,10 @@
     "typescript": "{{ versions.typescript }}",
     "vite": "{{ versions.vite }}",
     "vitest": "{{ versions.vitest }}",
+    "@playwright/test": "{{ versions.playwright_test }}",
     "@testing-library/react": "latest",
     "@testing-library/jest-dom": "latest",
+    "dotenv": "latest",
     "jsdom": "latest"
   }
 }

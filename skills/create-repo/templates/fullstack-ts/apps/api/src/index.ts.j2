@@ -1,3 +1,4 @@
+import "dotenv/config"
 import { serve } from "@hono/node-server"
 import { trpcServer } from "@hono/trpc-server"
 import { Hono } from "hono"
@@ -11,6 +12,7 @@ app.get("/api/health", (c) => c.json({ status: "ok" }))
 app.use(
   "/api/trpc/*",
   trpcServer({
+    endpoint: "/api/trpc",
     router: appRouter,
     createContext,
   }),

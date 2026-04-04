@@ -2,6 +2,9 @@
   "name": "{{ scope }}/api",
   "private": true,
   "type": "module",
+  "exports": {
+    "./router": "./src/router.ts"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
@@ -15,7 +18,9 @@
     "@hono/node-server": "{{ versions.hono_node_server }}",
     "@hono/trpc-server": "{{ versions.hono_trpc_server }}",
     "@trpc/server": "{{ versions.trpc_server }}",
-    "hono": "{{ versions.hono }}"
+    "hono": "{{ versions.hono }}",
+    "dotenv": "latest",
+    "zod": "latest"
   },
   "devDependencies": {
     "tsx": "latest",

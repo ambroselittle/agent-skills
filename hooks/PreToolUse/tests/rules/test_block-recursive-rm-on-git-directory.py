@@ -5,6 +5,7 @@ from engine import evaluate
 REPO = "/repo/myproject"
 
 RULE_DESCRIPTION = "Block recursive rm on .git directory — would destroy repository history"
+RULE_ID = "block-rm-git"
 
 
 def _payload(command, cwd=REPO):

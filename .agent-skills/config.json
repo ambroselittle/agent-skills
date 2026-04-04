@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PreToolUse": {
+      "rules": [
+        {
+          "rule": "block-env-reads",
+          "allowedPaths": [
+            "skills/create-repo/.eval-runs/**/.env*",
+            "skills/create-repo/.eval-runs/**/.envrc"
+          ]
+        }
+      ]
+    }
+  }
+}

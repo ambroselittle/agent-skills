@@ -1,22 +1,30 @@
-import { PrismaClient } from "@prisma/client"
+import "dotenv/config"
+import { PrismaPg } from "@prisma/adapter-pg"
+import { PrismaClient } from "../src/generated/prisma/client"
 
-const prisma = new PrismaClient()
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL })
+const db = new PrismaClient({ adapter })
 
+// --- sample seed start ---
 async function main() {
-  const user = await prisma.user.upsert({
-    where: { email: "test@example.com" },
+  await db.user.upsert({
+    where: { email: "alice@example.com" },
     update: {},
-    create: {
-      email: "test@example.com",
-      name: "Test User",
-    },
+    create: { email: "alice@example.com", name: "Alice" },
   })
-  console.log("Seeded user:", user)
+  await db.user.upsert({
+    where: { email: "bob@example.com" },
+    update: {},
+    create: { email: "bob@example.com", name: "Bob" },
+  })
+  console.log("Seeded sample users")
 }
+// --- sample seed end ---
 
 main()
+  .then(() => db.$disconnect())
   .catch((e) => {
     console.error(e)
+    db.$disconnect()
     process.exit(1)
   })
-  .finally(() => prisma.$disconnect())

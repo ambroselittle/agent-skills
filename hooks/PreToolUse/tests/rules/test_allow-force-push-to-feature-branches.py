@@ -3,6 +3,7 @@
 from engine import evaluate
 
 RULE_DESCRIPTION = "Allow force push to feature branches (e.g. after rebase)"
+RULE_ID = "allow-force-push-branches"
 
 
 def _payload(command, cwd="/repo"):

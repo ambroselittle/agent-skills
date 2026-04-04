@@ -14,10 +14,22 @@ RULES_JSON = _HOOK_ROOT / "rules.json"
 @pytest.fixture
 def rule(request):
     data = json.loads(RULES_JSON.read_text())
-    all_rules = {r["description"]: r for r in data.get("hook-rules", [])}
+    rules_list = data.get("hook-rules", [])
+
+    # Prefer RULE_ID, fall back to RULE_DESCRIPTION for backwards compat
+    rule_id = getattr(request.module, "RULE_ID", None)
     description = getattr(request.module, "RULE_DESCRIPTION", None)
-    if description is None:
-        pytest.skip("No RULE_DESCRIPTION defined")
-    if description not in all_rules:
-        raise ValueError(f"Rule not found in rules.json: {description!r}")
-    return all_rules[description]
+
+    if rule_id:
+        by_id = {r["id"]: r for r in rules_list if "id" in r}
+        if rule_id not in by_id:
+            raise ValueError(f"Rule not found by id in rules.json: {rule_id!r}")
+        return by_id[rule_id]
+
+    if description:
+        by_desc = {r["description"]: r for r in rules_list}
+        if description not in by_desc:
+            raise ValueError(f"Rule not found by description in rules.json: {description!r}")
+        return by_desc[description]
+
+    pytest.skip("No RULE_ID or RULE_DESCRIPTION defined")

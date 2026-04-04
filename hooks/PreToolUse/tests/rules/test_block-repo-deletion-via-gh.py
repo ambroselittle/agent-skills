@@ -3,6 +3,7 @@
 from engine import evaluate
 
 RULE_DESCRIPTION = "Block repo deletion via gh"
+RULE_ID = "block-gh-repo-delete"
 
 
 def _payload(command, cwd="/repo"):

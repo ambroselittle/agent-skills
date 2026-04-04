@@ -3,6 +3,7 @@
 from engine import evaluate
 
 RULE_DESCRIPTION = "Block reset hard to local refs — rewrites or discards local commit history"
+RULE_ID = "block-reset-hard-local"
 
 
 def _payload(command, cwd="/repo"):
