@@ -47,7 +47,10 @@ def run_step(name: str, cmd: list[str], cwd: Path, timeout: int = 300, env: dict
         )
         elapsed = time.monotonic() - start
         if proc.returncode != 0:
-            error = proc.stderr.strip() or proc.stdout.strip()
+            # Combine stderr and stdout — tools like turbo put their own
+            # error wrapper on stderr while the actual child error is on stdout.
+            parts = [s for s in (proc.stderr.strip(), proc.stdout.strip()) if s]
+            error = "\n".join(parts) if parts else f"Exit code {proc.returncode}"
             # Truncate long error output
             if len(error) > 2000:
                 error = error[:2000] + "\n... (truncated)"
@@ -117,9 +120,12 @@ def verify(
         return result
 
     # Step 1b: Run project setup (port discovery + .env generation)
-    # Only if the project has a setup script — scaffolded projects do
+    # Skip when skip_docker=True — the caller pre-writes .env files with
+    # correct ports for the CI service container. Running setup here would
+    # discover new free ports and overwrite those .env files, breaking the
+    # database connection.
     setup_script = project_dir / "scripts" / "setup.ts"
-    if setup_script.exists():
+    if setup_script.exists() and not skip_docker:
         step = run_step("setup", ["pnpm", "project:setup"], project_dir, timeout=30)
         result.steps.append(step)
         if not step.passed:
