@@ -26,16 +26,20 @@ def test_eval_unknown_template_fails():
 
 
 @pytest.mark.e2e
-def test_eval_fullstack_ts_full_verify():
+def test_eval_fullstack_ts_full_verify(tmp_path):
     """Scaffold a fullstack-ts project and run the full verification pipeline.
 
     Requires: pnpm, node, and either Docker (local) or DATABASE_URL env var (CI).
     Run with: uv run pytest tests/ -v -m e2e
+
+    Uses tmp_path so the scaffolded project (~200MB with node_modules) is
+    auto-cleaned by pytest instead of accumulating in .eval-runs/.
     """
     # Use skip_docker when DATABASE_URL is set (CI provides Postgres as a service)
     skip_docker = "DATABASE_URL" in os.environ
 
-    result = run_eval("fullstack-ts", full=True, skip_docker=skip_docker)
+    output_dir = tmp_path / "eval-project"
+    result = run_eval("fullstack-ts", output_dir=output_dir, full=True, skip_docker=skip_docker)
     assert result.passed, [
         f"{c.name}: {c.detail}" for c in result.checks if not c.passed
     ]
