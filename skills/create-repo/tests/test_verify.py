@@ -129,7 +129,8 @@ def test_verify_runs_e2e_when_servers_are_up():
          patch("scripts.verify.wait_for_port", return_value=True), \
          patch("scripts.verify.check_health", return_value=True), \
          patch("scripts.verify.os.getpgid", return_value=99999), \
-         patch("scripts.verify.atexit.register"):
+         patch("scripts.verify.atexit.register"), \
+         patch("scripts.verify._kill_process_group"):
 
         mock_proc = MagicMock()
         mock_proc.terminate = MagicMock()
@@ -153,7 +154,8 @@ def test_verify_skips_e2e_when_server_down():
          patch("scripts.verify.wait_for_port", return_value=False), \
          patch("scripts.verify.check_health", return_value=True), \
          patch("scripts.verify.os.getpgid", return_value=99999), \
-         patch("scripts.verify.atexit.register"):
+         patch("scripts.verify.atexit.register"), \
+         patch("scripts.verify._kill_process_group"):
 
         mock_proc = MagicMock()
         mock_proc.terminate = MagicMock()
