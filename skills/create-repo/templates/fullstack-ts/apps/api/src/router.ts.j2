@@ -6,10 +6,20 @@ export const appRouter = router({
     return { status: "ok" }
   }),
 
+  // --- sample routes start ---
   "user.list": publicProcedure.query(async ({ ctx }) => {
-    const users = await ctx.db.user.findMany()
-    return users
+    return ctx.db.user.findMany()
   }),
+
+  "user.create": publicProcedure
+    .input(z.object({
+      email: z.string().email(),
+      name: z.string().min(1).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.user.create({ data: input })
+    }),
+  // --- sample routes end ---
 })
 
 export type AppRouter = typeof appRouter
