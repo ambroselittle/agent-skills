@@ -18,8 +18,8 @@ mkdir -p "$CLAUDE_SKILLS_DIR"
 # 1. Link skills                                                              #
 # --------------------------------------------------------------------------- #
 
-echo "Linking skills from $SCRIPT_DIR..."
-for skill_dir in "$SCRIPT_DIR"/*/; do
+echo "Linking skills from $SCRIPT_DIR/skills/..."
+for skill_dir in "$SCRIPT_DIR"/skills/*/; do
   [[ -d "$skill_dir" ]] || continue
   skill_name="$(basename "$skill_dir")"
 
@@ -47,7 +47,7 @@ for skill_dir in "$SCRIPT_DIR"/*/; do
 done
 
 # Link shared resources (agents, scripts used by multiple skills)
-shared_source="$SCRIPT_DIR/shared"
+shared_source="$SCRIPT_DIR/skills/shared"
 shared_target="$CLAUDE_SKILLS_DIR/shared"
 
 if [[ -d "$shared_source" ]]; then
@@ -80,10 +80,20 @@ hook_target="$hook_target_dir/hook-rules.json"
 if [[ -f "$hook_source" ]]; then
   mkdir -p "$hook_target_dir"
 
-  # Copy the interpreter source if it doesn't exist yet
-  if [[ -d "$SCRIPT_DIR/hooks/PreToolUse/src" ]] && [[ ! -d "$hook_target_dir/src" ]]; then
-    cp -r "$SCRIPT_DIR/hooks/PreToolUse/src" "$hook_target_dir/src"
-    echo "  Installed hook interpreter to $hook_target_dir/src"
+  # Always overwrite the engine with repo version
+  if [[ -d "$SCRIPT_DIR/hooks/PreToolUse/engine" ]]; then
+    # Remove legacy src/ directory if present
+    [[ -d "$hook_target_dir/src" ]] && rm -rf "$hook_target_dir/src"
+    rm -rf "$hook_target_dir/engine"
+    cp -r "$SCRIPT_DIR/hooks/PreToolUse/engine" "$hook_target_dir/engine"
+    echo "  Installed hook engine to $hook_target_dir/engine"
+  fi
+
+  # Install the entry point script
+  if [[ -f "$SCRIPT_DIR/hooks/PreToolUse/pre-tool-use.sh" ]]; then
+    cp "$SCRIPT_DIR/hooks/PreToolUse/pre-tool-use.sh" "$HOOKS_DIR/pre-tool-use.sh"
+    chmod +x "$HOOKS_DIR/pre-tool-use.sh"
+    echo "  Installed hook entry point to $HOOKS_DIR/pre-tool-use.sh"
   fi
 
   # Always overwrite rules with repo version
