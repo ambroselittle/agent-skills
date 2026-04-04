@@ -110,7 +110,59 @@ def test_verify_runs_correct_command_sequence():
 
         result = verify(Path("/tmp/test-project"))
 
-    # Should have run: install, docker up, pg_isready, db:push, build, typecheck, lint, test
-    assert len(commands_run) >= 8
+    # Should have run: install, docker up, pg_isready, db:push, build, typecheck, lint, test, e2e
+    assert len(commands_run) >= 9
     assert "pnpm" in commands_run
     assert "docker" in commands_run
+
+
+def test_verify_runs_e2e_when_servers_are_up():
+    """E2E tests should run when both API and web servers are reachable."""
+    commands_run = []
+
+    def fake_run(cmd, **kwargs):
+        commands_run.append(cmd if isinstance(cmd, list) else [cmd])
+        return _mock_run()
+
+    with patch("scripts.verify.subprocess.run", side_effect=fake_run), \
+         patch("scripts.verify.subprocess.Popen") as mock_popen, \
+         patch("scripts.verify.wait_for_port", return_value=True), \
+         patch("scripts.verify.check_health", return_value=True):
+
+        mock_proc = MagicMock()
+        mock_proc.terminate = MagicMock()
+        mock_proc.wait = MagicMock()
+        mock_popen.return_value = mock_proc
+
+        result = verify(Path("/tmp/test-project"))
+
+    # E2E step should be present and passing
+    e2e_steps = [s for s in result.steps if s.name == "e2e tests"]
+    assert len(e2e_steps) == 1
+    assert e2e_steps[0].passed
+
+    # The pnpm test:e2e command should have been called
+    e2e_cmds = [c for c in commands_run if "test:e2e" in c]
+    assert len(e2e_cmds) == 1
+
+
+def test_verify_skips_e2e_when_server_down():
+    """E2E tests should NOT run when the web server is unreachable."""
+    def fake_run(cmd, **kwargs):
+        return _mock_run()
+
+    with patch("scripts.verify.subprocess.run", side_effect=fake_run), \
+         patch("scripts.verify.subprocess.Popen") as mock_popen, \
+         patch("scripts.verify.wait_for_port", return_value=False), \
+         patch("scripts.verify.check_health", return_value=True):
+
+        mock_proc = MagicMock()
+        mock_proc.terminate = MagicMock()
+        mock_proc.wait = MagicMock()
+        mock_popen.return_value = mock_proc
+
+        result = verify(Path("/tmp/test-project"))
+
+    # E2E step should NOT be present
+    e2e_steps = [s for s in result.steps if s.name == "e2e tests"]
+    assert len(e2e_steps) == 0

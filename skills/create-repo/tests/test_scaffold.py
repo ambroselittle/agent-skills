@@ -88,6 +88,14 @@ def test_scaffold_fullstack_ts_creates_expected_structure(tmp_path, versions):
     assert (output / "apps" / "api" / "src" / "router.ts").exists()
     assert (output / "apps" / "api" / "__tests__" / "router.test.ts").exists()
 
+    # E2E testing
+    assert (output / "apps" / "web" / "playwright.config.ts").exists()
+    assert (output / "apps" / "web" / "e2e" / "pages" / "base.page.ts").exists()
+    assert (output / "apps" / "web" / "e2e" / "pages" / "home.page.ts").exists()
+    assert (output / "apps" / "web" / "e2e" / "smoke.test.ts").exists()
+    assert (output / ".claude" / "rules" / "e2e-testing.md").exists()
+    assert (output / ".claude" / "rules" / "flakiness-practices.md").exists()
+
     # Packages
     assert (output / "packages" / "db" / "package.json").exists()
     assert (output / "packages" / "db" / "prisma" / "schema.prisma").exists()
