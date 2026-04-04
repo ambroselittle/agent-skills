@@ -1,0 +1,122 @@
+{
+  "hook-rules": [
+    {
+      "description": "Block reading SSH keys",
+      "operation": "read-path",
+      "paths": [
+        "~/.ssh/*"
+      ],
+      "action": "deny",
+      "reason": "SSH key access not permitted -- ask the user to check manually"
+    },
+    {
+      "description": "Block reading AWS credentials",
+      "operation": "read-path",
+      "paths": [
+        "~/.aws/credentials",
+        "~/.aws/config"
+      ],
+      "action": "deny",
+      "reason": "AWS credential access not permitted"
+    },
+    {
+      "description": "Block reading .env files -- may contain secrets",
+      "operation": "read-path",
+      "paths": [
+        "**/.env",
+        "**/.env.*",
+        "**/.envrc"
+      ],
+      "action": "deny",
+      "reason": "Env files may contain secrets -- read environment values another way or ask the user"
+    },
+    {
+      "description": "Block force push to main or master",
+      "operation": "git-force-push",
+      "deny-branches": [
+        "main",
+        "master"
+      ],
+      "action": "deny",
+      "reason": "Force pushing to main/master is not permitted -- use a PR"
+    },
+    {
+      "description": "Allow force push to feature branches (e.g. after rebase)",
+      "operation": "git-force-push",
+      "allow-branches": [
+        "*"
+      ],
+      "action": "allow"
+    },
+    {
+      "description": "Allow reset hard to remote refs -- approved workflow for syncing local to origin",
+      "operation": "git-reset-hard",
+      "allow-targets": [
+        "origin/*"
+      ],
+      "action": "allow"
+    },
+    {
+      "description": "Block reset hard to local refs -- rewrites or discards local commit history",
+      "operation": "git-reset-hard",
+      "deny-targets": [
+        "HEAD~*",
+        "HEAD^*",
+        "HEAD@*"
+      ],
+      "action": "deny",
+      "reason": "Rewinding local commits can cause data loss -- confirm this is intentional before proceeding"
+    },
+    {
+      "description": "Block direct push to main or master -- these require a PR",
+      "operation": "git-push-direct",
+      "deny-branches": [
+        "main",
+        "master"
+      ],
+      "action": "deny",
+      "reason": "Direct push to main/master not permitted -- open a PR"
+    },
+    {
+      "description": "Block gh api DELETE calls -- these are irreversible",
+      "operation": "gh-api",
+      "deny-methods": [
+        "DELETE"
+      ],
+      "action": "deny",
+      "reason": "Destructive GitHub API operations require manual confirmation from the user"
+    },
+    {
+      "description": "Block repo deletion via gh",
+      "pattern": "gh repo delete",
+      "action": "deny",
+      "reason": "Repository deletion is irreversible"
+    },
+    {
+      "description": "Block rm targeting home directory",
+      "pattern": "rm\\b[^\\n]*\\s~/",
+      "action": "deny",
+      "reason": "Removing files from the home directory root requires manual confirmation"
+    },
+    {
+      "description": "Block recursive rm on .git directory",
+      "pattern": "rm\\b[^\\n]*-[a-zA-Z]*r[a-zA-Z]*[^\\n]*(?:\\s|/)\\.git(?:/)?(?:\\s|$)",
+      "action": "deny",
+      "reason": "Removing the .git directory would destroy repository history -- do this manually if intentional"
+    },
+    {
+      "description": "Block piping network content to a shell",
+      "pattern": "\\|\\s*(?:bash|sh|zsh|fish|ksh|dash|csh|tcsh)\\b",
+      "action": "deny",
+      "reason": "Piping directly to a shell is a common code-execution attack -- download the script first, inspect it, then run it"
+    },
+    {
+      "description": "Allow writes to .claude/ inside a repo",
+      "operation": "write-path",
+      "paths": [
+        ".claude/**"
+      ],
+      "action": "allow"
+    }
+  ]
+}
