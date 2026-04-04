@@ -7,6 +7,8 @@ push DB schema, build, typecheck, lint, test, and dev server smoke check.
 from __future__ import annotations
 
 import argparse
+import atexit
+import os
 import socket
 import subprocess
 import sys
@@ -84,7 +86,6 @@ def check_health(url: str, timeout: float = 10) -> bool:
 
 def _kill_process_group(pgid: int) -> None:
     """Kill an entire process group, ignoring errors if already dead."""
-    import os
     import signal
     for sig in (signal.SIGTERM, signal.SIGKILL):
         try:
@@ -236,7 +237,6 @@ def verify(
 
     # Step 8: Dev server smoke check
     # Pass port env vars so the dev servers use the discovered ports
-    import os
     dev_env = {
         **os.environ,
         "PORT": str(api_port),
@@ -253,7 +253,6 @@ def verify(
     )
 
     # Safety net: kill the process group on interpreter exit (ctrl-c, crash, etc.)
-    import atexit
     dev_pgid = os.getpgid(dev_proc.pid)
     atexit.register(_kill_process_group, dev_pgid)
 
@@ -282,7 +281,6 @@ def verify(
             # Set E2E_WEB_PORT and E2E_API_PORT so Playwright config uses
             # the same ports, and PLAYWRIGHT_SKIP_WEBSERVER to bypass
             # Playwright's own server startup.
-            import os
             e2e_env = {
                 **os.environ,
                 "E2E_WEB_PORT": str(web_port),

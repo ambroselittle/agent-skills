@@ -127,7 +127,9 @@ def test_verify_runs_e2e_when_servers_are_up():
     with patch("scripts.verify.subprocess.run", side_effect=fake_run), \
          patch("scripts.verify.subprocess.Popen") as mock_popen, \
          patch("scripts.verify.wait_for_port", return_value=True), \
-         patch("scripts.verify.check_health", return_value=True):
+         patch("scripts.verify.check_health", return_value=True), \
+         patch("scripts.verify.os.getpgid", return_value=99999), \
+         patch("scripts.verify.atexit.register"):
 
         mock_proc = MagicMock()
         mock_proc.terminate = MagicMock()
@@ -149,7 +151,9 @@ def test_verify_skips_e2e_when_server_down():
     with patch("scripts.verify.subprocess.run", side_effect=fake_run), \
          patch("scripts.verify.subprocess.Popen") as mock_popen, \
          patch("scripts.verify.wait_for_port", return_value=False), \
-         patch("scripts.verify.check_health", return_value=True):
+         patch("scripts.verify.check_health", return_value=True), \
+         patch("scripts.verify.os.getpgid", return_value=99999), \
+         patch("scripts.verify.atexit.register"):
 
         mock_proc = MagicMock()
         mock_proc.terminate = MagicMock()
