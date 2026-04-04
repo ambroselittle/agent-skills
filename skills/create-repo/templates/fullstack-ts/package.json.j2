@@ -11,10 +11,15 @@
     "db:push": "turbo db:push --filter={{ scope }}/db",
     "db:studio": "pnpm --filter={{ scope }}/db exec prisma studio",
     "db:seed": "turbo db:seed --filter={{ scope }}/db",
-    "test:e2e": "turbo test:e2e"
+    "test:e2e": "turbo test:e2e",
+    "setup": "tsx scripts/setup.ts",
+    "update-ports": "tsx scripts/discover-ports.ts",
+    "cleanup-samples": "tsx scripts/cleanup-samples.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "{{ versions.biomejs_biome }}",
+    "get-port": "latest",
+    "tsx": "latest",
     "turbo": "latest",
     "typescript": "{{ versions.typescript }}"
   },
