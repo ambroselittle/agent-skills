@@ -84,6 +84,8 @@ def check_structure(project_dir: Path, template: str) -> list[CheckResult]:
         _check_fullstack_ts(project_dir, checks)
     elif template == "fullstack-graphql":
         _check_fullstack_graphql(project_dir, checks)
+    elif template == "api-ts":
+        _check_api_ts(project_dir, checks)
     elif template == "api-python":
         _check_api_python(project_dir, checks)
 
@@ -180,19 +182,18 @@ def _check_node_ts_common(project_dir: Path, checks: list[CheckResult]) -> None:
             None if strict is True else f"strict is {strict}",
         ))
 
-    # Test files per app
-    test_locations = [
-        ("apps/web", "__tests__"),
-        ("apps/api", "__tests__"),
-    ]
-    for app_path, test_dir in test_locations:
-        test_path = project_dir / app_path / test_dir
-        has_tests = test_path.exists() and any(test_path.iterdir())
-        checks.append(CheckResult(
-            f"{app_path} has tests",
-            has_tests,
-            None if has_tests else f"No test files in {app_path}/{test_dir}",
-        ))
+    # Test files per app (only check apps that exist)
+    for app_name in ("web", "api"):
+        app_path = f"apps/{app_name}"
+        test_dir = "__tests__"
+        if (project_dir / app_path).exists():
+            test_path = project_dir / app_path / test_dir
+            has_tests = test_path.exists() and any(test_path.iterdir())
+            checks.append(CheckResult(
+                f"{app_path} has tests",
+                has_tests,
+                None if has_tests else f"No test files in {app_path}/{test_dir}",
+            ))
 
     # Seed script
     seed_path = project_dir / "packages" / "db" / "prisma" / "seed.ts"
@@ -268,6 +269,64 @@ def _check_fullstack_graphql(project_dir: Path, checks: list[CheckResult]) -> No
             f"file: {f}",
             path.exists(),
             None if path.exists() else f"Missing: {f}",
+        ))
+
+    _check_node_ts_common(project_dir, checks)
+
+
+def _check_api_ts(project_dir: Path, checks: list[CheckResult]) -> None:
+    """Template-specific checks for api-ts."""
+    api_ts_files = [
+        "tsconfig.json",
+        "apps/api/package.json",
+        "apps/api/src/index.ts",
+        "apps/api/src/router.ts",
+        "apps/api/src/trpc.ts",
+        "apps/api/__tests__/router.test.ts",
+        "apps/api/playwright.config.ts",
+        "apps/api/e2e/smoke.test.ts",
+        "apps/api/e2e/users.test.ts",
+        "packages/db/package.json",
+        "packages/db/prisma/schema.prisma",
+        "packages/db/prisma/seed.ts",
+        "packages/db/src/index.ts",
+        "packages/types/package.json",
+        "packages/types/src/index.ts",
+        "packages/config/tsconfig.base.json",
+        "scripts/setup.ts",
+        "scripts/discover-ports.ts",
+    ]
+    for f in api_ts_files:
+        path = project_dir / f
+        checks.append(CheckResult(
+            f"file: {f}",
+            path.exists(),
+            None if path.exists() else f"Missing: {f}",
+        ))
+
+    # apps/web should NOT exist
+    web_dir = project_dir / "apps" / "web"
+    checks.append(CheckResult(
+        "no apps/web directory",
+        not web_dir.exists(),
+        "apps/web/ exists but should not for api-ts template" if web_dir.exists() else None,
+    ))
+
+    # api package.json should have Playwright and test:e2e
+    api_pkg_path = project_dir / "apps" / "api" / "package.json"
+    if api_pkg_path.exists():
+        api_pkg = json.loads(api_pkg_path.read_text())
+        has_playwright = "@playwright/test" in api_pkg.get("devDependencies", {})
+        checks.append(CheckResult(
+            "api has @playwright/test",
+            has_playwright,
+            None if has_playwright else "Missing @playwright/test in api devDependencies",
+        ))
+        has_e2e_script = "test:e2e" in api_pkg.get("scripts", {})
+        checks.append(CheckResult(
+            "api has test:e2e script",
+            has_e2e_script,
+            None if has_e2e_script else "Missing test:e2e script in api package.json",
         ))
 
     _check_node_ts_common(project_dir, checks)

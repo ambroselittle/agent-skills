@@ -1,0 +1,7 @@
+{
+  "platform": "ts",
+  "extends": "fullstack-ts",
+  "exclude": [
+    "apps/web/**"
+  ]
+}

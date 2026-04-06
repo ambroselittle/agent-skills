@@ -41,7 +41,6 @@ writeFileSync(join(root, ".env"), `${rootEnv}\n`)
 const packageEnvs: Record<string, Record<string, string>> = {
   "packages/db": { DATABASE_URL: "DATABASE_URL" },
   "apps/api": { DATABASE_URL: "DATABASE_URL", PORT: "API_PORT" },
-  "apps/web": { WEB_PORT: "WEB_PORT", VITE_API_PORT: "API_PORT" },
 }
 
 for (const [pkg, varMap] of Object.entries(packageEnvs)) {

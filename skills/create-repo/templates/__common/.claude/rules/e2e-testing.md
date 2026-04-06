@@ -2,6 +2,7 @@
 
 ### Project layout
 
+**Fullstack projects** (with `apps/web/`):
 - Config: `apps/web/playwright.config.ts`
 - Tests: `apps/web/e2e/`
 - Page objects: `apps/web/e2e/pages/`
@@ -10,7 +11,16 @@
 - Tests use Chromium only by default
 - `webServer` config auto-starts Vite dev; `reuseExistingServer: true` skips startup when the server is already running
 
-### Page Object Model (required)
+**API-only projects** (no `apps/web/`):
+- Config: `apps/api/playwright.config.ts`
+- Tests: `apps/api/e2e/`
+- Run tests: `pnpm test:e2e` (from root or `apps/api`)
+- Tests use Playwright's `request` fixture only (no browser needed)
+- `webServer` config starts only the API server
+
+### Page Object Model (required for browser-based tests)
+
+> API-only projects that exclusively use the `request` fixture do not need page objects.
 
 - Every view/page gets a page object in `e2e/pages/`
 - Page objects extend `BasePage` from `./base.page`

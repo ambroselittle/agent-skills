@@ -3,7 +3,6 @@ import { writeFileSync } from "node:fs"
 
 async function main() {
   const ports = {
-    WEB_PORT: await getPort({ port: portNumbers(3000, 3099) }),
     API_PORT: await getPort({ port: portNumbers(3100, 3199) }),
     DB_PORT: await getPort({ port: portNumbers(5432, 5499) }),
   }

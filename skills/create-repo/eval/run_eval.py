@@ -271,7 +271,7 @@ def print_results(result: EvalResult) -> None:
     print(f"\n{result.pass_count}/{len(result.checks)} checks passed")
 
 
-AVAILABLE_TEMPLATES = ["fullstack-ts", "fullstack-graphql", "api-python"]
+AVAILABLE_TEMPLATES = ["fullstack-ts", "fullstack-graphql", "api-ts", "api-python"]
 
 
 def main() -> None:
