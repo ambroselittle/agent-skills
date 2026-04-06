@@ -63,6 +63,9 @@ def run_step(name: str, cmd: list[str], cwd: Path, timeout: int = 300, env: dict
     except subprocess.TimeoutExpired:
         elapsed = time.monotonic() - start
         return StepResult(name=name, passed=False, duration_s=elapsed, error=f"Timed out after {timeout}s")
+    except FileNotFoundError:
+        elapsed = time.monotonic() - start
+        return StepResult(name=name, passed=False, duration_s=elapsed, error=f"Command not found: {cmd[0]}")
 
 
 def wait_for_port(port: int, host: str = "localhost", timeout: float = 30) -> bool:
@@ -483,11 +486,10 @@ def verify_fullstack_python(
     """Verify a fullstack-python project (React frontend + FastAPI backend)."""
     result = VerifyResult()
 
-    # Step 0: Verify justfile parses correctly
+    # Step 0: Verify justfile parses correctly (non-fatal — just may not be installed)
     step = run_step("just --summary", ["just", "--summary"], project_dir, timeout=10)
     result.steps.append(step)
-    if not step.passed:
-        return result
+    # Non-fatal — just may not be installed in the verify environment
 
     # Step 1a: Install Python dependencies
     uv_sync_cmd = ["uv", "sync"]
