@@ -15,6 +15,12 @@
 - This applies to: install commands, verification commands, URLs, file paths the user needs to
   navigate to — anything the user will need to copy from your output and use elsewhere.
 
+## Pacing
+
+- Don't be pushy about moving to the next step — avoid repeated "Ready to X?" prompts
+- After presenting a plan or answering a question, stop and let the user decide when to proceed
+- One mention of the next step is fine; repeating it is not
+
 ## General Standards
 
 - Analyze before acting -- consider multiple approaches and explain your choice

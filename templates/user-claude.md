@@ -17,6 +17,19 @@ current, version-accurate docs.
   even when a bug is discovered incidentally mid-task (e.g., a test reveals an unexpected failure):
   stop, write a targeted unit test for the specific defect, confirm it fails, then fix
 
+## Persistence: Repo Over Memory
+
+Prefer persisting guidance in the repo (templates, CLAUDE.md, .claude/rules/) over user-local memory
+files. If a preference applies broadly, it belongs in the templates so that a fresh machine setup via
+agent-skills gets the full experience without relying on hidden local state. Use memory only for
+genuinely ephemeral or time-bound observations (active bugs, in-progress project state).
+
+## .work/ Plans Are Scaffolding
+
+- Gitignore `.work/` directories — do not commit implementation plans
+- PRs are the record of what was done and why (git blame → PR → ticket)
+- The ship skill captures key decisions in the PR description
+
 ## Working with git/gh
 
 - Before making changes, verify you are on the correct branch -- not default or unrelated feature branch
