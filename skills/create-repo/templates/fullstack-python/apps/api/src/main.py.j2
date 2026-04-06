@@ -1,0 +1,18 @@
+from fastapi import APIRouter, FastAPI
+
+from src.routes.users import router as users_router
+
+app = FastAPI(title="{{ project_name }}")
+
+# Mount all routes under /api prefix for Vite proxy compatibility
+api = APIRouter(prefix="/api")
+
+
+@api.get("/health")
+def health() -> dict:
+    return {"status": "ok"}
+
+
+api.include_router(users_router, prefix="/users", tags=["users"])
+
+app.include_router(api)

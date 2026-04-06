@@ -1,0 +1,14 @@
+{
+  "platform": ["ts", "python"],
+  "extends": "fullstack-ts",
+  "exclude": [
+    "apps/api/**",
+    "packages/**",
+    "turbo.json",
+    "scripts/**",
+    "apps/web/src/lib/trpc.ts.j2",
+    "apps/web/e2e/smoke.test.ts.j2",
+    "apps/web/e2e/users.test.ts",
+    "apps/web/__tests__/App.test.tsx.j2"
+  ]
+}
