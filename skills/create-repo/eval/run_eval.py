@@ -56,6 +56,10 @@ FALLBACK_VERSIONS = {
     "vitejs_plugin_react": "4.4.1",
     "playwright": "1.59.1",
     "playwright_test": "1.59.1",
+    "jsdom": "25.0.1",
+    "testing_library_react": "16.3.2",
+    "testing_library_jest_dom": "6.9.1",
+    "dotenv": "17.4.1",
     "pnpm": "10.33.0",
     # Python packages (api-python, fullstack-python)
     "fastapi": "0.115.12",

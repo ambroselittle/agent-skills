@@ -39,6 +39,10 @@ def versions() -> dict:
         "playwright": "1.59.1",
         "playwright_test": "1.59.1",
         "prisma_adapter_pg": "7.5.0",
+        "jsdom": "25.0.1",
+        "testing_library_react": "16.3.2",
+        "testing_library_jest_dom": "6.9.1",
+        "dotenv": "17.4.1",
         "pnpm": "10.33.0",
     }
 
