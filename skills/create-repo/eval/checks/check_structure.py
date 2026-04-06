@@ -15,6 +15,9 @@ from eval.models import CheckResult
 
 def _detect_platform(project_dir: Path) -> str:
     """Detect platform from scaffolded output."""
+    # Mixed platform: both Python and Node files present
+    if (project_dir / "pyproject.toml").exists() and (project_dir / "package.json").exists():
+        return "fullstack-python"
     if (project_dir / "pyproject.toml").exists():
         return "python"
     return "node"
@@ -78,6 +81,32 @@ def check_structure(project_dir: Path, template: str) -> list[CheckResult]:
                 None if path.exists() else f"Missing: {f}",
             ))
 
+    elif platform == "fullstack-python":
+        # Mixed platform: both Python and Node common files
+        mixed_common_files = [
+            "pyproject.toml",
+            "justfile",
+            "package.json",
+            "pnpm-workspace.yaml",
+            "biome.json",
+            ".claude/rules/modules.md",
+            ".claude/rules/types.md",
+        ]
+        for f in mixed_common_files:
+            path = project_dir / f
+            checks.append(CheckResult(
+                f"file: {f}",
+                path.exists(),
+                None if path.exists() else f"Missing: {f}",
+            ))
+        # turbo.json should NOT exist
+        turbo_path = project_dir / "turbo.json"
+        checks.append(CheckResult(
+            "no turbo.json",
+            not turbo_path.exists(),
+            "turbo.json exists but should not for fullstack-python" if turbo_path.exists() else None,
+        ))
+
     # --- Template-specific checks ---
 
     if template == "fullstack-ts":
@@ -88,6 +117,8 @@ def check_structure(project_dir: Path, template: str) -> list[CheckResult]:
         _check_api_ts(project_dir, checks)
     elif template == "api-python":
         _check_api_python(project_dir, checks)
+    elif template == "fullstack-python":
+        _check_fullstack_python(project_dir, checks)
 
     # --- Content checks (universal) ---
 
@@ -388,3 +419,108 @@ def _check_api_python(project_dir: Path, checks: list[CheckResult]) -> None:
         has_tests,
         None if has_tests else "No test_*.py files in apps/api/tests/",
     ))
+
+
+def _check_fullstack_python(project_dir: Path, checks: list[CheckResult]) -> None:
+    """Template-specific checks for fullstack-python."""
+    # Web app files (inherited from fullstack-ts + overrides)
+    web_files = [
+        "apps/web/package.json",
+        "apps/web/src/main.tsx",
+        "apps/web/src/App.tsx",
+        "apps/web/src/lib/api.ts",
+        "apps/web/vite.config.ts",
+        "apps/web/__tests__/App.test.tsx",
+        "apps/web/playwright.config.ts",
+        "apps/web/e2e/smoke.test.ts",
+        "apps/web/e2e/users.test.ts",
+        "apps/web/e2e/pages/base.page.ts",
+        "apps/web/e2e/pages/home.page.ts",
+    ]
+    for f in web_files:
+        path = project_dir / f
+        checks.append(CheckResult(
+            f"file: {f}",
+            path.exists(),
+            None if path.exists() else f"Missing: {f}",
+        ))
+
+    # Python API files
+    api_files = [
+        "apps/api/pyproject.toml",
+        "apps/api/src/__init__.py",
+        "apps/api/src/main.py",
+        "apps/api/src/database.py",
+        "apps/api/src/models.py",
+        "apps/api/src/routes/__init__.py",
+        "apps/api/src/routes/users.py",
+        "apps/api/tests/__init__.py",
+        "apps/api/tests/conftest.py",
+        "apps/api/tests/test_health.py",
+        "apps/api/tests/test_users.py",
+        "apps/api/alembic.ini",
+        "apps/api/alembic/env.py",
+    ]
+    for f in api_files:
+        path = project_dir / f
+        checks.append(CheckResult(
+            f"file: {f}",
+            path.exists(),
+            None if path.exists() else f"Missing: {f}",
+        ))
+
+    # tRPC files should NOT exist
+    trpc_files = [
+        "apps/web/src/lib/trpc.ts",
+        "apps/api/src/router.ts",
+        "apps/api/src/trpc.ts",
+    ]
+    for f in trpc_files:
+        path = project_dir / f
+        checks.append(CheckResult(
+            f"no tRPC: {f}",
+            not path.exists(),
+            f"{f} exists but should not for fullstack-python" if path.exists() else None,
+        ))
+
+    # No packages/ directory (Prisma not used)
+    packages_dir = project_dir / "packages"
+    checks.append(CheckResult(
+        "no packages/ directory",
+        not packages_dir.exists(),
+        "packages/ exists but should not for fullstack-python" if packages_dir.exists() else None,
+    ))
+
+    # Root pyproject.toml has uv workspace config
+    root_pyproject = project_dir / "pyproject.toml"
+    if root_pyproject.exists():
+        content = root_pyproject.read_text()
+        has_workspace = "[tool.uv.workspace]" in content
+        checks.append(CheckResult(
+            "root pyproject.toml has uv workspace",
+            has_workspace,
+            None if has_workspace else "Missing [tool.uv.workspace] in root pyproject.toml",
+        ))
+
+    # API deps check
+    api_pyproject = project_dir / "apps" / "api" / "pyproject.toml"
+    if api_pyproject.exists():
+        content = api_pyproject.read_text()
+        for dep in ("fastapi", "sqlmodel"):
+            has_dep = dep in content
+            checks.append(CheckResult(
+                f"api pyproject.toml has {dep}",
+                has_dep,
+                None if has_dep else f"Missing {dep} in apps/api/pyproject.toml",
+            ))
+
+    # Vite proxy defaults to port 8000
+    vite_config = project_dir / "apps" / "web" / "vite.config.ts"
+    if vite_config.exists():
+        content = vite_config.read_text()
+        has_8000 = '"8000"' in content
+        checks.append(CheckResult(
+            "vite proxy defaults to port 8000",
+            has_8000,
+            None if has_8000 else "vite.config.ts should default API_PORT to 8000",
+        ))

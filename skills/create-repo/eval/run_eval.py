@@ -224,10 +224,25 @@ def _write_ci_env_files(project_dir: Path) -> None:
         "postgresql://postgres:postgres@localhost:5432/eval_project_dev",
     )
 
-    is_python = (project_dir / "pyproject.toml").exists()
+    has_pyproject = (project_dir / "pyproject.toml").exists()
+    has_package_json = (project_dir / "package.json").exists()
+    is_mixed = has_pyproject and has_package_json
 
-    if is_python:
-        # Python projects: root .env + apps/api/.env
+    if is_mixed:
+        # Mixed platform (fullstack-python): both Python and Node env files
+        (project_dir / ".env").write_text(
+            f"DATABASE_URL={db_url}\n"
+            f"API_PORT=8000\n"
+            f"WEB_PORT=3000\n"
+        )
+        api_dir = project_dir / "apps" / "api"
+        if api_dir.exists():
+            (api_dir / ".env").write_text(f"DATABASE_URL={db_url}\n")
+        web_dir = project_dir / "apps" / "web"
+        if web_dir.exists():
+            (web_dir / ".env").write_text(f"WEB_PORT=3000\nVITE_API_PORT=8000\n")
+    elif has_pyproject:
+        # Pure Python projects: root .env + apps/api/.env
         (project_dir / ".env").write_text(f"DATABASE_URL={db_url}\n")
         api_dir = project_dir / "apps" / "api"
         if api_dir.exists():
@@ -271,7 +286,7 @@ def print_results(result: EvalResult) -> None:
     print(f"\n{result.pass_count}/{len(result.checks)} checks passed")
 
 
-AVAILABLE_TEMPLATES = ["fullstack-ts", "fullstack-graphql", "api-ts", "api-python"]
+AVAILABLE_TEMPLATES = ["fullstack-ts", "fullstack-graphql", "api-ts", "api-python", "fullstack-python"]
 
 
 def main() -> None:
