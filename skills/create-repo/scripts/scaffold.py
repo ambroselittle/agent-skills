@@ -195,6 +195,7 @@ def scaffold(
 
     # Resolve the base template if extends is declared
     base_dir: Path | None = None
+    base_config: TemplateConfig | None = None
     if config.extends:
         base_dir = TEMPLATES_DIR / config.extends
         if not base_dir.is_dir():
@@ -211,8 +212,8 @@ def scaffold(
 
     # Inherit platform from base if child doesn't declare one
     platform = config.platform
-    if not platform and base_dir:
-        platform = read_template_config(base_dir).platform
+    if not platform and base_config:
+        platform = base_config.platform
 
     context = build_context(project_name, versions)
 

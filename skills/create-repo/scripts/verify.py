@@ -305,14 +305,14 @@ def verify_node(
                 result.steps.append(StepResult("dev server (web)", True, web_elapsed))
 
         # Step 9: E2E tests (while dev server is running)
-        e2e_ready = api_up and (web_up if has_web else True)
-        e2e_dir: Path | None = None
-        if has_web and (project_dir / "apps" / "web" / "playwright.config.ts").exists():
-            e2e_dir = project_dir / "apps" / "web"
-        elif api_e2e_config.exists():
-            e2e_dir = project_dir / "apps" / "api"
+        # Build list of E2E targets — both web and API can have E2E tests
+        e2e_targets: list[tuple[str, Path]] = []
+        if has_web and web_up and (project_dir / "apps" / "web" / "playwright.config.ts").exists():
+            e2e_targets.append(("e2e tests (web)", project_dir / "apps" / "web"))
+        if api_up and api_e2e_config.exists():
+            e2e_targets.append(("e2e tests (api)", project_dir / "apps" / "api"))
 
-        if e2e_ready and e2e_dir:
+        if e2e_targets:
             e2e_env = {
                 **os.environ,
                 "E2E_API_PORT": str(api_port),
@@ -322,35 +322,36 @@ def verify_node(
                 e2e_env["E2E_WEB_PORT"] = str(web_port)
 
             import tempfile
-            e2e_start = time.monotonic()
-            with tempfile.NamedTemporaryFile(mode="w+", suffix=".log", delete=False) as e2e_log:
-                try:
-                    e2e_proc = subprocess.run(
-                        ["npx", "playwright", "test"],
-                        cwd=e2e_dir,
-                        stdout=e2e_log,
-                        stderr=subprocess.STDOUT,
-                        timeout=120,
-                        env=e2e_env,
-                    )
-                    e2e_elapsed = time.monotonic() - e2e_start
-                    if e2e_proc.returncode != 0:
+            for e2e_name, e2e_dir in e2e_targets:
+                e2e_start = time.monotonic()
+                with tempfile.NamedTemporaryFile(mode="w+", suffix=".log", delete=False) as e2e_log:
+                    try:
+                        e2e_proc = subprocess.run(
+                            ["npx", "playwright", "test"],
+                            cwd=e2e_dir,
+                            stdout=e2e_log,
+                            stderr=subprocess.STDOUT,
+                            timeout=120,
+                            env=e2e_env,
+                        )
+                        e2e_elapsed = time.monotonic() - e2e_start
+                        if e2e_proc.returncode != 0:
+                            e2e_log.seek(0)
+                            error = e2e_log.read().strip()
+                            if len(error) > 2000:
+                                error = error[:2000] + "\n... (truncated)"
+                            step = StepResult(e2e_name, False, e2e_elapsed, error)
+                        else:
+                            step = StepResult(e2e_name, True, e2e_elapsed)
+                    except subprocess.TimeoutExpired:
+                        e2e_elapsed = time.monotonic() - e2e_start
                         e2e_log.seek(0)
-                        error = e2e_log.read().strip()
-                        if len(error) > 2000:
-                            error = error[:2000] + "\n... (truncated)"
-                        step = StepResult("e2e tests", False, e2e_elapsed, error)
-                    else:
-                        step = StepResult("e2e tests", True, e2e_elapsed)
-                except subprocess.TimeoutExpired:
-                    e2e_elapsed = time.monotonic() - e2e_start
-                    e2e_log.seek(0)
-                    partial = e2e_log.read().strip()
-                    error = "Timed out after 120s"
-                    if partial:
-                        error += f"\nPartial output:\n{partial[:1000]}"
-                    step = StepResult("e2e tests", False, e2e_elapsed, error)
-            result.steps.append(step)
+                        partial = e2e_log.read().strip()
+                        error = "Timed out after 120s"
+                        if partial:
+                            error += f"\nPartial output:\n{partial[:1000]}"
+                        step = StepResult(e2e_name, False, e2e_elapsed, error)
+                result.steps.append(step)
     finally:
         try:
             pgid = os.getpgid(dev_proc.pid)

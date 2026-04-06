@@ -18,7 +18,9 @@
 - Tests use Playwright's `request` fixture only (no browser needed)
 - `webServer` config starts only the API server
 
-### Page Object Model (required)
+### Page Object Model (required for browser-based tests)
+
+> API-only projects that exclusively use the `request` fixture do not need page objects.
 
 - Every view/page gets a page object in `e2e/pages/`
 - Page objects extend `BasePage` from `./base.page`
