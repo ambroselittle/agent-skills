@@ -220,7 +220,7 @@ def test_scaffold_fullstack_graphql_creates_expected_structure(tmp_path, version
 
     assert len(created) > 0
 
-    # Common files (inherited from templates/common/)
+    # Common files (inherited from templates/__common/ + __common/ts/)
     assert (output / "package.json").exists()
     assert (output / "pnpm-workspace.yaml").exists()
     assert (output / "turbo.json").exists()

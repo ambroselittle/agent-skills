@@ -19,6 +19,7 @@ create-repo/
 │   │   ├── python/       # Shared across Python templates
 │   │   └── ts/           # Shared across TypeScript templates
 │   ├── fullstack-ts/     # React + Hono + tRPC + Prisma
+│   ├── fullstack-graphql/# React + Hono + Yoga/Pothos + Apollo + Prisma
 │   └── api-python/       # FastAPI + SQLModel + Postgres
 ├── tests/                # pytest tests for all scripts
 └── eval/                 # Eval framework
