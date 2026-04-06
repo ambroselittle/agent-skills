@@ -782,3 +782,156 @@ def test_extends_base_not_found(tmp_path, monkeypatch):
     output = tmp_path / "out"
     with pytest.raises(FileNotFoundError, match="nonexistent"):
         scaffold("test", "child", {}, output)
+
+
+# ---------------------------------------------------------------------------
+# Multi-platform tests
+# ---------------------------------------------------------------------------
+
+
+def test_multi_platform_applies_both_layers(tmp_path, monkeypatch):
+    """When platform is a list, all platform layers are applied."""
+    templates = tmp_path / "templates"
+    templates.mkdir()
+
+    common = templates / "__common"
+    common.mkdir()
+    alpha_dir = common / "alpha"
+    alpha_dir.mkdir()
+    (alpha_dir / "alpha.txt").write_text("from alpha")
+    beta_dir = common / "beta"
+    beta_dir.mkdir()
+    (beta_dir / "beta.txt").write_text("from beta")
+
+    tpl = templates / "multi"
+    tpl.mkdir()
+    (tpl / "template.json").write_text(json.dumps({"platform": ["alpha", "beta"]}))
+
+    monkeypatch.setattr("scripts.scaffold.TEMPLATES_DIR", templates)
+    monkeypatch.setattr("scripts.scaffold.COMMON_DIR_NAME", "__common")
+
+    output = tmp_path / "out"
+    scaffold("test", "multi", {}, output)
+
+    assert (output / "alpha.txt").exists()
+    assert (output / "alpha.txt").read_text() == "from alpha"
+    assert (output / "beta.txt").exists()
+    assert (output / "beta.txt").read_text() == "from beta"
+
+
+def test_multi_platform_order_matters(tmp_path, monkeypatch):
+    """Later platforms in the list override earlier ones for the same file."""
+    templates = tmp_path / "templates"
+    templates.mkdir()
+
+    common = templates / "__common"
+    common.mkdir()
+    first_dir = common / "first"
+    first_dir.mkdir()
+    (first_dir / "shared.txt").write_text("first version")
+    second_dir = common / "second"
+    second_dir.mkdir()
+    (second_dir / "shared.txt").write_text("second version")
+
+    tpl = templates / "multi"
+    tpl.mkdir()
+    (tpl / "template.json").write_text(json.dumps({"platform": ["first", "second"]}))
+
+    monkeypatch.setattr("scripts.scaffold.TEMPLATES_DIR", templates)
+    monkeypatch.setattr("scripts.scaffold.COMMON_DIR_NAME", "__common")
+
+    output = tmp_path / "out"
+    scaffold("test", "multi", {}, output)
+
+    assert (output / "shared.txt").read_text() == "second version"
+
+
+def test_multi_platform_inherits_from_base(tmp_path, monkeypatch):
+    """Child without platform should inherit multi-platform list from base."""
+    templates = tmp_path / "templates"
+    templates.mkdir()
+
+    common = templates / "__common"
+    common.mkdir()
+    alpha_dir = common / "alpha"
+    alpha_dir.mkdir()
+    (alpha_dir / "alpha.txt").write_text("from alpha")
+    beta_dir = common / "beta"
+    beta_dir.mkdir()
+    (beta_dir / "beta.txt").write_text("from beta")
+
+    base = templates / "base"
+    base.mkdir()
+    (base / "template.json").write_text(json.dumps({"platform": ["alpha", "beta"]}))
+    (base / "base.txt").write_text("base")
+
+    child = templates / "child"
+    child.mkdir()
+    (child / "template.json").write_text(json.dumps({"extends": "base"}))
+
+    monkeypatch.setattr("scripts.scaffold.TEMPLATES_DIR", templates)
+    monkeypatch.setattr("scripts.scaffold.COMMON_DIR_NAME", "__common")
+
+    output = tmp_path / "out"
+    scaffold("test", "child", {}, output)
+
+    assert (output / "alpha.txt").exists()
+    assert (output / "beta.txt").exists()
+    assert (output / "base.txt").exists()
+
+
+def test_multi_platform_empty_list(tmp_path, monkeypatch):
+    """An empty platform list should scaffold without platform layers."""
+    templates = tmp_path / "templates"
+    templates.mkdir()
+
+    common = templates / "__common"
+    common.mkdir()
+    (common / "common.txt").write_text("common file")
+    ts_dir = common / "ts"
+    ts_dir.mkdir()
+    (ts_dir / "biome.json").write_text("{}")
+
+    tpl = templates / "empty-plat"
+    tpl.mkdir()
+    (tpl / "template.json").write_text(json.dumps({"platform": []}))
+    (tpl / "app.txt").write_text("app")
+
+    monkeypatch.setattr("scripts.scaffold.TEMPLATES_DIR", templates)
+    monkeypatch.setattr("scripts.scaffold.COMMON_DIR_NAME", "__common")
+
+    output = tmp_path / "out"
+    scaffold("test", "empty-plat", {}, output)
+
+    assert (output / "common.txt").exists()
+    assert (output / "app.txt").exists()
+    # No platform layers should be applied
+    assert not (output / "biome.json").exists()
+
+
+def test_multi_platform_unknown_platform_ignored(tmp_path, monkeypatch):
+    """Unknown platforms in the list are silently skipped."""
+    templates = tmp_path / "templates"
+    templates.mkdir()
+
+    common = templates / "__common"
+    common.mkdir()
+    ts_dir = common / "ts"
+    ts_dir.mkdir()
+    (ts_dir / "biome.json").write_text("{}")
+
+    tpl = templates / "mixed"
+    tpl.mkdir()
+    (tpl / "template.json").write_text(
+        json.dumps({"platform": ["ts", "nonexistent"]})
+    )
+
+    monkeypatch.setattr("scripts.scaffold.TEMPLATES_DIR", templates)
+    monkeypatch.setattr("scripts.scaffold.COMMON_DIR_NAME", "__common")
+
+    output = tmp_path / "out"
+    scaffold("test", "mixed", {}, output)
+
+    # The known platform layer should be applied
+    assert (output / "biome.json").exists()
+    assert (output / "biome.json").read_text() == "{}"

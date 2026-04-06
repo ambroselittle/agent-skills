@@ -131,7 +131,7 @@ def render_template_dir(
 @dataclass
 class TemplateConfig:
     """Configuration read from a template's template.json."""
-    platform: str | None = None
+    platform: str | list[str] | None = None
     extends: str | None = None
     exclude: list[str] = field(default_factory=list)
 
@@ -215,6 +215,14 @@ def scaffold(
     if not platform and base_config:
         platform = base_config.platform
 
+    # Normalize platform to a list for uniform iteration
+    if isinstance(platform, str):
+        platforms = [platform]
+    elif isinstance(platform, list):
+        platforms = platform
+    else:
+        platforms = []
+
     context = build_context(project_name, versions)
 
     # Use the templates root as the Jinja2 search path so we can reference
@@ -239,8 +247,9 @@ def scaffold(
         ))
 
     # Layer 2: Platform-specific common files (e.g., __common/ts/, __common/python/)
-    if platform:
-        platform_dir = common_dir / platform
+    # When multiple platforms are declared, each is applied in order (later overrides earlier).
+    for plat in platforms:
+        platform_dir = common_dir / plat
         if platform_dir.is_dir():
             created.extend(render_template_dir(env, platform_dir, output_dir, context, platform_dir))
 
