@@ -4,15 +4,26 @@ version = "0.0.1"
 description = ""
 requires-python = ">=3.12"
 
+[dependency-groups]
+dev = [
+    "pytest>={{ versions.pytest }}",
+    "httpx>={{ versions.httpx }}",
+    "ruff>={{ versions.ruff }}",
+]
+
 [tool.uv.workspace]
 members = ["apps/*"]
 
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+extend-exclude = ["*.mako"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "SIM", "TCH"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["apps/api/tests"]

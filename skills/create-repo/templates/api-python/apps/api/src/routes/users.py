@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 
@@ -6,9 +8,11 @@ from src.models import User, UserCreate, UserPublic, UserUpdate
 
 router = APIRouter()
 
+SessionDep = Annotated[Session, Depends(get_session)]
+
 
 @router.post("/", response_model=UserPublic)
-def create_user(*, session: Session = Depends(get_session), user: UserCreate) -> User:
+def create_user(*, session: SessionDep, user: UserCreate) -> User:
     db_user = User.model_validate(user)
     session.add(db_user)
     session.commit()
@@ -19,15 +23,15 @@ def create_user(*, session: Session = Depends(get_session), user: UserCreate) ->
 @router.get("/", response_model=list[UserPublic])
 def list_users(
     *,
-    session: Session = Depends(get_session),
+    session: SessionDep,
     offset: int = 0,
-    limit: int = Query(default=100, le=100),
+    limit: Annotated[int, Query(le=100)] = 100,
 ) -> list[User]:
     return session.exec(select(User).offset(offset).limit(limit)).all()
 
 
 @router.get("/{user_id}", response_model=UserPublic)
-def get_user(*, session: Session = Depends(get_session), user_id: int) -> User:
+def get_user(*, session: SessionDep, user_id: int) -> User:
     user = session.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -35,9 +39,7 @@ def get_user(*, session: Session = Depends(get_session), user_id: int) -> User:
 
 
 @router.patch("/{user_id}", response_model=UserPublic)
-def update_user(
-    *, session: Session = Depends(get_session), user_id: int, user: UserUpdate
-) -> User:
+def update_user(*, session: SessionDep, user_id: int, user: UserUpdate) -> User:
     db_user = session.get(User, user_id)
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -50,7 +52,7 @@ def update_user(
 
 
 @router.delete("/{user_id}")
-def delete_user(*, session: Session = Depends(get_session), user_id: int) -> dict:
+def delete_user(*, session: SessionDep, user_id: int) -> dict:
     user = session.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
