@@ -1,7 +1,9 @@
 """Verify a scaffolded project builds, typechecks, lints, and tests.
 
-Runs the full verification suite in sequence: install, start services,
-push DB schema, build, typecheck, lint, test, and dev server smoke check.
+Runs the full verification suite in sequence. Detects the project platform
+(Node/Python) and runs the appropriate tool chain:
+  - Node: pnpm install → prisma generate → biome → docker → db push → build → typecheck → lint → test → dev server → E2E
+  - Python: uv sync → docker → alembic migrate → ruff → pytest → dev server
 """
 
 from __future__ import annotations
@@ -99,20 +101,71 @@ def _kill_process_group(pgid: int) -> None:
         time.sleep(0.5)
 
 
-def verify(
+def detect_platform(project_dir: Path) -> str:
+    """Detect the project platform from its files.
+
+    Returns 'python' if a root pyproject.toml exists, 'node' if package.json exists.
+    Raises ValueError if neither is found.
+    """
+    if (project_dir / "pyproject.toml").exists():
+        return "python"
+    if (project_dir / "package.json").exists():
+        return "node"
+    raise ValueError(f"Cannot detect platform in {project_dir}: no pyproject.toml or package.json")
+
+
+# ---------------------------------------------------------------------------
+# Docker / Postgres helpers (shared across platforms)
+# ---------------------------------------------------------------------------
+
+def _start_postgres(project_dir: Path, result: VerifyResult, skip_docker: bool) -> bool:
+    """Start Postgres via docker compose if needed. Returns True if ready."""
+    if skip_docker:
+        return True
+
+    step = run_step("docker compose up", ["docker", "compose", "up", "-d"], project_dir, timeout=60)
+    result.steps.append(step)
+    if not step.passed:
+        return False
+
+    # Wait for Postgres health check
+    step = run_step(
+        "postgres health",
+        ["docker", "compose", "exec", "-T", "postgres", "pg_isready", "-U", "postgres"],
+        project_dir,
+        timeout=30,
+    )
+    for _ in range(5):
+        if step.passed:
+            break
+        time.sleep(2)
+        step = run_step(
+            "postgres health",
+            ["docker", "compose", "exec", "-T", "postgres", "pg_isready", "-U", "postgres"],
+            project_dir,
+            timeout=10,
+        )
+    result.steps.append(step)
+    return step.passed
+
+
+# ---------------------------------------------------------------------------
+# Node verification
+# ---------------------------------------------------------------------------
+
+def verify_node(
     project_dir: Path,
     api_port: int = 3001,
     web_port: int = 3000,
     skip_docker: bool = False,
 ) -> VerifyResult:
-    """Run the full verification suite against a scaffolded project.
-
-    Args:
-        skip_docker: Skip docker compose up and pg_isready steps. Use when
-            Postgres is already available (e.g., CI service container).
-    """
-    project_dir = Path(project_dir).resolve()
+    """Verify a Node/TypeScript scaffolded project."""
     result = VerifyResult()
+
+    # Force a project-local turbo cache to prevent cross-worktree cache
+    # pollution (turbo matches on content hash, not path, so eval runs in
+    # different worktrees share stale cached logs with wrong absolute paths).
+    turbo_env = {**os.environ, "TURBO_CACHE_DIR": str(project_dir / ".turbo")}
 
     # Step 1: Install dependencies
     step = run_step("pnpm install", ["pnpm", "install"], project_dir, timeout=120)
@@ -121,10 +174,6 @@ def verify(
         return result
 
     # Step 1b: Run project setup (port discovery + .env generation)
-    # Skip when skip_docker=True — the caller pre-writes .env files with
-    # correct ports for the CI service container. Running setup here would
-    # discover new free ports and overwrite those .env files, breaking the
-    # database connection.
     setup_script = project_dir / "scripts" / "setup.ts"
     if setup_script.exists() and not skip_docker:
         step = run_step("setup", ["pnpm", "project:setup"], project_dir, timeout=30)
@@ -132,7 +181,6 @@ def verify(
         if not step.passed:
             return result
 
-        # Read discovered ports so verify uses the same ones as the dev servers
         ports_file = project_dir / ".env.ports"
         if ports_file.exists():
             for line in ports_file.read_text().splitlines():
@@ -159,34 +207,9 @@ def verify(
     result.steps.append(step)
     # Non-fatal — continue even if format step fails
 
-    # Step 2: Start Postgres (skip if already available, e.g., CI service container)
-    if not skip_docker:
-        step = run_step("docker compose up", ["docker", "compose", "up", "-d"], project_dir, timeout=60)
-        result.steps.append(step)
-        if not step.passed:
-            return result
-
-        # Wait for Postgres health check
-        step = run_step(
-            "postgres health",
-            ["docker", "compose", "exec", "-T", "postgres", "pg_isready", "-U", "postgres"],
-            project_dir,
-            timeout=30,
-        )
-        # Retry a few times for Postgres startup
-        for _ in range(5):
-            if step.passed:
-                break
-            time.sleep(2)
-            step = run_step(
-                "postgres health",
-                ["docker", "compose", "exec", "-T", "postgres", "pg_isready", "-U", "postgres"],
-                project_dir,
-                timeout=10,
-            )
-        result.steps.append(step)
-        if not step.passed:
-            return result
+    # Step 2: Start Postgres
+    if not _start_postgres(project_dir, result, skip_docker):
+        return result
 
     # Step 3: Push database schema
     step = run_step("db push", ["pnpm", "db:push"], project_dir, timeout=60)
@@ -200,30 +223,30 @@ def verify(
     # Non-fatal — tests can run without seed data
 
     # Step 4: Build
-    step = run_step("build", ["pnpm", "build"], project_dir, timeout=120)
+    step = run_step("build", ["pnpm", "build"], project_dir, timeout=120, env=turbo_env)
     result.steps.append(step)
     if not step.passed:
         return result
 
     # Step 5: Typecheck
-    step = run_step("typecheck", ["pnpm", "typecheck"], project_dir, timeout=60)
+    step = run_step("typecheck", ["pnpm", "typecheck"], project_dir, timeout=60, env=turbo_env)
     result.steps.append(step)
     if not step.passed:
         return result
 
     # Step 6: Lint
-    step = run_step("lint", ["pnpm", "lint"], project_dir, timeout=60)
+    step = run_step("lint", ["pnpm", "lint"], project_dir, timeout=60, env=turbo_env)
     result.steps.append(step)
     if not step.passed:
         return result
 
     # Step 7: Test
-    step = run_step("test", ["pnpm", "test"], project_dir, timeout=120)
+    step = run_step("test", ["pnpm", "test"], project_dir, timeout=120, env=turbo_env)
     result.steps.append(step)
     if not step.passed:
         return result
 
-    # Step 7b: Install Playwright browsers (before dev server, can be slow)
+    # Step 7b: Install Playwright browsers
     playwright_config = project_dir / "apps" / "web" / "playwright.config.ts"
     if playwright_config.exists():
         step = run_step(
@@ -233,12 +256,10 @@ def verify(
             timeout=120,
         )
         result.steps.append(step)
-        # Non-fatal — E2E tests will fail but other checks can continue
 
     # Step 8: Dev server smoke check
-    # Pass port env vars so the dev servers use the discovered ports
     dev_env = {
-        **os.environ,
+        **turbo_env,
         "PORT": str(api_port),
         "WEB_PORT": str(web_port),
         "VITE_API_PORT": str(api_port),
@@ -249,10 +270,9 @@ def verify(
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         env=dev_env,
-        start_new_session=True,  # Own process group so we can kill all children
+        start_new_session=True,
     )
 
-    # Safety net: kill the process group on interpreter exit (ctrl-c, crash, etc.)
     dev_pgid = os.getpgid(dev_proc.pid)
     atexit.register(_kill_process_group, dev_pgid)
 
@@ -274,21 +294,14 @@ def verify(
         else:
             result.steps.append(StepResult("dev server (web)", True, elapsed))
 
-
         # Step 9: E2E tests (while dev server is running)
         if api_up and web_up:
-            # Run E2E tests against the already-running dev server.
-            # Set E2E_WEB_PORT and E2E_API_PORT so Playwright config uses
-            # the same ports, and PLAYWRIGHT_SKIP_WEBSERVER to bypass
-            # Playwright's own server startup.
             e2e_env = {
                 **os.environ,
                 "E2E_WEB_PORT": str(web_port),
                 "E2E_API_PORT": str(api_port),
                 "PLAYWRIGHT_SKIP_WEBSERVER": "1",
             }
-            # Run Playwright with output piped to a temp file to avoid
-            # subprocess.PIPE blocking issues with Chromium's output volume.
             import tempfile
             e2e_start = time.monotonic()
             with tempfile.NamedTemporaryFile(mode="w+", suffix=".log", delete=False) as e2e_log:
@@ -320,7 +333,6 @@ def verify(
                     step = StepResult("e2e tests", False, e2e_elapsed, error)
             result.steps.append(step)
     finally:
-        # Kill the entire process group (pnpm + turbo + vite + api child processes)
         try:
             pgid = os.getpgid(dev_proc.pid)
             _kill_process_group(pgid)
@@ -328,6 +340,147 @@ def verify(
             pass
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# Python verification
+# ---------------------------------------------------------------------------
+
+def verify_python(
+    project_dir: Path,
+    api_port: int = 8000,
+    skip_docker: bool = False,
+) -> VerifyResult:
+    """Verify a Python (FastAPI/uv) scaffolded project."""
+    result = VerifyResult()
+
+    # Step 1: Install dependencies
+    # Use Python 3.13 if available — 3.14 lacks prebuilt wheels for many
+    # packages (pydantic-core, etc.), causing slow Rust compilation failures.
+    uv_sync_cmd = ["uv", "sync"]
+    try:
+        import subprocess as _sp
+        _sp.run(["uv", "python", "find", "3.13"], capture_output=True, check=True)
+        uv_sync_cmd = ["uv", "sync", "--python", "3.13"]
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass  # Fall back to default Python
+    step = run_step("uv sync", uv_sync_cmd, project_dir, timeout=120)
+    result.steps.append(step)
+    if not step.passed:
+        return result
+
+    # Step 2: Start Postgres
+    if not _start_postgres(project_dir, result, skip_docker):
+        return result
+
+    # Step 3: Run Alembic migrations (if alembic.ini exists in any app)
+    alembic_dirs = list(project_dir.glob("apps/*/alembic.ini"))
+    for alembic_ini in alembic_dirs:
+        app_dir = alembic_ini.parent
+        app_name = app_dir.name
+        step = run_step(
+            f"alembic upgrade ({app_name})",
+            ["uv", "run", "alembic", "upgrade", "head"],
+            app_dir,
+            timeout=300,  # May compile native deps (e.g., pydantic-core) on newer Python
+        )
+        result.steps.append(step)
+        if not step.passed:
+            return result
+
+    # Step 4: Lint
+    step = run_step("ruff check", ["uv", "run", "ruff", "check", "."], project_dir, timeout=60)
+    result.steps.append(step)
+    if not step.passed:
+        return result
+
+    # Step 5: Format check
+    step = run_step("ruff format --check", ["uv", "run", "ruff", "format", "--check", "."], project_dir, timeout=60)
+    result.steps.append(step)
+    # Non-fatal — continue even if format check fails
+
+    # Step 6: Test
+    step = run_step("pytest", ["uv", "run", "pytest"], project_dir, timeout=120)
+    result.steps.append(step)
+    if not step.passed:
+        return result
+
+    # Step 7: Dev server smoke check
+    api_app_dir = project_dir / "apps" / "api"
+    if not api_app_dir.exists():
+        # Flat project layout — run from root
+        api_app_dir = project_dir
+
+    dev_env = {**os.environ, "PORT": str(api_port)}
+    dev_proc = subprocess.Popen(
+        ["uv", "run", "uvicorn", "src.main:app", "--port", str(api_port)],
+        cwd=api_app_dir,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        env=dev_env,
+        start_new_session=True,
+    )
+
+    dev_pgid = os.getpgid(dev_proc.pid)
+    atexit.register(_kill_process_group, dev_pgid)
+
+    try:
+        start = time.monotonic()
+        api_up = wait_for_port(api_port, timeout=15)
+        elapsed = time.monotonic() - start
+
+        if not api_up:
+            result.steps.append(StepResult("dev server", False, elapsed, f"Port {api_port} not reachable"))
+        elif not check_health(f"http://localhost:{api_port}/health"):
+            result.steps.append(StepResult("dev server", False, elapsed, "Health check failed"))
+        else:
+            result.steps.append(StepResult("dev server", True, elapsed))
+    finally:
+        try:
+            pgid = os.getpgid(dev_proc.pid)
+            _kill_process_group(pgid)
+        except (ProcessLookupError, PermissionError):
+            pass
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Main dispatch
+# ---------------------------------------------------------------------------
+
+def verify(
+    project_dir: Path,
+    api_port: int | None = None,
+    web_port: int = 3000,
+    skip_docker: bool = False,
+) -> VerifyResult:
+    """Run the full verification suite against a scaffolded project.
+
+    Detects the platform and dispatches to the appropriate verifier.
+
+    Args:
+        api_port: API server port. Defaults to 3001 for Node, 8000 for Python.
+        web_port: Web server port (Node only, default 3000).
+        skip_docker: Skip docker compose up and pg_isready steps. Use when
+            Postgres is already available (e.g., CI service container).
+    """
+    project_dir = Path(project_dir).resolve()
+    platform = detect_platform(project_dir)
+
+    if platform == "python":
+        return verify_python(
+            project_dir,
+            api_port=api_port or 8000,
+            skip_docker=skip_docker,
+        )
+    else:
+        return verify_node(
+            project_dir,
+            api_port=api_port or 3001,
+            web_port=web_port,
+            skip_docker=skip_docker,
+        )
 
 
 def print_results(result: VerifyResult) -> None:
@@ -356,7 +509,7 @@ def print_results(result: VerifyResult) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Verify a scaffolded project")
     parser.add_argument("project_dir", help="Path to the scaffolded project")
-    parser.add_argument("--api-port", type=int, default=3001, help="API server port (default: 3001)")
+    parser.add_argument("--api-port", type=int, default=None, help="API server port (default: auto-detect)")
     parser.add_argument("--web-port", type=int, default=3000, help="Web server port (default: 3000)")
     parser.add_argument("--skip-docker", action="store_true", help="Skip docker compose (Postgres already available)")
     args = parser.parse_args()

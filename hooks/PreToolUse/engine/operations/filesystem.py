@@ -121,6 +121,45 @@ def matches_write_path(payload: dict, rule: dict, repo_root: str | None, cwd: st
     return False
 
 
+def matches_write_content(payload: dict, rule: dict, repo_root: str | None, cwd: str) -> bool:
+    """Match writes to specific file paths whose content matches forbidden patterns.
+
+    Rule format:
+        {
+            "operation": "write-content",
+            "paths": ["**/package.json", "**/pyproject.toml"],
+            "content_patterns": ["\"latest\"", "\"\\*\""],
+            "action": "deny",
+            "reason": "..."
+        }
+
+    Matches when BOTH the file path matches AND any content pattern is found.
+    Checks Write (full content) and Edit (new_string only) tool calls.
+    """
+    tool_name = payload.get("tool_name", "")
+    tool_input = payload.get("tool_input", {})
+    rule_paths = rule.get("paths", [])
+    content_patterns = rule.get("content_patterns", [])
+
+    if tool_name == "Write":
+        fp = tool_input.get("file_path", "")
+        content = tool_input.get("content", "")
+    elif tool_name == "Edit":
+        fp = tool_input.get("file_path", "")
+        content = tool_input.get("new_string", "")
+    else:
+        return False
+
+    if not _any_path_matches([fp], rule_paths, repo_root, cwd):
+        return False
+
+    for pattern in content_patterns:
+        if re.search(pattern, content):
+            return True
+
+    return False
+
+
 def matches_delete_path(payload: dict, rule: dict, repo_root: str | None, cwd: str) -> bool:
     tool_name = payload.get("tool_name", "")
     tool_input = payload.get("tool_input", {})

@@ -56,7 +56,21 @@ FALLBACK_VERSIONS = {
     "vitejs_plugin_react": "4.4.1",
     "playwright": "1.59.1",
     "playwright_test": "1.59.1",
+    "jsdom": "25.0.1",
+    "testing_library_react": "16.3.2",
+    "testing_library_jest_dom": "6.9.1",
+    "dotenv": "17.4.1",
     "pnpm": "10.33.0",
+    # Python packages (api-python, fullstack-python)
+    "fastapi": "0.115.12",
+    "sqlmodel": "0.0.24",
+    "sqlalchemy": "2.0.40",
+    "pydantic": "2.11.4",
+    "uvicorn": "0.34.3",
+    "alembic": "1.15.2",
+    "pytest": "8.4.1",
+    "httpx": "0.28.1",
+    "ruff": "0.11.12",
 }
 
 
@@ -188,7 +202,8 @@ def run_eval(
 def _write_ci_env_files(project_dir: Path) -> None:
     """Write .env files for CI where Postgres is a service container.
 
-    Uses DATABASE_URL from the environment. Locally, pnpm setup handles this.
+    Uses DATABASE_URL from the environment. Detects platform and writes
+    the appropriate .env files.
     """
     import os
 
@@ -197,26 +212,34 @@ def _write_ci_env_files(project_dir: Path) -> None:
         "postgresql://postgres:postgres@localhost:5432/eval_project_dev",
     )
 
-    # Root .env
-    (project_dir / ".env").write_text(
-        f"DATABASE_URL={db_url}\n"
-        f"DB_PORT=5432\n"
-        f"API_PORT=3001\n"
-        f"WEB_PORT=3000\n"
-    )
+    is_python = (project_dir / "pyproject.toml").exists()
 
-    # Per-package .env files
-    db_dir = project_dir / "packages" / "db"
-    if db_dir.exists():
-        (db_dir / ".env").write_text(f"DATABASE_URL={db_url}\n")
+    if is_python:
+        # Python projects: root .env + apps/api/.env
+        (project_dir / ".env").write_text(f"DATABASE_URL={db_url}\n")
+        api_dir = project_dir / "apps" / "api"
+        if api_dir.exists():
+            (api_dir / ".env").write_text(f"DATABASE_URL={db_url}\n")
+    else:
+        # Node projects: root + per-package .env files
+        (project_dir / ".env").write_text(
+            f"DATABASE_URL={db_url}\n"
+            f"DB_PORT=5432\n"
+            f"API_PORT=3001\n"
+            f"WEB_PORT=3000\n"
+        )
 
-    api_dir = project_dir / "apps" / "api"
-    if api_dir.exists():
-        (api_dir / ".env").write_text(f"DATABASE_URL={db_url}\nPORT=3001\n")
+        db_dir = project_dir / "packages" / "db"
+        if db_dir.exists():
+            (db_dir / ".env").write_text(f"DATABASE_URL={db_url}\n")
 
-    web_dir = project_dir / "apps" / "web"
-    if web_dir.exists():
-        (web_dir / ".env").write_text(f"WEB_PORT=3000\nVITE_API_PORT=3001\n")
+        api_dir = project_dir / "apps" / "api"
+        if api_dir.exists():
+            (api_dir / ".env").write_text(f"DATABASE_URL={db_url}\nPORT=3001\n")
+
+        web_dir = project_dir / "apps" / "web"
+        if web_dir.exists():
+            (web_dir / ".env").write_text(f"WEB_PORT=3000\nVITE_API_PORT=3001\n")
 
 
 def print_results(result: EvalResult) -> None:
@@ -236,7 +259,7 @@ def print_results(result: EvalResult) -> None:
     print(f"\n{result.pass_count}/{len(result.checks)} checks passed")
 
 
-AVAILABLE_TEMPLATES = ["fullstack-ts"]
+AVAILABLE_TEMPLATES = ["fullstack-ts", "api-python"]
 
 
 def main() -> None:

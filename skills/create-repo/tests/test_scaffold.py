@@ -39,6 +39,10 @@ def versions() -> dict:
         "playwright": "1.59.1",
         "playwright_test": "1.59.1",
         "prisma_adapter_pg": "7.5.0",
+        "jsdom": "25.0.1",
+        "testing_library_react": "16.3.2",
+        "testing_library_jest_dom": "6.9.1",
+        "dotenv": "17.4.1",
         "pnpm": "10.33.0",
     }
 
@@ -207,7 +211,124 @@ def test_scaffold_template_overrides_common(tmp_path, versions):
     output = tmp_path / "my-app"
     scaffold("my-app", "fullstack-ts", versions, output)
 
-    # Both common and fullstack-ts provide files — template-specific wins
-    # The .gitignore comes from common (fullstack-ts doesn't override it)
+    # Both __common/ and __common/ts/ provide files — platform layer wins
+    # The .gitignore comes from __common/ (no TS override)
     gitignore = (output / ".gitignore").read_text()
     assert "node_modules/" in gitignore
+
+
+# --- api-python scaffold ---
+
+
+@pytest.fixture
+def python_versions() -> dict:
+    """Minimal versions dict for api-python testing."""
+    return {
+        "fastapi": "0.115.12",
+        "sqlmodel": "0.0.24",
+        "sqlalchemy": "2.0.40",
+        "pydantic": "2.11.4",
+        "uvicorn": "0.34.3",
+        "alembic": "1.15.2",
+        "pytest": "8.4.1",
+        "httpx": "0.28.1",
+        "ruff": "0.11.12",
+    }
+
+
+def test_scaffold_api_python_creates_expected_structure(tmp_path, python_versions):
+    output = tmp_path / "my-api"
+    created = scaffold("my-api", "api-python", python_versions, output)
+
+    assert len(created) > 0
+
+    # Root workspace files
+    assert (output / "pyproject.toml").exists()
+    assert (output / "justfile").exists()
+    assert (output / ".gitignore").exists()
+    assert (output / "docker-compose.yml").exists()
+    assert (output / ".env.example").exists()
+    assert (output / "CLAUDE.md").exists()
+    assert (output / ".claude" / "rules" / "testing.md").exists()
+    assert (output / ".claude" / "rules" / "modules.md").exists()
+    assert (output / ".claude" / "rules" / "types.md").exists()
+    assert (output / ".github" / "workflows" / "ci.yml").exists()
+    assert (output / ".github" / "pull_request_template.md").exists()
+
+    # API app
+    assert (output / "apps" / "api" / "pyproject.toml").exists()
+    assert (output / "apps" / "api" / "src" / "__init__.py").exists()
+    assert (output / "apps" / "api" / "src" / "main.py").exists()
+    assert (output / "apps" / "api" / "src" / "database.py").exists()
+    assert (output / "apps" / "api" / "src" / "models.py").exists()
+    assert (output / "apps" / "api" / "src" / "routes" / "__init__.py").exists()
+    assert (output / "apps" / "api" / "src" / "routes" / "users.py").exists()
+
+    # Tests
+    assert (output / "apps" / "api" / "tests" / "__init__.py").exists()
+    assert (output / "apps" / "api" / "tests" / "conftest.py").exists()
+    assert (output / "apps" / "api" / "tests" / "test_health.py").exists()
+    assert (output / "apps" / "api" / "tests" / "test_users.py").exists()
+
+    # Alembic
+    assert (output / "apps" / "api" / "alembic.ini").exists()
+    assert (output / "apps" / "api" / "alembic" / "env.py").exists()
+    assert (output / "apps" / "api" / "alembic" / "script.py.mako").exists()
+    assert (output / "apps" / "api" / "alembic" / "versions" / "001_create_user_table.py").exists()
+
+    # Should NOT have TS-specific files
+    assert not (output / "package.json").exists()
+    assert not (output / "biome.json").exists()
+    assert not (output / "turbo.json").exists()
+    assert not (output / "tsconfig.json").exists()
+    assert not (output / "template.json").exists()
+
+
+def test_scaffold_api_python_renders_jinja2_variables(tmp_path, python_versions):
+    output = tmp_path / "cool-api"
+    scaffold("cool-api", "api-python", python_versions, output)
+
+    # Root pyproject.toml has project name and workspace config
+    root_pyproject = (output / "pyproject.toml").read_text()
+    assert 'name = "cool-api"' in root_pyproject
+    assert "[tool.uv.workspace]" in root_pyproject
+
+    # API pyproject.toml has versions substituted
+    api_pyproject = (output / "apps" / "api" / "pyproject.toml").read_text()
+    assert python_versions["fastapi"] in api_pyproject
+    assert python_versions["sqlmodel"] in api_pyproject
+
+    # CLAUDE.md has the project name
+    claude_md = (output / "CLAUDE.md").read_text()
+    assert "cool-api" in claude_md
+
+    # docker-compose has project-specific db name
+    docker_compose = (output / "docker-compose.yml").read_text()
+    assert "cool-api_dev" in docker_compose
+
+    # alembic.ini has project-specific db name
+    alembic_ini = (output / "apps" / "api" / "alembic.ini").read_text()
+    assert "cool-api_dev" in alembic_ini
+
+
+def test_scaffold_api_python_has_python_gitignore(tmp_path, python_versions):
+    output = tmp_path / "my-api"
+    scaffold("my-api", "api-python", python_versions, output)
+
+    gitignore = (output / ".gitignore").read_text()
+    assert "__pycache__/" in gitignore
+    assert ".venv/" in gitignore
+    assert ".ruff_cache/" in gitignore
+    # Should NOT have node_modules (overridden by python layer)
+    assert "node_modules/" not in gitignore
+
+
+def test_scaffold_api_python_ci_uses_uv(tmp_path, python_versions):
+    output = tmp_path / "my-api"
+    scaffold("my-api", "api-python", python_versions, output)
+
+    ci = (output / ".github" / "workflows" / "ci.yml").read_text()
+    assert "uv sync" in ci
+    assert "just" in ci
+    # Should NOT have pnpm/node steps
+    assert "pnpm" not in ci
