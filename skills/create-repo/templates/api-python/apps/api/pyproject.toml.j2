@@ -4,20 +4,20 @@ version = "0.0.1"
 description = "{{ project_name }} API"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi>={{ versions.fastapi }}",
-    "sqlmodel>={{ versions.sqlmodel }}",
-    "sqlalchemy>={{ versions.sqlalchemy }}",
-    "pydantic>={{ versions.pydantic }}",
-    "uvicorn>={{ versions.uvicorn }}",
-    "alembic>={{ versions.alembic }}",
-    "psycopg2-binary>=2.9",
+    "fastapi~={{ versions.fastapi }}",
+    "sqlmodel~={{ versions.sqlmodel }}",
+    "sqlalchemy~={{ versions.sqlalchemy }}",
+    "pydantic~={{ versions.pydantic }}",
+    "uvicorn~={{ versions.uvicorn }}",
+    "alembic~={{ versions.alembic }}",
+    "psycopg2-binary~=2.9",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>={{ versions.pytest }}",
-    "httpx>={{ versions.httpx }}",
-    "ruff>={{ versions.ruff }}",
+    "pytest~={{ versions.pytest }}",
+    "httpx~={{ versions.httpx }}",
+    "ruff~={{ versions.ruff }}",
 ]
 
 [build-system]

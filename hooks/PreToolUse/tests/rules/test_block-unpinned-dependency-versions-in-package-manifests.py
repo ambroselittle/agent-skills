@@ -87,12 +87,12 @@ def test_boundary_workspace_star_allowed(rule):
     assert result["decision"] == "proceed"
 
 
-def test_boundary_latest_in_pyproject(rule):
-    """'latest' in pyproject.toml is denied (even though unusual)."""
+def test_boundary_pyproject_not_matched(rule):
+    """This rule only applies to package.json, not pyproject.toml."""
     content = '[project]\ndependencies = [\n    "requests": "latest",\n]'
     payload = _payload("Write", {"file_path": f"{REPO}/pyproject.toml", "content": content})
     result = evaluate(payload, [rule], repo_root=REPO)
-    assert result["decision"] == "deny"
+    assert result["decision"] == "proceed"
 
 
 def test_boundary_read_not_matched(rule):

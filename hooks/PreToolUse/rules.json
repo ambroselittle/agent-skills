@@ -214,15 +214,27 @@
       "description": "Block unpinned dependency versions in package manifests",
       "operation": "write-content",
       "paths": [
-        "**/package.json",
-        "**/pyproject.toml"
+        "**/package.json"
       ],
       "content_patterns": [
         ":\\s*\"latest\"",
         ":\\s*\"\\*\""
       ],
       "action": "deny",
-      "reason": "Dependency versions must be pinned — no \"latest\" or \"*\". Use exact versions or bounded ranges (e.g., \"^1.2.3\", \">=1.2,<2\")."
+      "reason": "Dependency versions must be pinned — no \"latest\" or \"*\". Use exact versions or bounded ranges (e.g., \"^1.2.3\")."
+    },
+    {
+      "id": "block-unbounded-python-deps",
+      "description": "Block unbounded dependency ranges in pyproject.toml",
+      "operation": "write-content",
+      "paths": [
+        "**/pyproject.toml"
+      ],
+      "content_patterns": [
+        "\"[a-zA-Z][^\"]*>=\\d[^,\"]*\""
+      ],
+      "action": "deny",
+      "reason": "Python dependency ranges must be bounded — use ~= (e.g., \"fastapi~=0.115.0\") or >= with < (e.g., \"fastapi>=0.115.0,<1\"). Bare >= allows breaking major upgrades."
     }
   ]
 }
