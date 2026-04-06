@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+*.egg
+
+# Ruff
+.ruff_cache/
+
+# Type checking
+.mypy_cache/
+.pyright/
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# uv
+uv.lock
