@@ -48,10 +48,11 @@ def versions() -> dict:
         "graphql": "16.13.2",
         "graphql_yoga": "5.21.0",
         "pothos_core": "4.12.0",
-        "apollo_client": "4.1.6",
+        "apollo_client": "3.14.1",
         "graphql_codegen_cli": "6.2.1",
-        "graphql_codegen_client_preset": "5.2.4",
-        "graphql_typed_document_node_core": "3.2.0",
+        "graphql_codegen_typescript": "5.0.9",
+        "graphql_codegen_typescript_operations": "5.0.9",
+        "graphql_codegen_typescript_react_apollo": "4.4.1",
     }
 
 
@@ -292,7 +293,7 @@ def test_scaffold_fullstack_graphql_renders_variables(tmp_path, versions):
     assert "graphql" in web_pkg["dependencies"]
     # Codegen devDependencies
     assert "@graphql-codegen/cli" in web_pkg.get("devDependencies", {})
-    assert "@graphql-codegen/client-preset" in web_pkg.get("devDependencies", {})
+    assert "@graphql-codegen/typescript-react-apollo" in web_pkg.get("devDependencies", {})
     # Should NOT have tRPC deps
     assert "@trpc/client" not in web_pkg.get("dependencies", {})
     assert "@tanstack/react-query" not in web_pkg.get("dependencies", {})
@@ -320,7 +321,7 @@ def test_scaffold_fullstack_graphql_renders_variables(tmp_path, versions):
     # App should use ApolloProvider and codegen graphql()
     app_tsx = (output / "apps" / "web" / "src" / "App.tsx").read_text()
     assert "ApolloProvider" in app_tsx
-    assert 'from "./generated/gql"' in app_tsx
+    assert 'from "./generated/graphql"' in app_tsx
     assert "trpc" not in app_tsx.lower()
 
     # Cleanup script should target schema.ts not router.ts

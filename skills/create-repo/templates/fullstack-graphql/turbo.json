@@ -6,7 +6,7 @@
     },
     "codegen": {
       "dependsOn": ["^generate:schema"],
-      "outputs": ["src/generated/gql/**"]
+      "outputs": ["src/generated/graphql.ts"]
     },
     "build": {
       "dependsOn": ["^build", "codegen"],

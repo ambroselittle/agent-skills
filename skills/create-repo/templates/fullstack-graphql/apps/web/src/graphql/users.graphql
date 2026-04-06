@@ -1,0 +1,17 @@
+query Users {
+  users {
+    id
+    email
+    name
+    createdAt
+    updatedAt
+  }
+}
+
+mutation CreateUser($email: String!, $name: String) {
+  createUser(email: $email, name: $name) {
+    id
+    email
+    name
+  }
+}
