@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -66,10 +66,10 @@ def test_verify_result_one_fail():
     assert not r.passed
 
 
-# --- verify (mocked) ---
+# --- verify (mocked, Node platform) ---
 
 
-def test_verify_stops_on_first_failure():
+def test_verify_node_stops_on_first_failure():
     """Verify should stop at the first failing step and not run subsequent steps."""
     call_count = 0
 
@@ -80,7 +80,8 @@ def test_verify_stops_on_first_failure():
             return _mock_run(returncode=1, stderr="install failed")
         return _mock_run()
 
-    with patch("scripts.verify.subprocess.run", side_effect=fake_run):
+    with patch("scripts.verify.detect_platform", return_value="node"), \
+         patch("scripts.verify.subprocess.run", side_effect=fake_run):
         result = verify(Path("/tmp/test-project"))
 
     assert not result.passed
@@ -90,7 +91,7 @@ def test_verify_stops_on_first_failure():
     assert len(result.steps) == 1
 
 
-def test_verify_runs_correct_command_sequence():
+def test_verify_node_runs_correct_command_sequence():
     """Verify that commands are called in the expected order."""
     commands_run = []
 
@@ -98,7 +99,8 @@ def test_verify_runs_correct_command_sequence():
         commands_run.append(cmd[0] if isinstance(cmd, list) else cmd)
         return _mock_run()
 
-    with patch("scripts.verify.subprocess.run", side_effect=fake_run), \
+    with patch("scripts.verify.detect_platform", return_value="node"), \
+         patch("scripts.verify.subprocess.run", side_effect=fake_run), \
          patch("scripts.verify.subprocess.Popen") as mock_popen, \
          patch("scripts.verify.wait_for_port", return_value=True), \
          patch("scripts.verify.check_health", return_value=True), \
@@ -119,7 +121,7 @@ def test_verify_runs_correct_command_sequence():
     assert "docker" in commands_run
 
 
-def test_verify_runs_e2e_when_servers_are_up():
+def test_verify_node_runs_e2e_when_servers_are_up():
     """E2E tests should run when both API and web servers are reachable."""
     commands_run = []
 
@@ -127,7 +129,8 @@ def test_verify_runs_e2e_when_servers_are_up():
         commands_run.append(cmd if isinstance(cmd, list) else [cmd])
         return _mock_run()
 
-    with patch("scripts.verify.subprocess.run", side_effect=fake_run), \
+    with patch("scripts.verify.detect_platform", return_value="node"), \
+         patch("scripts.verify.subprocess.run", side_effect=fake_run), \
          patch("scripts.verify.subprocess.Popen") as mock_popen, \
          patch("scripts.verify.wait_for_port", return_value=True), \
          patch("scripts.verify.check_health", return_value=True), \
@@ -142,17 +145,18 @@ def test_verify_runs_e2e_when_servers_are_up():
 
         result = verify(Path("/tmp/test-project"))
 
-    # E2E step should be present (runs via its own subprocess.run, not through run_step mock)
+    # E2E step should be present
     e2e_steps = [s for s in result.steps if s.name == "e2e tests"]
     assert len(e2e_steps) == 1
 
 
-def test_verify_skips_e2e_when_server_down():
+def test_verify_node_skips_e2e_when_server_down():
     """E2E tests should NOT run when the web server is unreachable."""
     def fake_run(cmd, **kwargs):
         return _mock_run()
 
-    with patch("scripts.verify.subprocess.run", side_effect=fake_run), \
+    with patch("scripts.verify.detect_platform", return_value="node"), \
+         patch("scripts.verify.subprocess.run", side_effect=fake_run), \
          patch("scripts.verify.subprocess.Popen") as mock_popen, \
          patch("scripts.verify.wait_for_port", return_value=False), \
          patch("scripts.verify.check_health", return_value=True), \
@@ -170,3 +174,53 @@ def test_verify_skips_e2e_when_server_down():
     # E2E step should NOT be present
     e2e_steps = [s for s in result.steps if s.name == "e2e tests"]
     assert len(e2e_steps) == 0
+
+
+# --- verify (mocked, Python platform) ---
+
+
+def test_verify_python_stops_on_first_failure():
+    """Python verify should stop at the first failing step."""
+    def fake_run(cmd, **kwargs):
+        if "sync" in cmd:
+            return _mock_run(returncode=1, stderr="sync failed")
+        return _mock_run()
+
+    with patch("scripts.verify.detect_platform", return_value="python"), \
+         patch("scripts.verify.subprocess.run", side_effect=fake_run):
+        result = verify(Path("/tmp/test-project"))
+
+    assert not result.passed
+    assert result.steps[0].name == "uv sync"
+    assert len(result.steps) == 1
+
+
+def test_verify_python_runs_correct_sequence():
+    """Python verify should run uv sync, docker, ruff, pytest, dev server."""
+    commands_run = []
+
+    def fake_run(cmd, **kwargs):
+        commands_run.append(cmd if isinstance(cmd, list) else [cmd])
+        return _mock_run()
+
+    with patch("scripts.verify.detect_platform", return_value="python"), \
+         patch("scripts.verify.subprocess.run", side_effect=fake_run), \
+         patch("scripts.verify.subprocess.Popen") as mock_popen, \
+         patch("scripts.verify.wait_for_port", return_value=True), \
+         patch("scripts.verify.check_health", return_value=True), \
+         patch("scripts.verify.os.getpgid", return_value=99999), \
+         patch("scripts.verify.atexit.register"), \
+         patch("scripts.verify._kill_process_group"):
+
+        mock_proc = MagicMock()
+        mock_popen.return_value = mock_proc
+
+        result = verify(Path("/tmp/test-project"))
+
+    assert result.passed
+    step_names = [s.name for s in result.steps]
+    assert "uv sync" in step_names
+    assert "docker compose up" in step_names
+    assert "ruff check" in step_names
+    assert "pytest" in step_names
+    assert "dev server" in step_names
