@@ -1,0 +1,12 @@
+{
+  "name": "{{ project_name }}",
+  "private": true,
+  "scripts": {
+    "lint:web": "biome check apps/web/",
+    "lint:web:fix": "biome check --write apps/web/"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "{{ versions.biomejs_biome }}"
+  },
+  "packageManager": "pnpm@{{ versions.pnpm }}"
+}
