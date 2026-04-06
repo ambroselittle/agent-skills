@@ -56,6 +56,20 @@ Never say "this is a substantial change" as a reason to pause. Never ask "want m
 when the user clearly wants it done. The only valid reasons to pause: genuine ambiguity, destructive
 operations on shared systems, or security concerns. Default to doing the work.
 
+## CLAUDE.md vs .claude/rules/
+
+Use a clear separation between orientation and directives:
+
+- **CLAUDE.md** is orientation — what the project is, its structure, how to build and test, what lives
+  where. Think of it as a README for Claude. Keep it concise and factual.
+- **.claude/rules/** is for behavioral directives — what to do or not do. Rules are either unscoped
+  (always loaded, no `paths` frontmatter) or path-scoped (loaded on demand when matching files are
+  touched).
+
+**Why this distinction:** CLAUDE.md grows unbounded when it mixes context with rules. Separating them
+keeps CLAUDE.md scannable and makes rules discoverable in one place. Path-scoped rules also save
+context by only loading when relevant.
+
 ## Verify and Prove Work Correctness
 
 - Always run verification (lint, typecheck, tests) before reporting work as complete.
