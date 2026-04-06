@@ -1,5 +1,5 @@
 import getPort, { portNumbers } from "get-port"
-import { writeFileSync } from "fs"
+import { writeFileSync } from "node:fs"
 
 async function main() {
   const ports = {
