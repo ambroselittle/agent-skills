@@ -1,21 +1,28 @@
 """Scaffold a project from Jinja2 templates.
 
-Renders template files using a 3-layer hierarchy:
+Renders template files using a layered hierarchy, each overriding the previous:
   1. templates/__common/           — universal files (all templates)
   2. templates/__common/<platform>/ — platform-specific shared files (ts, python, etc.)
-  3. templates/<template_name>/     — template-specific files
+  3. templates/<base_template>/     — base template files (if 'extends' declared in template.json)
+  4. templates/<template_name>/     — template-specific files
 
-Each layer overrides files from previous layers at the same path.
-The platform is determined by template.json in the template directory.
+When a template declares ``"extends": "<base>"`` in its template.json, the base
+template's files are rendered as layer 3 before the child template's own files.
+Files matching any ``"exclude"`` glob patterns are skipped from the base layer.
+
+The platform is determined by template.json in the template directory (or inherited
+from the base template if the child doesn't declare one).
 """
 
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import shutil
 import stat
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
@@ -64,15 +71,19 @@ def render_template_dir(
     context: dict,
     base_dir: Path,
     exclude_dirs: set[Path] | None = None,
+    exclude_patterns: list[str] | None = None,
 ) -> list[Path]:
     """Render all files in a template directory tree.
 
     .j2 files are rendered through Jinja2; other files are copied as-is.
     Directories in exclude_dirs are skipped entirely.
+    Files matching exclude_patterns (fnmatch globs against the relative path
+    from base_dir) are skipped.
     Returns list of created file paths.
     """
     created: list[Path] = []
     exclude_dirs = exclude_dirs or set()
+    exclude_patterns = exclude_patterns or []
 
     for source_path in sorted(source_dir.rglob("*")):
         if source_path.is_dir():
@@ -85,6 +96,10 @@ def render_template_dir(
             continue
 
         rel_path = source_path.relative_to(base_dir)
+
+        # Skip files matching exclude patterns
+        if exclude_patterns and _matches_exclude(str(rel_path), exclude_patterns):
+            continue
 
         # Render the path itself (strip .j2 extension)
         if source_path.suffix == J2_EXTENSION:
@@ -113,14 +128,33 @@ def render_template_dir(
     return created
 
 
-def read_template_platform(template_dir: Path) -> str | None:
-    """Read the platform from a template's template.json, if it exists."""
+@dataclass
+class TemplateConfig:
+    """Configuration read from a template's template.json."""
+    platform: str | None = None
+    extends: str | None = None
+    exclude: list[str] = field(default_factory=list)
+
+
+def read_template_config(template_dir: Path) -> TemplateConfig:
+    """Read configuration from a template's template.json."""
     template_json = template_dir / "template.json"
-    if template_json.exists():
-        import json as _json
-        data = _json.loads(template_json.read_text())
-        return data.get("platform")
-    return None
+    if not template_json.exists():
+        return TemplateConfig()
+    data = json.loads(template_json.read_text())
+    return TemplateConfig(
+        platform=data.get("platform"),
+        extends=data.get("extends"),
+        exclude=data.get("exclude", []),
+    )
+
+
+def _matches_exclude(rel_path: str, exclude_patterns: list[str]) -> bool:
+    """Check if a relative path matches any exclude glob pattern."""
+    for pattern in exclude_patterns:
+        if fnmatch.fnmatch(rel_path, pattern):
+            return True
+    return False
 
 
 def scaffold(
@@ -131,10 +165,11 @@ def scaffold(
 ) -> list[Path]:
     """Scaffold a project from templates.
 
-    Renders up to 3 layers in order, each overriding the previous:
+    Renders up to 4 layers in order, each overriding the previous:
       1. __common/              — universal files
-      2. __common/<platform>/   — platform-specific shared files (if template.json declares a platform)
-      3. <template_name>/       — template-specific files
+      2. __common/<platform>/   — platform-specific shared files
+      3. <base_template>/       — base template files (if ``extends`` declared)
+      4. <template_name>/       — template-specific files
 
     Returns list of all created file paths.
     """
@@ -156,7 +191,29 @@ def scaffold(
             f"Template '{template_name}' not found. Available: {available}"
         )
 
-    platform = read_template_platform(template_dir)
+    config = read_template_config(template_dir)
+
+    # Resolve the base template if extends is declared
+    base_dir: Path | None = None
+    if config.extends:
+        base_dir = TEMPLATES_DIR / config.extends
+        if not base_dir.is_dir():
+            raise FileNotFoundError(
+                f"Base template '{config.extends}' not found (extended by '{template_name}')"
+            )
+        # Reject chained extends — keep it simple for now
+        base_config = read_template_config(base_dir)
+        if base_config.extends:
+            raise ValueError(
+                f"Chained extends not supported: '{template_name}' extends "
+                f"'{config.extends}' which extends '{base_config.extends}'"
+            )
+
+    # Inherit platform from base if child doesn't declare one
+    platform = config.platform
+    if not platform and base_dir:
+        platform = read_template_config(base_dir).platform
+
     context = build_context(project_name, versions)
 
     # Use the templates root as the Jinja2 search path so we can reference
@@ -186,7 +243,14 @@ def scaffold(
         if platform_dir.is_dir():
             created.extend(render_template_dir(env, platform_dir, output_dir, context, platform_dir))
 
-    # Layer 3: Template-specific files
+    # Layer 3: Base template files (if extends), with exclude patterns applied
+    if base_dir:
+        created.extend(render_template_dir(
+            env, base_dir, output_dir, context, base_dir,
+            exclude_patterns=config.exclude,
+        ))
+
+    # Layer 4: Template-specific files
     created.extend(render_template_dir(env, template_dir, output_dir, context, template_dir))
 
     return created

@@ -7,7 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from scripts.scaffold import build_context, normalize_version_key, scaffold
+from scripts.scaffold import (
+    TEMPLATES_DIR,
+    build_context,
+    normalize_version_key,
+    read_template_config,
+    scaffold,
+)
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -459,3 +465,214 @@ def test_scaffold_api_python_ci_uses_uv(tmp_path, python_versions):
     assert "just" in ci
     # Should NOT have pnpm/node steps
     assert "pnpm" not in ci
+
+
+# --- extends / exclude ---
+
+
+@pytest.fixture
+def _setup_extends_templates(tmp_path, monkeypatch):
+    """Create minimal base + child templates for extends/exclude tests.
+
+    Patches TEMPLATES_DIR so scaffold() uses these instead of the real ones.
+    """
+    templates = tmp_path / "templates"
+    templates.mkdir()
+
+    # __common layer
+    common = templates / "__common"
+    common.mkdir()
+    (common / "shared.txt").write_text("from-common")
+
+    # Base template
+    base = templates / "base-tmpl"
+    base.mkdir(parents=True)
+    (base / "template.json").write_text(json.dumps({"platform": None}))
+    (base / "base-file.txt").write_text("from-base")
+    (base / "override-me.txt").write_text("base-version")
+    sub = base / "sub"
+    sub.mkdir()
+    (sub / "deep.txt").write_text("base-deep")
+    (sub / "excluded.txt").write_text("should-be-excluded")
+
+    # Child template (extends base, excludes sub/excluded.txt)
+    child = templates / "child-tmpl"
+    child.mkdir(parents=True)
+    (child / "template.json").write_text(json.dumps({
+        "extends": "base-tmpl",
+        "exclude": ["sub/excluded.txt"],
+    }))
+    (child / "child-file.txt").write_text("from-child")
+    (child / "override-me.txt").write_text("child-version")
+
+    monkeypatch.setattr("scripts.scaffold.TEMPLATES_DIR", templates)
+    monkeypatch.setattr("scripts.scaffold.COMMON_DIR_NAME", "__common")
+
+    return templates
+
+
+def test_extends_pulls_files_from_base(_setup_extends_templates, tmp_path):
+    output = tmp_path / "project"
+    scaffold("test-proj", "child-tmpl", {}, output)
+
+    # Base file should be inherited
+    assert (output / "base-file.txt").exists()
+    assert (output / "base-file.txt").read_text() == "from-base"
+    # Deep base file should be inherited
+    assert (output / "sub" / "deep.txt").exists()
+    assert (output / "sub" / "deep.txt").read_text() == "base-deep"
+
+
+def test_exclude_prevents_base_files(_setup_extends_templates, tmp_path):
+    output = tmp_path / "project"
+    scaffold("test-proj", "child-tmpl", {}, output)
+
+    # Excluded file should NOT be present
+    assert not (output / "sub" / "excluded.txt").exists()
+
+
+def test_child_overrides_base_files(_setup_extends_templates, tmp_path):
+    output = tmp_path / "project"
+    scaffold("test-proj", "child-tmpl", {}, output)
+
+    # Child's override-me.txt should win over base's
+    assert (output / "override-me.txt").read_text() == "child-version"
+
+
+def test_common_layers_still_apply_with_extends(_setup_extends_templates, tmp_path):
+    output = tmp_path / "project"
+    scaffold("test-proj", "child-tmpl", {}, output)
+
+    # __common files should be present
+    assert (output / "shared.txt").exists()
+    assert (output / "shared.txt").read_text() == "from-common"
+
+
+def test_child_specific_files_present(_setup_extends_templates, tmp_path):
+    output = tmp_path / "project"
+    scaffold("test-proj", "child-tmpl", {}, output)
+
+    assert (output / "child-file.txt").exists()
+    assert (output / "child-file.txt").read_text() == "from-child"
+
+
+def test_chained_extends_raises(tmp_path, monkeypatch):
+    """Extending a template that itself extends another should raise."""
+    templates = tmp_path / "templates"
+    templates.mkdir()
+
+    # __common (required by scaffold)
+    common = templates / "__common"
+    common.mkdir()
+
+    # Grandparent
+    gp = templates / "grandparent"
+    gp.mkdir()
+    (gp / "template.json").write_text(json.dumps({}))
+    (gp / "gp.txt").write_text("gp")
+
+    # Parent (extends grandparent)
+    parent = templates / "parent"
+    parent.mkdir()
+    (parent / "template.json").write_text(json.dumps({"extends": "grandparent"}))
+
+    # Child (extends parent — should fail)
+    child = templates / "child"
+    child.mkdir()
+    (child / "template.json").write_text(json.dumps({"extends": "parent"}))
+
+    monkeypatch.setattr("scripts.scaffold.TEMPLATES_DIR", templates)
+    monkeypatch.setattr("scripts.scaffold.COMMON_DIR_NAME", "__common")
+
+    output = tmp_path / "out"
+    with pytest.raises(ValueError, match="Chained extends not supported"):
+        scaffold("test", "child", {}, output)
+
+
+def test_exclude_glob_pattern(tmp_path, monkeypatch):
+    """Glob patterns like 'apps/web/**' should exclude entire subtrees."""
+    templates = tmp_path / "templates"
+    templates.mkdir()
+
+    common = templates / "__common"
+    common.mkdir()
+
+    base = templates / "base"
+    base.mkdir()
+    (base / "template.json").write_text(json.dumps({}))
+    (base / "keep.txt").write_text("keep")
+    web = base / "apps" / "web"
+    web.mkdir(parents=True)
+    (web / "index.html").write_text("<html>")
+    (web / "app.js").write_text("app()")
+    api = base / "apps" / "api"
+    api.mkdir(parents=True)
+    (api / "server.js").write_text("serve()")
+
+    child = templates / "api-only"
+    child.mkdir()
+    (child / "template.json").write_text(json.dumps({
+        "extends": "base",
+        "exclude": ["apps/web/**"],
+    }))
+
+    monkeypatch.setattr("scripts.scaffold.TEMPLATES_DIR", templates)
+    monkeypatch.setattr("scripts.scaffold.COMMON_DIR_NAME", "__common")
+
+    output = tmp_path / "out"
+    scaffold("test", "api-only", {}, output)
+
+    assert (output / "keep.txt").exists()
+    assert (output / "apps" / "api" / "server.js").exists()
+    assert not (output / "apps" / "web").exists()
+
+
+def test_extends_inherits_platform(tmp_path, monkeypatch):
+    """Child without platform should inherit from base."""
+    templates = tmp_path / "templates"
+    templates.mkdir()
+
+    common = templates / "__common"
+    common.mkdir()
+    ts_dir = common / "ts"
+    ts_dir.mkdir()
+    (ts_dir / "biome.json").write_text("{}")
+
+    base = templates / "base"
+    base.mkdir()
+    (base / "template.json").write_text(json.dumps({"platform": "ts"}))
+    (base / "base.txt").write_text("base")
+
+    child = templates / "child"
+    child.mkdir()
+    # No platform declared — should inherit "ts" from base
+    (child / "template.json").write_text(json.dumps({"extends": "base"}))
+
+    monkeypatch.setattr("scripts.scaffold.TEMPLATES_DIR", templates)
+    monkeypatch.setattr("scripts.scaffold.COMMON_DIR_NAME", "__common")
+
+    output = tmp_path / "out"
+    scaffold("test", "child", {}, output)
+
+    # Platform files should be present (inherited from base's platform)
+    assert (output / "biome.json").exists()
+
+
+def test_extends_base_not_found(tmp_path, monkeypatch):
+    """Extending a nonexistent template should raise FileNotFoundError."""
+    templates = tmp_path / "templates"
+    templates.mkdir()
+
+    common = templates / "__common"
+    common.mkdir()
+
+    child = templates / "child"
+    child.mkdir()
+    (child / "template.json").write_text(json.dumps({"extends": "nonexistent"}))
+
+    monkeypatch.setattr("scripts.scaffold.TEMPLATES_DIR", templates)
+    monkeypatch.setattr("scripts.scaffold.COMMON_DIR_NAME", "__common")
+
+    output = tmp_path / "out"
+    with pytest.raises(FileNotFoundError, match="nonexistent"):
+        scaffold("test", "child", {}, output)
