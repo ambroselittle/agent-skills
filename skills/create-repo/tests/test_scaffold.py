@@ -573,6 +573,167 @@ def test_scaffold_api_ts_no_web_files(tmp_path, versions):
     assert "apps/web" not in setup
 
 
+# --- fullstack-python scaffold ---
+
+
+@pytest.fixture
+def fullstack_python_versions(versions, python_versions) -> dict:
+    """Merged versions dict for fullstack-python testing (TS + Python)."""
+    return {**versions, **python_versions}
+
+
+def test_scaffold_fullstack_python_creates_expected_structure(
+    tmp_path, fullstack_python_versions
+):
+    output = tmp_path / "my-app"
+    created = scaffold("my-app", "fullstack-python", fullstack_python_versions, output)
+
+    assert len(created) > 0
+
+    # Root files
+    assert (output / "package.json").exists()
+    assert (output / "pyproject.toml").exists()
+    assert (output / "justfile").exists()
+    assert (output / "pnpm-workspace.yaml").exists()
+    assert (output / "biome.json").exists()
+    assert (output / "docker-compose.yml").exists()
+    assert (output / ".gitignore").exists()
+    assert (output / ".env.example").exists()
+    assert (output / "CLAUDE.md").exists()
+    assert (output / ".github" / "workflows" / "ci.yml").exists()
+    assert (output / ".github" / "pull_request_template.md").exists()
+    assert (output / ".claude" / "rules" / "testing.md").exists()
+    assert (output / ".claude" / "rules" / "modules.md").exists()
+    assert (output / ".claude" / "rules" / "types.md").exists()
+
+    # Web app
+    assert (output / "apps" / "web" / "package.json").exists()
+    assert (output / "apps" / "web" / "src" / "App.tsx").exists()
+    assert (output / "apps" / "web" / "src" / "main.tsx").exists()
+    assert (output / "apps" / "web" / "vite.config.ts").exists()
+    assert (output / "apps" / "web" / "src" / "lib" / "api.ts").exists()
+    assert (output / "apps" / "web" / "__tests__" / "App.test.tsx").exists()
+    assert (output / "apps" / "web" / "playwright.config.ts").exists()
+    assert (output / "apps" / "web" / "e2e" / "pages" / "base.page.ts").exists()
+    assert (output / "apps" / "web" / "e2e" / "pages" / "home.page.ts").exists()
+    assert (output / "apps" / "web" / "e2e" / "smoke.test.ts").exists()
+    assert (output / "apps" / "web" / "e2e" / "users.test.ts").exists()
+
+    # API app (Python)
+    assert (output / "apps" / "api" / "pyproject.toml").exists()
+    assert (output / "apps" / "api" / "src" / "__init__.py").exists()
+    assert (output / "apps" / "api" / "src" / "main.py").exists()
+    assert (output / "apps" / "api" / "src" / "database.py").exists()
+    assert (output / "apps" / "api" / "src" / "models.py").exists()
+    assert (output / "apps" / "api" / "src" / "routes" / "__init__.py").exists()
+    assert (output / "apps" / "api" / "src" / "routes" / "users.py").exists()
+    assert (output / "apps" / "api" / "tests" / "__init__.py").exists()
+    assert (output / "apps" / "api" / "tests" / "conftest.py").exists()
+    assert (output / "apps" / "api" / "tests" / "test_health.py").exists()
+    assert (output / "apps" / "api" / "tests" / "test_users.py").exists()
+    assert (output / "apps" / "api" / "alembic.ini").exists()
+    assert (output / "apps" / "api" / "alembic" / "env.py").exists()
+
+    # Should NOT have TS-only monorepo artifacts
+    assert not (output / "turbo.json").exists()
+    assert not (output / "packages").exists()
+    assert not (output / "apps" / "web" / "src" / "lib" / "trpc.ts").exists()
+    assert not (output / "apps" / "api" / "src" / "router.ts").exists()
+
+
+def test_scaffold_fullstack_python_renders_jinja2_variables(
+    tmp_path, fullstack_python_versions
+):
+    output = tmp_path / "cool-app"
+    scaffold("cool-app", "fullstack-python", fullstack_python_versions, output)
+
+    # Root package.json
+    root_pkg = json.loads((output / "package.json").read_text())
+    assert root_pkg["name"] == "cool-app"
+
+    # Root pyproject.toml
+    root_pyproject = (output / "pyproject.toml").read_text()
+    assert 'name = "cool-app"' in root_pyproject
+    assert "[tool.uv.workspace]" in root_pyproject
+
+    # Web package.json has scoped name
+    web_pkg = json.loads((output / "apps" / "web" / "package.json").read_text())
+    assert web_pkg["name"] == "@cool-app/web"
+
+    # docker-compose has project-specific db name
+    dc = (output / "docker-compose.yml").read_text()
+    assert "cool-app_dev" in dc
+
+    # API pyproject.toml has fastapi version
+    api_pyproject = (output / "apps" / "api" / "pyproject.toml").read_text()
+    assert fullstack_python_versions["fastapi"] in api_pyproject
+
+    # Web package.json has react version
+    assert fullstack_python_versions["react"] in json.dumps(web_pkg)
+
+    # CLAUDE.md has project name
+    claude_md = (output / "CLAUDE.md").read_text()
+    assert "cool-app" in claude_md
+
+
+def test_scaffold_fullstack_python_has_merged_gitignore(
+    tmp_path, fullstack_python_versions
+):
+    output = tmp_path / "my-app"
+    scaffold("my-app", "fullstack-python", fullstack_python_versions, output)
+
+    gitignore = (output / ".gitignore").read_text()
+    assert "node_modules/" in gitignore
+    assert "__pycache__/" in gitignore
+    assert ".env" in gitignore
+
+
+def test_scaffold_fullstack_python_vite_proxies_to_python_api(
+    tmp_path, fullstack_python_versions
+):
+    output = tmp_path / "my-app"
+    scaffold("my-app", "fullstack-python", fullstack_python_versions, output)
+
+    vite_config = (output / "apps" / "web" / "vite.config.ts").read_text()
+    assert "8000" in vite_config
+
+
+def test_scaffold_fullstack_python_no_trpc_files(tmp_path, fullstack_python_versions):
+    output = tmp_path / "my-app"
+    scaffold("my-app", "fullstack-python", fullstack_python_versions, output)
+
+    # tRPC files should not exist
+    assert not (output / "apps" / "web" / "src" / "lib" / "trpc.ts").exists()
+    assert not (output / "apps" / "api" / "src" / "router.ts").exists()
+    assert not (output / "apps" / "api" / "src" / "trpc.ts").exists()
+
+    # App.tsx should not reference trpc
+    app_tsx = (output / "apps" / "web" / "src" / "App.tsx").read_text()
+    assert "trpc" not in app_tsx.lower()
+
+
+def test_scaffold_fullstack_python_ci_uses_both_toolchains(
+    tmp_path, fullstack_python_versions
+):
+    output = tmp_path / "my-app"
+    scaffold("my-app", "fullstack-python", fullstack_python_versions, output)
+
+    ci = (output / ".github" / "workflows" / "ci.yml").read_text()
+    assert "pnpm" in ci
+    assert "uv sync" in ci
+    assert "ruff" in ci
+    assert "biome" in ci
+    assert "pytest" in ci
+
+
+def test_scaffold_fullstack_python_has_biome_json(tmp_path, fullstack_python_versions):
+    output = tmp_path / "my-app"
+    scaffold("my-app", "fullstack-python", fullstack_python_versions, output)
+
+    # biome.json comes from __common/ts/ layer
+    assert (output / "biome.json").exists()
+
+
 # --- extends / exclude ---
 
 
