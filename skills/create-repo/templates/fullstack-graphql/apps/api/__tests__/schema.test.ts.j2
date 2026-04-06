@@ -1,0 +1,14 @@
+import { describe, it, expect } from "vitest"
+import { yoga } from "../src/yoga"
+
+describe("GraphQL schema", () => {
+  it("health query returns ok", async () => {
+    const response = await yoga.fetch("http://localhost/api/graphql", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: "{ health }" }),
+    })
+    const body = await response.json()
+    expect(body.data.health).toBe("ok")
+  })
+})

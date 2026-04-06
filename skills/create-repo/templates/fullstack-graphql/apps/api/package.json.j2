@@ -1,0 +1,30 @@
+{
+  "name": "{{ scope }}/api",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./schema": "./src/schema.ts"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "{{ scope }}/db": "workspace:*",
+    "{{ scope }}/types": "workspace:*",
+    "@hono/node-server": "{{ versions.hono_node_server }}",
+    "@pothos/core": "{{ versions.pothos_core }}",
+    "graphql": "{{ versions.graphql }}",
+    "graphql-yoga": "{{ versions.graphql_yoga }}",
+    "hono": "{{ versions.hono }}",
+    "dotenv": "latest"
+  },
+  "devDependencies": {
+    "tsx": "latest",
+    "typescript": "{{ versions.typescript }}",
+    "vitest": "{{ versions.vitest }}"
+  }
+}

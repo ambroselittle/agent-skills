@@ -1,0 +1,27 @@
+import { ApolloProvider, gql, useQuery } from "@apollo/client"
+import { client } from "./lib/apollo"
+
+const HEALTH_QUERY = gql`
+  query Health {
+    health
+  }
+`
+
+function AppContent() {
+  const { data, loading } = useQuery(HEALTH_QUERY)
+
+  return (
+    <div>
+      <h1>{{ project_name }}</h1>
+      <p>API status: {loading ? "loading..." : data?.health ?? "error"}</p>
+    </div>
+  )
+}
+
+export function App() {
+  return (
+    <ApolloProvider client={client}>
+      <AppContent />
+    </ApolloProvider>
+  )
+}
