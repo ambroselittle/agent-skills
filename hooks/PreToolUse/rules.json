@@ -208,6 +208,21 @@
       "description": "Allow calls to MCP servers",
       "operation": "mcp-any",
       "action": "allow"
+    },
+    {
+      "id": "block-unpinned-deps",
+      "description": "Block unpinned dependency versions in package manifests",
+      "operation": "write-content",
+      "paths": [
+        "**/package.json",
+        "**/pyproject.toml"
+      ],
+      "content_patterns": [
+        ":\\s*\"latest\"",
+        ":\\s*\"\\*\""
+      ],
+      "action": "deny",
+      "reason": "Dependency versions must be pinned — no \"latest\" or \"*\". Use exact versions or bounded ranges (e.g., \"^1.2.3\", \">=1.2,<2\")."
     }
   ]
 }
