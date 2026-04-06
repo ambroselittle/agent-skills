@@ -104,12 +104,17 @@ def _kill_process_group(pgid: int) -> None:
 def detect_platform(project_dir: Path) -> str:
     """Detect the project platform from its files.
 
-    Returns 'python' if a root pyproject.toml exists, 'node' if package.json exists.
+    Returns 'fullstack-python' if both pyproject.toml and package.json exist,
+    'python' if only pyproject.toml, 'node' if only package.json.
     Raises ValueError if neither is found.
     """
-    if (project_dir / "pyproject.toml").exists():
+    has_pyproject = (project_dir / "pyproject.toml").exists()
+    has_package_json = (project_dir / "package.json").exists()
+    if has_pyproject and has_package_json:
+        return "fullstack-python"
+    if has_pyproject:
         return "python"
-    if (project_dir / "package.json").exists():
+    if has_package_json:
         return "node"
     raise ValueError(f"Cannot detect platform in {project_dir}: no pyproject.toml or package.json")
 
@@ -466,6 +471,219 @@ def verify_python(
 
 
 # ---------------------------------------------------------------------------
+# Fullstack Python verification (mixed: Python API + Node web)
+# ---------------------------------------------------------------------------
+
+def verify_fullstack_python(
+    project_dir: Path,
+    api_port: int = 8000,
+    web_port: int = 3000,
+    skip_docker: bool = False,
+) -> VerifyResult:
+    """Verify a fullstack-python project (React frontend + FastAPI backend)."""
+    result = VerifyResult()
+
+    # Step 0: Verify justfile parses correctly
+    step = run_step("just --summary", ["just", "--summary"], project_dir, timeout=10)
+    result.steps.append(step)
+    if not step.passed:
+        return result
+
+    # Step 1a: Install Python dependencies
+    uv_sync_cmd = ["uv", "sync"]
+    try:
+        import subprocess as _sp
+        _sp.run(["uv", "python", "find", "3.13"], capture_output=True, check=True)
+        uv_sync_cmd = ["uv", "sync", "--python", "3.13"]
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+    step = run_step("uv sync", uv_sync_cmd, project_dir, timeout=120)
+    result.steps.append(step)
+    if not step.passed:
+        return result
+
+    # Step 1b: Install web dependencies
+    step = run_step(
+        "pnpm install (web)",
+        ["pnpm", "install", "--dir", "apps/web"],
+        project_dir,
+        timeout=120,
+    )
+    result.steps.append(step)
+    if not step.passed:
+        return result
+
+    # Step 2: Start Postgres
+    if not _start_postgres(project_dir, result, skip_docker):
+        return result
+
+    # Step 3: Run Alembic migrations
+    alembic_dirs = list(project_dir.glob("apps/*/alembic.ini"))
+    for alembic_ini in alembic_dirs:
+        app_dir = alembic_ini.parent
+        app_name = app_dir.name
+        step = run_step(
+            f"alembic upgrade ({app_name})",
+            ["uv", "run", "alembic", "upgrade", "head"],
+            app_dir,
+            timeout=300,
+        )
+        result.steps.append(step)
+        if not step.passed:
+            return result
+
+    # Step 4: Python lint
+    step = run_step("ruff check", ["uv", "run", "ruff", "check", "."], project_dir, timeout=60)
+    result.steps.append(step)
+    if not step.passed:
+        return result
+
+    # Step 5: Python format check (non-fatal)
+    step = run_step("ruff format --check", ["uv", "run", "ruff", "format", "--check", "."], project_dir, timeout=60)
+    result.steps.append(step)
+
+    # Step 6: Python tests
+    step = run_step("pytest", ["uv", "run", "pytest"], project_dir, timeout=120)
+    result.steps.append(step)
+    if not step.passed:
+        return result
+
+    # Step 7: Biome check on web app
+    step = run_step(
+        "biome check (web)",
+        ["npx", "@biomejs/biome", "check", "apps/web/"],
+        project_dir,
+        timeout=60,
+    )
+    result.steps.append(step)
+    # Non-fatal
+
+    # Step 7b: Web unit tests
+    step = run_step(
+        "vitest (web)",
+        ["pnpm", "--dir", "apps/web", "run", "test"],
+        project_dir,
+        timeout=60,
+    )
+    result.steps.append(step)
+    if not step.passed:
+        return result
+
+    # Step 7c: Install Playwright browsers
+    playwright_config = project_dir / "apps" / "web" / "playwright.config.ts"
+    if playwright_config.exists():
+        step = run_step(
+            "playwright install",
+            ["pnpm", "--dir", "apps/web", "exec", "playwright", "install", "chromium"],
+            project_dir,
+            timeout=120,
+        )
+        result.steps.append(step)
+
+    # Step 8: Start both dev servers
+    api_app_dir = project_dir / "apps" / "api"
+    dev_env = {**os.environ, "PORT": str(api_port)}
+
+    api_proc = subprocess.Popen(
+        ["uv", "run", "uvicorn", "src.main:app", "--port", str(api_port)],
+        cwd=api_app_dir,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        env=dev_env,
+        start_new_session=True,
+    )
+    api_pgid = os.getpgid(api_proc.pid)
+    atexit.register(_kill_process_group, api_pgid)
+
+    web_env = {
+        **os.environ,
+        "WEB_PORT": str(web_port),
+        "VITE_API_PORT": str(api_port),
+    }
+    web_proc = subprocess.Popen(
+        ["pnpm", "dev"],
+        cwd=project_dir / "apps" / "web",
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        env=web_env,
+        start_new_session=True,
+    )
+    web_pgid = os.getpgid(web_proc.pid)
+    atexit.register(_kill_process_group, web_pgid)
+
+    try:
+        start = time.monotonic()
+        api_up = wait_for_port(api_port, timeout=15)
+        elapsed = time.monotonic() - start
+
+        if not api_up:
+            result.steps.append(StepResult("dev server (API)", False, elapsed, f"Port {api_port} not reachable"))
+        elif not check_health(f"http://localhost:{api_port}/api/health"):
+            result.steps.append(StepResult("dev server (API)", False, elapsed, "Health check at /api/health failed"))
+        else:
+            result.steps.append(StepResult("dev server (API)", True, elapsed))
+
+        web_up = wait_for_port(web_port, timeout=30)
+        web_elapsed = time.monotonic() - start
+        if not web_up:
+            result.steps.append(StepResult("dev server (web)", False, web_elapsed, f"Port {web_port} not reachable"))
+        else:
+            # Health check through the Vite proxy
+            if check_health(f"http://localhost:{web_port}/api/health"):
+                result.steps.append(StepResult("dev server (web)", True, web_elapsed))
+            else:
+                result.steps.append(StepResult("dev server (web)", False, web_elapsed, "Proxy health check at web_port/api/health failed"))
+
+        # Step 9: E2E tests (while dev servers are running)
+        if api_up and web_up and playwright_config.exists():
+            e2e_env = {
+                **os.environ,
+                "E2E_API_PORT": str(api_port),
+                "E2E_WEB_PORT": str(web_port),
+                "PLAYWRIGHT_SKIP_WEBSERVER": "1",
+            }
+
+            import tempfile
+            e2e_start = time.monotonic()
+            with tempfile.NamedTemporaryFile(mode="w+", suffix=".log", delete=False) as e2e_log:
+                try:
+                    e2e_proc = subprocess.run(
+                        ["npx", "playwright", "test"],
+                        cwd=project_dir / "apps" / "web",
+                        stdout=e2e_log,
+                        stderr=subprocess.STDOUT,
+                        timeout=120,
+                        env=e2e_env,
+                    )
+                    e2e_elapsed = time.monotonic() - e2e_start
+                    if e2e_proc.returncode != 0:
+                        e2e_log.seek(0)
+                        error = e2e_log.read().strip()
+                        if len(error) > 2000:
+                            error = error[:2000] + "\n... (truncated)"
+                        step = StepResult("e2e tests (web)", False, e2e_elapsed, error)
+                    else:
+                        step = StepResult("e2e tests (web)", True, e2e_elapsed)
+                except subprocess.TimeoutExpired:
+                    e2e_elapsed = time.monotonic() - e2e_start
+                    e2e_log.seek(0)
+                    partial = e2e_log.read().strip()
+                    error = "Timed out after 120s"
+                    if partial:
+                        error += f"\nPartial output:\n{partial[:1000]}"
+                    step = StepResult("e2e tests (web)", False, e2e_elapsed, error)
+            result.steps.append(step)
+    finally:
+        for pgid in (api_pgid, web_pgid):
+            try:
+                _kill_process_group(pgid)
+            except (ProcessLookupError, PermissionError):
+                pass
+
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Main dispatch
 # ---------------------------------------------------------------------------
 
@@ -481,14 +699,21 @@ def verify(
 
     Args:
         api_port: API server port. Defaults to 3001 for Node, 8000 for Python.
-        web_port: Web server port (Node only, default 3000).
+        web_port: Web server port (Node/fullstack-python, default 3000).
         skip_docker: Skip docker compose up and pg_isready steps. Use when
             Postgres is already available (e.g., CI service container).
     """
     project_dir = Path(project_dir).resolve()
     platform = detect_platform(project_dir)
 
-    if platform == "python":
+    if platform == "fullstack-python":
+        return verify_fullstack_python(
+            project_dir,
+            api_port=api_port or 8000,
+            web_port=web_port,
+            skip_docker=skip_docker,
+        )
+    elif platform == "python":
         return verify_python(
             project_dir,
             api_port=api_port or 8000,
