@@ -9,16 +9,21 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "codegen": "graphql-codegen --config codegen.ts"
   },
   "dependencies": {
+    "{{ scope }}/api": "workspace:*",
     "{{ scope }}/types": "workspace:*",
     "@apollo/client": "{{ versions.apollo_client }}",
+    "@graphql-typed-document-node/core": "{{ versions.graphql_typed_document_node_core }}",
     "graphql": "{{ versions.graphql }}",
     "react": "{{ versions.react }}",
     "react-dom": "{{ versions.react_dom }}"
   },
   "devDependencies": {
+    "@graphql-codegen/cli": "{{ versions.graphql_codegen_cli }}",
+    "@graphql-codegen/client-preset": "{{ versions.graphql_codegen_client_preset }}",
     "@types/react": "{{ versions.types_react }}",
     "@types/react-dom": "{{ versions.types_react_dom }}",
     "@vitejs/plugin-react": "{{ versions.vitejs_plugin_react }}",

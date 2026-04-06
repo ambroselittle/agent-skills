@@ -84,6 +84,8 @@ def check_structure(project_dir: Path, template: str) -> list[CheckResult]:
             "apps/api/src/yoga.ts",
             "apps/api/src/context.ts",
             "apps/api/__tests__/schema.test.ts",
+            "apps/api/scripts/print-schema.ts",
+            "apps/web/codegen.ts",
         ]
         for f in gql_files:
             path = project_dir / f

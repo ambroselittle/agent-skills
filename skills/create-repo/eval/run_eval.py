@@ -62,6 +62,9 @@ FALLBACK_VERSIONS = {
     "graphql_yoga": "5.21.0",
     "pothos_core": "4.12.0",
     "apollo_client": "4.1.6",
+    "graphql_codegen_cli": "6.2.1",
+    "graphql_codegen_client_preset": "5.2.4",
+    "graphql_typed_document_node_core": "3.2.0",
 }
 
 

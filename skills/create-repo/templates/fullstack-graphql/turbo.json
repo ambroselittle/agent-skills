@@ -1,8 +1,15 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
+    "generate:schema": {
+      "cache": false
+    },
+    "codegen": {
+      "dependsOn": ["^generate:schema"],
+      "outputs": ["src/generated/gql/**"]
+    },
     "build": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "codegen"],
       "outputs": ["dist/**"]
     },
     "dev": {
@@ -10,10 +17,10 @@
       "persistent": true
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build", "codegen"]
     },
     "typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build", "codegen"]
     },
     "lint": {},
     "db:push": {

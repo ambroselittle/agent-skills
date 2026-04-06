@@ -11,6 +11,7 @@
     "db:push": "turbo db:push --filter={{ scope }}/db",
     "db:studio": "pnpm --filter={{ scope }}/db exec prisma studio",
     "db:seed": "turbo db:seed --filter={{ scope }}/db",
+    "codegen": "turbo generate:schema codegen",
     "test:e2e": "turbo test:e2e",
     "project:setup": "tsx scripts/setup.ts",
     "update-ports": "tsx scripts/discover-ports.ts",

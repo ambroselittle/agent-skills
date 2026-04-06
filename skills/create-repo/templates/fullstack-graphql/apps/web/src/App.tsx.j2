@@ -1,19 +1,15 @@
-import { gql } from "@apollo/client"
 import { ApolloProvider, useQuery } from "@apollo/client/react"
+import { graphql } from "./generated/gql"
 import { client } from "./lib/apollo"
 
-const HEALTH_QUERY = gql`
+const HEALTH_QUERY = graphql(`
   query Health {
     health
   }
-`
-
-interface HealthData {
-  health: string
-}
+`)
 
 function AppContent() {
-  const { data, loading } = useQuery<HealthData>(HEALTH_QUERY)
+  const { data, loading } = useQuery(HEALTH_QUERY)
 
   return (
     <div>
