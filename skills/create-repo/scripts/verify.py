@@ -355,7 +355,16 @@ def verify_python(
     result = VerifyResult()
 
     # Step 1: Install dependencies
-    step = run_step("uv sync", ["uv", "sync"], project_dir, timeout=120)
+    # Use Python 3.13 if available — 3.14 lacks prebuilt wheels for many
+    # packages (pydantic-core, etc.), causing slow Rust compilation failures.
+    uv_sync_cmd = ["uv", "sync"]
+    try:
+        import subprocess as _sp
+        _sp.run(["uv", "python", "find", "3.13"], capture_output=True, check=True)
+        uv_sync_cmd = ["uv", "sync", "--python", "3.13"]
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass  # Fall back to default Python
+    step = run_step("uv sync", uv_sync_cmd, project_dir, timeout=120)
     result.steps.append(step)
     if not step.passed:
         return result
@@ -373,7 +382,7 @@ def verify_python(
             f"alembic upgrade ({app_name})",
             ["uv", "run", "alembic", "upgrade", "head"],
             app_dir,
-            timeout=60,
+            timeout=300,  # May compile native deps (e.g., pydantic-core) on newer Python
         )
         result.steps.append(step)
         if not step.passed:
