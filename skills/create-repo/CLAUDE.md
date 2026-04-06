@@ -11,7 +11,7 @@ create-repo/
 ├── pyproject.toml        # Python project config (uv-managed)
 ├── scripts/              # Python modules called by the skill
 │   ├── preflight.py      # Environment checker (tools, versions)
-│   ├── scaffold.py       # Jinja2 template renderer (3-layer)
+│   ├── scaffold.py       # Jinja2 template renderer (layered, with extends)
 │   ├── verify.py         # Build/test/lint verification (platform-aware)
 │   └── init_git.py       # Git init + GitHub repo creation
 ├── templates/            # Jinja2 template files
@@ -32,12 +32,13 @@ The SKILL.md orchestrates the flow: interview → preflight → version resoluti
 
 ## Template layers
 
-Templates render in 3 layers, each overriding the previous:
+Templates render in up to 4 layers, each overriding the previous:
 1. `__common/` — universal files (docker-compose, .gitignore, PR template, etc.)
 2. `__common/<platform>/` — platform-specific shared files (e.g., ruff config for Python, biome for TS)
-3. `<template>/` — template-specific files
+3. `<base_template>/` — base template files (when `"extends"` declared in template.json, with `"exclude"` globs applied)
+4. `<template>/` — template-specific files
 
-Each template has a `template.json` declaring its platform (e.g., `{"platform": "python"}`). The scaffold engine reads this to determine which platform layer to include.
+Each template has a `template.json` declaring its platform (e.g., `{"platform": "python"}`) and optionally `"extends"` + `"exclude"`. The scaffold engine reads this to determine which layers to include.
 
 ## Running tests
 

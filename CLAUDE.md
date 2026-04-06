@@ -65,12 +65,13 @@ Each rule in `rules.json` specifies an `operation` (e.g., `read-path`, `write-pa
 
 Python scripts handle deterministic work; the AI handles intelligence (interview, version resolution, customization, diagnostics).
 
-**Template layers:** 3-layer hierarchy, each overriding the previous:
+**Template layers:** up to 4 layers, each overriding the previous:
 1. `templates/__common/` — universal files (all templates)
 2. `templates/__common/<platform>/` — platform-specific shared files (e.g., `python/`, `ts/`)
-3. `templates/<template>/` — template-specific files
+3. `templates/<base>/` — base template files (when child declares `"extends"` in `template.json`)
+4. `templates/<template>/` — template-specific files
 
-Each template has a `template.json` declaring its platform. Files with `.j2` extension get Jinja2 rendering; others are copied as-is.
+Each template has a `template.json` declaring its platform. Templates can inherit from a base via `"extends"` and skip specific base files via `"exclude"` globs. Files with `.j2` extension get Jinja2 rendering; others are copied as-is.
 
 **Template variables:**
 - `{{ project_name }}` — e.g., `my-app`
