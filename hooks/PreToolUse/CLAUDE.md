@@ -14,7 +14,7 @@ pre-tool-use.sh          # Entry point (registered in settings.json)
        └─ operations/     # Per-operation matchers
             ├─ common.py      # Shared utilities (_tokenize, _split_subcommands)
             ├─ bash.py        # bash-safe (denylist of unsafe commands)
-            ├─ filesystem.py  # read-path, write-path, delete-path
+            ├─ filesystem.py  # read-path, write-path, write-content, delete-path
             ├─ git.py         # git-force-push, git-reset-hard, git-push-direct
             └─ gh.py          # gh-pr-merge, gh-api
 ```

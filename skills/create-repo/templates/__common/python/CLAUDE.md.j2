@@ -1,0 +1,35 @@
+# {{ project_name }}
+
+## Project Structure
+
+This is a uv workspace monorepo.
+
+- `apps/` — Application packages
+- `packages/` — Shared libraries (added as needed)
+
+## Commands
+
+All commands are run via `just` from the project root:
+
+- `just dev` — Start the API dev server
+- `just test` — Run all tests
+- `just lint` — Lint with Ruff
+- `just format` — Format with Ruff
+- `just db-migrate` — Apply database migrations
+- `just db-revision "description"` — Create a new migration
+
+## Development
+
+1. `docker compose up -d` — Start Postgres
+2. `uv sync` — Install dependencies
+3. `just db-migrate` — Apply migrations
+4. `just dev` — Start dev server
+
+## Conventions
+
+- Python type hints on all function signatures
+- Ruff for linting and formatting (not flake8/black/isort)
+- SQLModel for database models (combines SQLAlchemy + Pydantic)
+- Alembic for database migrations
+- pytest for testing with httpx for API tests
+- All packages use uv workspace references

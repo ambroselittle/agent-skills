@@ -95,7 +95,7 @@ def evaluate(payload: dict, rules: list, repo_root: str | None = None) -> dict:
       {"decision": "allow"}
       {"decision": "proceed"}   -- no rule matched, defer to Claude
     """
-    from operations.filesystem import matches_read_path, matches_write_path, matches_delete_path
+    from operations.filesystem import matches_read_path, matches_write_path, matches_write_content, matches_delete_path
     from operations.git import matches_git_force_push, matches_git_reset_hard, matches_git_push_direct
     from operations.gh import matches_gh_pr_merge, matches_gh_api
 
@@ -115,6 +115,8 @@ def evaluate(payload: dict, rules: list, repo_root: str | None = None) -> dict:
             matched = matches_read_path(payload, rule, repo_root, cwd)
         elif operation == "write-path":
             matched = matches_write_path(payload, rule, repo_root, cwd)
+        elif operation == "write-content":
+            matched = matches_write_content(payload, rule, repo_root, cwd)
         elif operation == "delete-path":
             matched = matches_delete_path(payload, rule, repo_root, cwd)
         elif operation == "git-force-push":

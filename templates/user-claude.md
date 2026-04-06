@@ -17,6 +17,19 @@ current, version-accurate docs.
   even when a bug is discovered incidentally mid-task (e.g., a test reveals an unexpected failure):
   stop, write a targeted unit test for the specific defect, confirm it fails, then fix
 
+## Persistence: Repo Over Memory
+
+Prefer persisting guidance in the repo (templates, CLAUDE.md, .claude/rules/) over user-local memory
+files. If a preference applies broadly, it belongs in the templates so that a fresh machine setup via
+agent-skills gets the full experience without relying on hidden local state. Use memory only for
+genuinely ephemeral or time-bound observations (active bugs, in-progress project state).
+
+## .work/ Plans Are Scaffolding
+
+- Gitignore `.work/` directories — do not commit implementation plans
+- PRs are the record of what was done and why (git blame → PR → ticket)
+- The ship skill captures key decisions in the PR description
+
 ## Working with git/gh
 
 - Before making changes, verify you are on the correct branch -- not default or unrelated feature branch
@@ -55,6 +68,20 @@ Do not treat code volume as risk. Evaluate **actual risk** before hesitating:
 Never say "this is a substantial change" as a reason to pause. Never ask "want me to tackle this?"
 when the user clearly wants it done. The only valid reasons to pause: genuine ambiguity, destructive
 operations on shared systems, or security concerns. Default to doing the work.
+
+## CLAUDE.md vs .claude/rules/
+
+Use a clear separation between orientation and directives:
+
+- **CLAUDE.md** is orientation — what the project is, its structure, how to build and test, what lives
+  where. Think of it as a README for Claude. Keep it concise and factual.
+- **.claude/rules/** is for behavioral directives — what to do or not do. Rules are either unscoped
+  (always loaded, no `paths` frontmatter) or path-scoped (loaded on demand when matching files are
+  touched).
+
+**Why this distinction:** CLAUDE.md grows unbounded when it mixes context with rules. Separating them
+keeps CLAUDE.md scannable and makes rules discoverable in one place. Path-scoped rules also save
+context by only loading when relevant.
 
 ## Verify and Prove Work Correctness
 

@@ -1,0 +1,30 @@
+# {{ project_name }}
+{% raw %}
+# Start the API dev server
+dev:
+    cd apps/api && uv run uvicorn src.main:app --reload --port ${PORT:-8000}
+
+# Run all tests
+test:
+    uv run pytest
+
+# Lint with Ruff
+lint:
+    uv run ruff check .
+
+# Format with Ruff
+format:
+    uv run ruff format .
+
+# Apply database migrations
+db-migrate:
+    cd apps/api && uv run alembic upgrade head
+
+# Create a new migration revision
+db-revision message:
+    cd apps/api && uv run alembic revision --autogenerate -m "{{message}}"
+
+# Check formatting without modifying files
+format-check:
+    uv run ruff format --check .
+{% endraw %}

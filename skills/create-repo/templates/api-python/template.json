@@ -1,0 +1,4 @@
+{
+  "platform": "python",
+  "description": "Python API with FastAPI + SQLModel + Postgres"
+}
