@@ -1,0 +1,9 @@
+import { db } from "{{ scope }}/db"
+
+export interface Context {
+  db: typeof db
+}
+
+export function createContext(): Context {
+  return { db }
+}

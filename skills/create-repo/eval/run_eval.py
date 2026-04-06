@@ -61,6 +61,18 @@ FALLBACK_VERSIONS = {
     "testing_library_jest_dom": "6.9.1",
     "dotenv": "17.4.1",
     "pnpm": "10.33.0",
+    # GraphQL stack
+    "graphql": "16.13.2",
+    "graphql_yoga": "5.21.0",
+    "pothos_core": "4.12.0",
+    "apollo_client": "4.1.6",
+    "graphql_codegen_cli": "6.2.1",
+    "graphql_codegen_introspection": "5.0.1",
+    "graphql_codegen_near_operation_file_preset": "5.0.0",
+    "graphql_codegen_typed_document_node": "6.1.7",
+    "graphql_codegen_typescript": "5.0.9",
+    "graphql_codegen_typescript_operations": "5.0.9",
+    "graphql_typed_document_node_core": "3.2.0",
     # Python packages (api-python, fullstack-python)
     "fastapi": "0.115.12",
     "sqlmodel": "0.0.24",
@@ -259,7 +271,7 @@ def print_results(result: EvalResult) -> None:
     print(f"\n{result.pass_count}/{len(result.checks)} checks passed")
 
 
-AVAILABLE_TEMPLATES = ["fullstack-ts", "api-python"]
+AVAILABLE_TEMPLATES = ["fullstack-ts", "fullstack-graphql", "api-python"]
 
 
 def main() -> None:

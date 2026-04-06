@@ -18,6 +18,14 @@ def test_eval_fullstack_ts_passes():
     assert result.pass_count > 40  # Expect at least 40 checks
 
 
+def test_eval_fullstack_graphql_passes():
+    result = run_eval("fullstack-graphql")
+    assert result.passed, [
+        f"{c.name}: {c.detail}" for c in result.checks if not c.passed
+    ]
+    assert result.pass_count > 40  # Expect at least 40 checks
+
+
 def test_eval_api_python_passes():
     result = run_eval("api-python")
     assert result.passed, [

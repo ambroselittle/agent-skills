@@ -1,0 +1,21 @@
+import "dotenv/config"
+import { serve } from "@hono/node-server"
+import { Hono } from "hono"
+import { yoga } from "./yoga"
+
+const app = new Hono()
+
+app.get("/api/health", (c) => c.json({ status: "ok" }))
+
+app.all("/api/graphql", async (c) => {
+  return yoga.fetch(c.req.raw)
+})
+
+export { app }
+
+if (!process.env.VITEST) {
+  const port = Number(process.env.PORT) || 3001
+  serve({ fetch: app.fetch, port }, (info) => {
+    console.log(`API server running on http://localhost:${info.port}`)
+  })
+}

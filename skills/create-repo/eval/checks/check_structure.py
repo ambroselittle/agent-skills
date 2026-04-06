@@ -82,6 +82,8 @@ def check_structure(project_dir: Path, template: str) -> list[CheckResult]:
 
     if template == "fullstack-ts":
         _check_fullstack_ts(project_dir, checks)
+    elif template == "fullstack-graphql":
+        _check_fullstack_graphql(project_dir, checks)
     elif template == "api-python":
         _check_api_python(project_dir, checks)
 
@@ -118,37 +120,8 @@ def check_structure(project_dir: Path, template: str) -> list[CheckResult]:
     return checks
 
 
-def _check_fullstack_ts(project_dir: Path, checks: list[CheckResult]) -> None:
-    """Template-specific checks for fullstack-ts."""
-    ts_files = [
-        "tsconfig.json",
-        "apps/web/package.json",
-        "apps/web/src/main.tsx",
-        "apps/web/src/App.tsx",
-        "apps/web/src/lib/trpc.ts",
-        "apps/web/vite.config.ts",
-        "apps/web/__tests__/App.test.tsx",
-        "apps/api/package.json",
-        "apps/api/src/index.ts",
-        "apps/api/src/router.ts",
-        "apps/api/src/trpc.ts",
-        "apps/api/__tests__/router.test.ts",
-        "packages/db/package.json",
-        "packages/db/prisma/schema.prisma",
-        "packages/db/prisma/seed.ts",
-        "packages/db/src/index.ts",
-        "packages/types/package.json",
-        "packages/types/src/index.ts",
-        "packages/config/tsconfig.base.json",
-    ]
-    for f in ts_files:
-        path = project_dir / f
-        checks.append(CheckResult(
-            f"file: {f}",
-            path.exists(),
-            None if path.exists() else f"Missing: {f}",
-        ))
-
+def _check_node_ts_common(project_dir: Path, checks: list[CheckResult]) -> None:
+    """Shared checks for Node/TS fullstack templates (fullstack-ts, fullstack-graphql)."""
     # package.json content checks
     pkg_path = project_dir / "package.json"
     if pkg_path.exists():
@@ -227,6 +200,77 @@ def _check_fullstack_ts(project_dir: Path, checks: list[CheckResult]) -> None:
         "seed script exists",
         seed_path.exists(),
     ))
+
+
+def _check_fullstack_ts(project_dir: Path, checks: list[CheckResult]) -> None:
+    """Template-specific checks for fullstack-ts."""
+    ts_files = [
+        "tsconfig.json",
+        "apps/web/package.json",
+        "apps/web/src/main.tsx",
+        "apps/web/src/App.tsx",
+        "apps/web/src/lib/trpc.ts",
+        "apps/web/vite.config.ts",
+        "apps/web/__tests__/App.test.tsx",
+        "apps/api/package.json",
+        "apps/api/src/index.ts",
+        "apps/api/src/router.ts",
+        "apps/api/src/trpc.ts",
+        "apps/api/__tests__/router.test.ts",
+        "packages/db/package.json",
+        "packages/db/prisma/schema.prisma",
+        "packages/db/prisma/seed.ts",
+        "packages/db/src/index.ts",
+        "packages/types/package.json",
+        "packages/types/src/index.ts",
+        "packages/config/tsconfig.base.json",
+    ]
+    for f in ts_files:
+        path = project_dir / f
+        checks.append(CheckResult(
+            f"file: {f}",
+            path.exists(),
+            None if path.exists() else f"Missing: {f}",
+        ))
+
+    _check_node_ts_common(project_dir, checks)
+
+
+def _check_fullstack_graphql(project_dir: Path, checks: list[CheckResult]) -> None:
+    """Template-specific checks for fullstack-graphql."""
+    gql_files = [
+        "tsconfig.json",
+        "apps/web/package.json",
+        "apps/web/src/main.tsx",
+        "apps/web/src/App.tsx",
+        "apps/web/src/lib/apollo.ts",
+        "apps/web/vite.config.ts",
+        "apps/web/__tests__/App.test.tsx",
+        "apps/web/codegen.ts",
+        "apps/api/package.json",
+        "apps/api/src/index.ts",
+        "apps/api/src/schema.ts",
+        "apps/api/src/yoga.ts",
+        "apps/api/src/context.ts",
+        "apps/api/__tests__/schema.test.ts",
+        "apps/api/scripts/print-schema.ts",
+        "packages/db/package.json",
+        "packages/db/prisma/schema.prisma",
+        "packages/db/prisma/seed.ts",
+        "packages/db/src/index.ts",
+        "packages/types/package.json",
+        "packages/types/src/index.ts",
+        "packages/config/tsconfig.base.json",
+    ]
+    for f in gql_files:
+        path = project_dir / f
+        checks.append(CheckResult(
+            f"file: {f}",
+            path.exists(),
+            None if path.exists() else f"Missing: {f}",
+        ))
+
+    _check_node_ts_common(project_dir, checks)
 
 
 def _check_api_python(project_dir: Path, checks: list[CheckResult]) -> None:

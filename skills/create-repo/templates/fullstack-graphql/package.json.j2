@@ -1,0 +1,31 @@
+{
+  "name": "{{ project_name }}",
+  "private": true,
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "test": "turbo test",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "typecheck": "turbo typecheck",
+    "db:push": "turbo db:push --filter={{ scope }}/db",
+    "db:studio": "pnpm --filter={{ scope }}/db exec prisma studio",
+    "db:seed": "turbo db:seed --filter={{ scope }}/db",
+    "codegen": "turbo generate:schema codegen",
+    "test:e2e": "turbo test:e2e",
+    "project:setup": "tsx scripts/setup.ts",
+    "update-ports": "tsx scripts/discover-ports.ts",
+    "cleanup-samples": "tsx scripts/cleanup-samples.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "{{ versions.biomejs_biome }}",
+    "get-port": "latest",
+    "tsx": "latest",
+    "turbo": "latest",
+    "typescript": "{{ versions.typescript }}"
+  },
+  "packageManager": "pnpm@{{ versions.pnpm }}",
+  "pnpm": {
+    "onlyBuiltDependencies": ["@prisma/engines", "prisma", "esbuild"]
+  }
+}

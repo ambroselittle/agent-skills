@@ -1,0 +1,22 @@
+import { ApolloProvider, useQuery } from "@apollo/client/react"
+import { HealthDocument } from "./graphql/health.generated"
+import { client } from "./lib/apollo"
+
+function AppContent() {
+  const { data, loading } = useQuery(HealthDocument)
+
+  return (
+    <div>
+      <h1>{{ project_name }}</h1>
+      <p>API status: {loading ? "loading..." : data?.health ?? "error"}</p>
+    </div>
+  )
+}
+
+export function App() {
+  return (
+    <ApolloProvider client={client}>
+      <AppContent />
+    </ApolloProvider>
+  )
+}

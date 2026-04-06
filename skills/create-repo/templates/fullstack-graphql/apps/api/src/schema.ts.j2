@@ -1,0 +1,50 @@
+import SchemaBuilder from "@pothos/core"
+import type { User } from "{{ scope }}/db"
+import type { Context } from "./context"
+
+const builder = new SchemaBuilder<{
+  Context: Context
+  Objects: { User: User }
+}>({})
+
+// --- sample routes start ---
+const UserType = builder.objectType("User", {
+  fields: (t) => ({
+    id: t.exposeString("id"),
+    email: t.exposeString("email"),
+    name: t.exposeString("name", { nullable: true }),
+    createdAt: t.string({ resolve: (user) => user.createdAt.toISOString() }),
+    updatedAt: t.string({ resolve: (user) => user.updatedAt.toISOString() }),
+  }),
+})
+// --- sample routes end ---
+
+builder.queryType({
+  fields: (t) => ({
+    health: t.string({ resolve: () => "ok" }),
+    // --- sample routes start ---
+    users: t.field({
+      type: [UserType],
+      resolve: (_root, _args, ctx) => ctx.db.user.findMany(),
+    }),
+    // --- sample routes end ---
+  }),
+})
+
+// --- sample routes start ---
+builder.mutationType({
+  fields: (t) => ({
+    createUser: t.field({
+      type: UserType,
+      args: {
+        email: t.arg.string({ required: true }),
+        name: t.arg.string(),
+      },
+      resolve: (_root, args, ctx) =>
+        ctx.db.user.create({ data: { email: args.email, name: args.name } }),
+    }),
+  }),
+})
+// --- sample routes end ---
+
+export const schema = builder.toSchema()
