@@ -6,7 +6,7 @@
     },
     "codegen": {
       "dependsOn": ["^generate:schema"],
-      "outputs": ["src/generated/graphql.ts"]
+      "outputs": ["src/generated/types.ts", "src/generated/schema.json", "src/**/*.generated.ts"]
     },
     "build": {
       "dependsOn": ["^build", "codegen"],
