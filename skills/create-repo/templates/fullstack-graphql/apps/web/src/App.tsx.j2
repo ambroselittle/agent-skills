@@ -1,9 +1,9 @@
-import { ApolloProvider } from "@apollo/client"
-import { useHealthQuery } from "./generated/graphql"
+import { ApolloProvider, useQuery } from "@apollo/client/react"
+import { HealthDocument } from "./graphql/health.generated"
 import { client } from "./lib/apollo"
 
 function AppContent() {
-  const { data, loading } = useHealthQuery()
+  const { data, loading } = useQuery(HealthDocument)
 
   return (
     <div>

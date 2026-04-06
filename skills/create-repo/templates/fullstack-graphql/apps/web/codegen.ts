@@ -1,20 +1,23 @@
 import type { CodegenConfig } from "@graphql-codegen/cli"
 
 const config: CodegenConfig = {
+  overwrite: true,
   schema: "../api/schema.graphql",
   documents: ["src/**/*.graphql"],
   generates: {
-    "./src/generated/graphql.ts": {
-      plugins: [
-        "typescript",
-        "typescript-operations",
-        "typescript-react-apollo",
-      ],
-      config: {
-        withHooks: true,
-        withComponent: false,
-        withHOC: false,
+    "./src/generated/types.ts": {
+      plugins: ["typescript"],
+    },
+    "./src/generated/schema.json": {
+      plugins: ["introspection"],
+    },
+    "src/": {
+      preset: "near-operation-file",
+      presetConfig: {
+        extension: ".generated.ts",
+        baseTypesPath: "generated/types.ts",
       },
+      plugins: ["typescript-operations", "typed-document-node"],
     },
   },
 }

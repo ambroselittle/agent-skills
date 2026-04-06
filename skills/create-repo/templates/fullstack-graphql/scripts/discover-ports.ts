@@ -16,7 +16,7 @@ async function main() {
     `DATABASE_URL=${DATABASE_URL}`,
   ].join("\n")
 
-  writeFileSync(".env.ports", envContent + "\n")
+  writeFileSync(".env.ports", `${envContent}\n`)
   console.log("Ports written to .env.ports:", { ...ports, DATABASE_URL })
 }
 

@@ -34,7 +34,7 @@ const rootEnv = [
   `COMPOSE_PROJECT_NAME=${projectSlug()}-${worktreeSlug()}`,
 ].join("\n")
 
-writeFileSync(join(root, ".env"), rootEnv + "\n")
+writeFileSync(join(root, ".env"), `${rootEnv}\n`)
 
 // 5. Generate per-package .env files
 // Keys are env var names to write; values are the source key from ports.
@@ -51,7 +51,7 @@ for (const [pkg, varMap] of Object.entries(packageEnvs)) {
     .filter(([, src]) => ports[src])
     .map(([dest, src]) => `${dest}=${ports[src]}`)
     .join("\n")
-  writeFileSync(join(pkgDir, ".env"), content + "\n")
+  writeFileSync(join(pkgDir, ".env"), `${content}\n`)
   console.log(`Wrote ${pkg}/.env`)
 }
 
