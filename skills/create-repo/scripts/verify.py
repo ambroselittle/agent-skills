@@ -162,6 +162,11 @@ def verify_node(
     """Verify a Node/TypeScript scaffolded project."""
     result = VerifyResult()
 
+    # Force a project-local turbo cache to prevent cross-worktree cache
+    # pollution (turbo matches on content hash, not path, so eval runs in
+    # different worktrees share stale cached logs with wrong absolute paths).
+    turbo_env = {**os.environ, "TURBO_CACHE_DIR": str(project_dir / ".turbo")}
+
     # Step 1: Install dependencies
     step = run_step("pnpm install", ["pnpm", "install"], project_dir, timeout=120)
     result.steps.append(step)
@@ -218,25 +223,25 @@ def verify_node(
     # Non-fatal — tests can run without seed data
 
     # Step 4: Build
-    step = run_step("build", ["pnpm", "build"], project_dir, timeout=120)
+    step = run_step("build", ["pnpm", "build"], project_dir, timeout=120, env=turbo_env)
     result.steps.append(step)
     if not step.passed:
         return result
 
     # Step 5: Typecheck
-    step = run_step("typecheck", ["pnpm", "typecheck"], project_dir, timeout=60)
+    step = run_step("typecheck", ["pnpm", "typecheck"], project_dir, timeout=60, env=turbo_env)
     result.steps.append(step)
     if not step.passed:
         return result
 
     # Step 6: Lint
-    step = run_step("lint", ["pnpm", "lint"], project_dir, timeout=60)
+    step = run_step("lint", ["pnpm", "lint"], project_dir, timeout=60, env=turbo_env)
     result.steps.append(step)
     if not step.passed:
         return result
 
     # Step 7: Test
-    step = run_step("test", ["pnpm", "test"], project_dir, timeout=120)
+    step = run_step("test", ["pnpm", "test"], project_dir, timeout=120, env=turbo_env)
     result.steps.append(step)
     if not step.passed:
         return result
@@ -254,7 +259,7 @@ def verify_node(
 
     # Step 8: Dev server smoke check
     dev_env = {
-        **os.environ,
+        **turbo_env,
         "PORT": str(api_port),
         "WEB_PORT": str(web_port),
         "VITE_API_PORT": str(api_port),
