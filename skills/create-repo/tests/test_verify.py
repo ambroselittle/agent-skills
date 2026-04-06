@@ -121,8 +121,14 @@ def test_verify_node_runs_correct_command_sequence():
     assert "docker" in commands_run
 
 
-def test_verify_node_runs_e2e_when_servers_are_up():
+def test_verify_node_runs_e2e_when_servers_are_up(tmp_path):
     """E2E tests should run when both API and web servers are reachable."""
+    # Create apps/web with playwright config so verify detects a fullstack project
+    web_dir = tmp_path / "apps" / "web"
+    web_dir.mkdir(parents=True)
+    (web_dir / "playwright.config.ts").write_text("export default {}")
+    (tmp_path / "package.json").write_text("{}")
+
     commands_run = []
 
     def fake_run(cmd, **kwargs):
@@ -143,15 +149,21 @@ def test_verify_node_runs_e2e_when_servers_are_up():
         mock_proc.wait = MagicMock()
         mock_popen.return_value = mock_proc
 
-        result = verify(Path("/tmp/test-project"))
+        result = verify(tmp_path)
 
     # E2E step should be present
     e2e_steps = [s for s in result.steps if s.name == "e2e tests"]
     assert len(e2e_steps) == 1
 
 
-def test_verify_node_skips_e2e_when_server_down():
+def test_verify_node_skips_e2e_when_server_down(tmp_path):
     """E2E tests should NOT run when the web server is unreachable."""
+    # Create apps/web so verify detects a fullstack project
+    web_dir = tmp_path / "apps" / "web"
+    web_dir.mkdir(parents=True)
+    (web_dir / "playwright.config.ts").write_text("export default {}")
+    (tmp_path / "package.json").write_text("{}")
+
     def fake_run(cmd, **kwargs):
         return _mock_run()
 
@@ -169,11 +181,52 @@ def test_verify_node_skips_e2e_when_server_down():
         mock_proc.wait = MagicMock()
         mock_popen.return_value = mock_proc
 
-        result = verify(Path("/tmp/test-project"))
+        result = verify(tmp_path)
 
-    # E2E step should NOT be present
+    # E2E step should NOT be present (both servers down)
     e2e_steps = [s for s in result.steps if s.name == "e2e tests"]
     assert len(e2e_steps) == 0
+
+
+def test_verify_node_api_only_skips_web(tmp_path):
+    """API-only projects should not check web port or install browsers."""
+    # Create apps/api with playwright config but NO apps/web
+    api_dir = tmp_path / "apps" / "api"
+    api_dir.mkdir(parents=True)
+    (api_dir / "playwright.config.ts").write_text("export default {}")
+    (tmp_path / "package.json").write_text("{}")
+
+    commands_run = []
+
+    def fake_run(cmd, **kwargs):
+        commands_run.append(cmd if isinstance(cmd, list) else [cmd])
+        return _mock_run()
+
+    with patch("scripts.verify.detect_platform", return_value="node"), \
+         patch("scripts.verify.subprocess.run", side_effect=fake_run), \
+         patch("scripts.verify.subprocess.Popen") as mock_popen, \
+         patch("scripts.verify.wait_for_port", return_value=True), \
+         patch("scripts.verify.check_health", return_value=True), \
+         patch("scripts.verify.os.getpgid", return_value=99999), \
+         patch("scripts.verify.atexit.register"), \
+         patch("scripts.verify._kill_process_group"):
+
+        mock_proc = MagicMock()
+        mock_popen.return_value = mock_proc
+
+        result = verify(tmp_path)
+
+    step_names = [s.name for s in result.steps]
+
+    # Should have API dev server but NOT web
+    assert "dev server (API)" in step_names
+    assert "dev server (web)" not in step_names
+
+    # Should have E2E (API-only)
+    assert "e2e tests" in step_names
+
+    # Should NOT have playwright install (no browser needed)
+    assert "playwright install" not in step_names
 
 
 # --- verify (mocked, Python platform) ---

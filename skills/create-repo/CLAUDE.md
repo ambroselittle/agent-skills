@@ -18,8 +18,9 @@ create-repo/
 │   ├── __common/         # Universal files (all templates)
 │   │   ├── python/       # Shared across Python templates
 │   │   └── ts/           # Shared across TypeScript templates
-│   ├── fullstack-ts/     # React + Hono + tRPC + Prisma
-│   ├── fullstack-graphql/ # React + Hono + Yoga/Pothos + Apollo + Prisma
+│   ├── fullstack-ts/     # React + Hono + tRPC + Prisma (base for TS templates)
+│   ├── fullstack-graphql/ # React + Hono + Yoga/Pothos + Apollo + Prisma (extends fullstack-ts)
+│   ├── api-ts/           # Hono + tRPC + Prisma, no frontend (extends fullstack-ts)
 │   └── api-python/       # FastAPI + SQLModel + Postgres
 ├── tests/                # pytest tests for all scripts
 └── eval/                 # Eval framework
@@ -48,6 +49,8 @@ cd create-repo && uv sync --group dev && uv run pytest tests/ -v
 
 1. Create `templates/<template-name>/` with the template's files
 2. Add `template.json` with `{"platform": "<platform>"}` (e.g., "python", "ts")
+   - To inherit from an existing template, add `"extends": "<base-template>"` and only include files that differ
+   - Use `"exclude": ["pattern/**"]` to skip base template files (fnmatch globs)
 3. Add shared platform files to `__common/<platform>/` if they don't exist yet
 4. Use `.j2` extension for files needing Jinja2 substitution
 5. Available variables: `{{ project_name }}`, `{{ scope }}`, `{{ versions.<pkg> }}`

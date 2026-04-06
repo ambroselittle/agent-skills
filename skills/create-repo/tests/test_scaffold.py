@@ -467,6 +467,112 @@ def test_scaffold_api_python_ci_uses_uv(tmp_path, python_versions):
     assert "pnpm" not in ci
 
 
+# --- api-ts scaffold ---
+
+
+def test_scaffold_api_ts_creates_expected_structure(tmp_path, versions):
+    output = tmp_path / "my-api"
+    created = scaffold("my-api", "api-ts", versions, output)
+
+    assert len(created) > 0
+
+    # Common files (from __common/ and __common/ts/)
+    assert (output / "docker-compose.yml").exists()
+    assert (output / ".gitignore").exists()
+    assert (output / ".env.example").exists()
+    assert (output / "CLAUDE.md").exists()
+    assert (output / "biome.json").exists()
+    assert (output / ".claude" / "rules" / "testing.md").exists()
+    assert (output / ".claude" / "rules" / "modules.md").exists()
+    assert (output / ".claude" / "rules" / "types.md").exists()
+    assert (output / ".github" / "workflows" / "ci.yml").exists()
+    assert (output / ".github" / "pull_request_template.md").exists()
+
+    # Root monorepo files (inherited from fullstack-ts)
+    assert (output / "package.json").exists()
+    assert (output / "pnpm-workspace.yaml").exists()
+    assert (output / "turbo.json").exists()
+    assert (output / "tsconfig.json").exists()
+
+    # API app (inherited from fullstack-ts + overridden package.json)
+    assert (output / "apps" / "api" / "package.json").exists()
+    assert (output / "apps" / "api" / "src" / "index.ts").exists()
+    assert (output / "apps" / "api" / "src" / "router.ts").exists()
+    assert (output / "apps" / "api" / "src" / "trpc.ts").exists()
+    assert (output / "apps" / "api" / "__tests__" / "router.test.ts").exists()
+    assert (output / "apps" / "api" / "tsconfig.json").exists()
+
+    # E2E tests in apps/api (api-ts specific)
+    assert (output / "apps" / "api" / "playwright.config.ts").exists()
+    assert (output / "apps" / "api" / "e2e" / "smoke.test.ts").exists()
+    assert (output / "apps" / "api" / "e2e" / "users.test.ts").exists()
+
+    # Packages (inherited from fullstack-ts)
+    assert (output / "packages" / "db" / "package.json").exists()
+    assert (output / "packages" / "db" / "prisma" / "schema.prisma").exists()
+    assert (output / "packages" / "db" / "prisma" / "seed.ts").exists()
+    assert (output / "packages" / "db" / "src" / "index.ts").exists()
+    assert (output / "packages" / "types" / "package.json").exists()
+    assert (output / "packages" / "config" / "tsconfig.base.json").exists()
+
+    # Scripts
+    assert (output / "scripts" / "setup.ts").exists()
+    assert (output / "scripts" / "discover-ports.ts").exists()
+    assert (output / "scripts" / "cleanup-samples.ts").exists()
+
+    # NO apps/web
+    assert not (output / "apps" / "web").exists()
+
+
+def test_scaffold_api_ts_renders_jinja2_variables(tmp_path, versions):
+    output = tmp_path / "cool-api"
+    scaffold("cool-api", "api-ts", versions, output)
+
+    # Root package.json
+    root_pkg = json.loads((output / "package.json").read_text())
+    assert root_pkg["name"] == "cool-api"
+
+    # API package.json scope and deps
+    api_pkg = json.loads((output / "apps" / "api" / "package.json").read_text())
+    assert api_pkg["name"] == "@cool-api/api"
+    assert "@playwright/test" in api_pkg["devDependencies"]
+    assert "test:e2e" in api_pkg["scripts"]
+
+    # Versions substituted
+    assert versions["hono"] in api_pkg["dependencies"]["hono"]
+
+    # CLAUDE.md has project name
+    claude_md = (output / "CLAUDE.md").read_text()
+    assert "cool-api" in claude_md
+
+    # docker-compose has project-specific db name
+    dc = (output / "docker-compose.yml").read_text()
+    assert "cool-api_dev" in dc
+
+
+def test_scaffold_api_ts_no_web_files(tmp_path, versions):
+    output = tmp_path / "my-api"
+    scaffold("my-api", "api-ts", versions, output)
+
+    # No web directory at all
+    assert not (output / "apps" / "web").exists()
+
+    # Root package.json should NOT have web-specific deps
+    root_pkg = json.loads((output / "package.json").read_text())
+    all_deps = {**root_pkg.get("dependencies", {}), **root_pkg.get("devDependencies", {})}
+    assert "react" not in all_deps
+    assert "vite" not in all_deps
+    assert "@vitejs/plugin-react" not in all_deps
+
+    # discover-ports should NOT have WEB_PORT
+    discover = (output / "scripts" / "discover-ports.ts").read_text()
+    assert "WEB_PORT" not in discover
+
+    # setup should NOT reference apps/web
+    setup = (output / "scripts" / "setup.ts").read_text()
+    assert "apps/web" not in setup
+
+
 # --- extends / exclude ---
 
 

@@ -2,6 +2,7 @@
 
 ### Project layout
 
+**Fullstack projects** (with `apps/web/`):
 - Config: `apps/web/playwright.config.ts`
 - Tests: `apps/web/e2e/`
 - Page objects: `apps/web/e2e/pages/`
@@ -9,6 +10,13 @@
 - Run tests: `pnpm test:e2e` (from root or `apps/web`)
 - Tests use Chromium only by default
 - `webServer` config auto-starts Vite dev; `reuseExistingServer: true` skips startup when the server is already running
+
+**API-only projects** (no `apps/web/`):
+- Config: `apps/api/playwright.config.ts`
+- Tests: `apps/api/e2e/`
+- Run tests: `pnpm test:e2e` (from root or `apps/api`)
+- Tests use Playwright's `request` fixture only (no browser needed)
+- `webServer` config starts only the API server
 
 ### Page Object Model (required)
 
