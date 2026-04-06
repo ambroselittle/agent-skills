@@ -40,6 +40,11 @@ def versions() -> dict:
         "playwright_test": "1.59.1",
         "prisma_adapter_pg": "7.5.0",
         "pnpm": "10.33.0",
+        # GraphQL stack
+        "graphql": "16.13.2",
+        "graphql_yoga": "5.21.0",
+        "pothos_core": "4.12.0",
+        "apollo_client": "4.1.6",
     }
 
 
@@ -200,6 +205,113 @@ def test_scaffold_rejects_non_empty_output_dir(tmp_path, versions):
 def test_scaffold_unknown_template(tmp_path, versions):
     with pytest.raises(FileNotFoundError, match="not-a-template"):
         scaffold("my-app", "not-a-template", versions, tmp_path / "out")
+
+
+def test_scaffold_fullstack_graphql_creates_expected_structure(tmp_path, versions):
+    output = tmp_path / "my-app"
+    created = scaffold("my-app", "fullstack-graphql", versions, output)
+
+    assert len(created) > 0
+
+    # Common files (inherited from templates/common/)
+    assert (output / "package.json").exists()
+    assert (output / "pnpm-workspace.yaml").exists()
+    assert (output / "turbo.json").exists()
+    assert (output / "tsconfig.json").exists()
+    assert (output / "biome.json").exists()
+    assert (output / "docker-compose.yml").exists()
+    assert (output / ".gitignore").exists()
+    assert (output / "CLAUDE.md").exists()
+    assert (output / ".github" / "workflows" / "ci.yml").exists()
+
+    # GraphQL-specific API files
+    assert (output / "apps" / "api" / "package.json").exists()
+    assert (output / "apps" / "api" / "src" / "index.ts").exists()
+    assert (output / "apps" / "api" / "src" / "schema.ts").exists()
+    assert (output / "apps" / "api" / "src" / "yoga.ts").exists()
+    assert (output / "apps" / "api" / "src" / "context.ts").exists()
+    assert (output / "apps" / "api" / "__tests__" / "schema.test.ts").exists()
+
+    # tRPC files should NOT exist
+    assert not (output / "apps" / "api" / "src" / "router.ts").exists()
+    assert not (output / "apps" / "api" / "src" / "trpc.ts").exists()
+    assert not (output / "apps" / "api" / "__tests__" / "router.test.ts").exists()
+    assert not (output / "apps" / "web" / "src" / "lib" / "trpc.ts").exists()
+
+    # Apollo Client frontend
+    assert (output / "apps" / "web" / "package.json").exists()
+    assert (output / "apps" / "web" / "src" / "App.tsx").exists()
+    assert (output / "apps" / "web" / "src" / "lib" / "apollo.ts").exists()
+    assert (output / "apps" / "web" / "src" / "main.tsx").exists()
+    assert (output / "apps" / "web" / "vite.config.ts").exists()
+    assert (output / "apps" / "web" / "__tests__" / "App.test.tsx").exists()
+
+    # E2E testing
+    assert (output / "apps" / "web" / "playwright.config.ts").exists()
+    assert (output / "apps" / "web" / "e2e" / "smoke.test.ts").exists()
+    assert (output / "apps" / "web" / "e2e" / "users.test.ts").exists()
+    assert (output / "apps" / "web" / "e2e" / "pages" / "base.page.ts").exists()
+    assert (output / "apps" / "web" / "e2e" / "pages" / "home.page.ts").exists()
+
+    # Prisma 7 (shared with fullstack-ts)
+    assert (output / "packages" / "db" / "package.json").exists()
+    assert (output / "packages" / "db" / "prisma.config.ts").exists()
+    assert (output / "packages" / "db" / "prisma" / "schema.prisma").exists()
+    assert (output / "packages" / "db" / "prisma" / "seed.ts").exists()
+    assert (output / "packages" / "db" / "src" / "index.ts").exists()
+
+    # Scripts
+    assert (output / "scripts" / "cleanup-samples.ts").exists()
+    assert (output / "scripts" / "discover-ports.ts").exists()
+    assert (output / "scripts" / "setup.ts").exists()
+
+
+def test_scaffold_fullstack_graphql_renders_variables(tmp_path, versions):
+    output = tmp_path / "gql-app"
+    scaffold("gql-app", "fullstack-graphql", versions, output)
+
+    # Root package.json should have the project name
+    root_pkg = json.loads((output / "package.json").read_text())
+    assert root_pkg["name"] == "gql-app"
+
+    # Web package.json should use scope and Apollo deps
+    web_pkg = json.loads((output / "apps" / "web" / "package.json").read_text())
+    assert web_pkg["name"] == "@gql-app/web"
+    assert "@apollo/client" in web_pkg["dependencies"]
+    assert "graphql" in web_pkg["dependencies"]
+    # Should NOT have tRPC deps
+    assert "@trpc/client" not in web_pkg.get("dependencies", {})
+    assert "@tanstack/react-query" not in web_pkg.get("dependencies", {})
+
+    # API package.json should have GraphQL deps
+    api_pkg = json.loads((output / "apps" / "api" / "package.json").read_text())
+    assert "graphql-yoga" in api_pkg["dependencies"]
+    assert "@pothos/core" in api_pkg["dependencies"]
+    assert "graphql" in api_pkg["dependencies"]
+    # Should NOT have tRPC deps
+    assert "@trpc/server" not in api_pkg.get("dependencies", {})
+    assert "@hono/trpc-server" not in api_pkg.get("dependencies", {})
+
+    # Versions should be substituted
+    assert versions["graphql_yoga"] in api_pkg["dependencies"]["graphql-yoga"]
+
+    # Schema file should use the scope
+    schema_ts = (output / "apps" / "api" / "src" / "schema.ts").read_text()
+    assert "@gql-app/db" in schema_ts
+
+    # Apollo client should reference /api/graphql
+    apollo_ts = (output / "apps" / "web" / "src" / "lib" / "apollo.ts").read_text()
+    assert "/api/graphql" in apollo_ts
+
+    # App should use ApolloProvider
+    app_tsx = (output / "apps" / "web" / "src" / "App.tsx").read_text()
+    assert "ApolloProvider" in app_tsx
+    assert "trpc" not in app_tsx.lower()
+
+    # Cleanup script should target schema.ts not router.ts
+    cleanup = (output / "scripts" / "cleanup-samples.ts").read_text()
+    assert "schema.ts" in cleanup
+    assert "router.ts" not in cleanup
 
 
 def test_scaffold_template_overrides_common(tmp_path, versions):
