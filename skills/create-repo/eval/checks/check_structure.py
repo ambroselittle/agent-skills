@@ -42,30 +42,50 @@ def check_structure(project_dir: Path, template: str) -> list[CheckResult]:
             None if path.exists() else f"Missing: {f}",
         ))
 
+    # Shared fullstack files (both fullstack-ts and fullstack-graphql)
+    fullstack_shared_files = [
+        "tsconfig.json",
+        "apps/web/package.json",
+        "apps/web/src/main.tsx",
+        "apps/web/src/App.tsx",
+        "apps/web/vite.config.ts",
+        "apps/web/__tests__/App.test.tsx",
+        "apps/api/package.json",
+        "apps/api/src/index.ts",
+        "packages/db/package.json",
+        "packages/db/prisma/schema.prisma",
+        "packages/db/prisma/seed.ts",
+        "packages/db/src/index.ts",
+        "packages/types/package.json",
+        "packages/types/src/index.ts",
+        "packages/config/tsconfig.base.json",
+    ]
+
     # Template-specific files
     if template == "fullstack-ts":
-        ts_files = [
-            "tsconfig.json",
-            "apps/web/package.json",
-            "apps/web/src/main.tsx",
-            "apps/web/src/App.tsx",
+        ts_files = fullstack_shared_files + [
             "apps/web/src/lib/trpc.ts",
-            "apps/web/vite.config.ts",
-            "apps/web/__tests__/App.test.tsx",
-            "apps/api/package.json",
-            "apps/api/src/index.ts",
             "apps/api/src/router.ts",
             "apps/api/src/trpc.ts",
             "apps/api/__tests__/router.test.ts",
-            "packages/db/package.json",
-            "packages/db/prisma/schema.prisma",
-            "packages/db/prisma/seed.ts",
-            "packages/db/src/index.ts",
-            "packages/types/package.json",
-            "packages/types/src/index.ts",
-            "packages/config/tsconfig.base.json",
         ]
         for f in ts_files:
+            path = project_dir / f
+            checks.append(CheckResult(
+                f"file: {f}",
+                path.exists(),
+                None if path.exists() else f"Missing: {f}",
+            ))
+
+    elif template == "fullstack-graphql":
+        gql_files = fullstack_shared_files + [
+            "apps/web/src/lib/apollo.ts",
+            "apps/api/src/schema.ts",
+            "apps/api/src/yoga.ts",
+            "apps/api/src/context.ts",
+            "apps/api/__tests__/schema.test.ts",
+        ]
+        for f in gql_files:
             path = project_dir / f
             checks.append(CheckResult(
                 f"file: {f}",
@@ -123,7 +143,7 @@ def check_structure(project_dir: Path, template: str) -> list[CheckResult]:
         ))
 
     # tsconfig has strict: true
-    if template in ("fullstack-ts",):
+    if template in ("fullstack-ts", "fullstack-graphql"):
         tsconfig_path = project_dir / "tsconfig.json"
         if tsconfig_path.exists():
             tsconfig = json.loads(tsconfig_path.read_text())
@@ -145,7 +165,7 @@ def check_structure(project_dir: Path, template: str) -> list[CheckResult]:
         ))
 
     # At least one test file per app/package
-    if template == "fullstack-ts":
+    if template in ("fullstack-ts", "fullstack-graphql"):
         test_locations = [
             ("apps/web", "__tests__"),
             ("apps/api", "__tests__"),
@@ -161,7 +181,7 @@ def check_structure(project_dir: Path, template: str) -> list[CheckResult]:
 
     # Seed script exists
     seed_path = project_dir / "packages" / "db" / "prisma" / "seed.ts"
-    if template in ("fullstack-ts",):
+    if template in ("fullstack-ts", "fullstack-graphql"):
         checks.append(CheckResult(
             "seed script exists",
             seed_path.exists(),

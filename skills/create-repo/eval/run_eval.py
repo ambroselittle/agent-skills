@@ -57,6 +57,11 @@ FALLBACK_VERSIONS = {
     "playwright": "1.59.1",
     "playwright_test": "1.59.1",
     "pnpm": "10.33.0",
+    # GraphQL stack
+    "graphql": "16.13.2",
+    "graphql_yoga": "5.21.0",
+    "pothos_core": "4.12.0",
+    "apollo_client": "4.1.6",
 }
 
 
@@ -236,7 +241,7 @@ def print_results(result: EvalResult) -> None:
     print(f"\n{result.pass_count}/{len(result.checks)} checks passed")
 
 
-AVAILABLE_TEMPLATES = ["fullstack-ts"]
+AVAILABLE_TEMPLATES = ["fullstack-ts", "fullstack-graphql"]
 
 
 def main() -> None:
