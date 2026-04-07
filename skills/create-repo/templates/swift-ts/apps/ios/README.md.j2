@@ -6,22 +6,18 @@ file navigator alongside your Swift code.
 
 ## Set Up the Xcode Project
 
-**Step 1 — Create the Xcode project:**
-
-1. In Xcode: **File → New → Project**
-2. Choose your template (e.g. **App** under iOS / Multiplatform)
-3. Set the product name to **`{{ swift_project_name }}`**
-4. When prompted for a save location, navigate into **this directory** (`apps/ios/`) and save
-5. Xcode creates `apps/ios/{{ swift_project_name }}.xcodeproj`
-
-**Step 2 — Add the project to the workspace:**
-
 1. Open `{{ swift_project_name }}.xcworkspace` (at the repo root) in Xcode
-2. In the file navigator, right-click → **Add Files to "{{ swift_project_name }}"…**
-3. Select `apps/ios/{{ swift_project_name }}.xcodeproj` and click **Add**
+2. **File → New → Project**, choose your template (e.g. **App** under iOS / Multiplatform)
+3. Set the product name to **`{{ swift_project_name }}`**
+4. In the save sheet, set **"Add to: {{ swift_project_name }}"** — this wires the project into
+   the workspace in one step
+5. Set the save location to **this directory** (`apps/ios/`) and click **Create**
 
-The workspace shows the full monorepo alongside your Xcode project. Always open Xcode via
-the workspace going forward, not the `.xcodeproj` directly.
+Always open Xcode via the workspace going forward, not the `.xcodeproj` directly.
+
+> **Fallback:** If you already created the project separately, drag
+> `apps/ios/{{ swift_project_name }}.xcodeproj` from Finder into the workspace's
+> Project Navigator to add it.
 
 ## Connect to the API
 
