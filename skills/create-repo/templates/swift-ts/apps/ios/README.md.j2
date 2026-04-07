@@ -9,9 +9,12 @@ file navigator alongside your Swift code.
 1. Open `{{ swift_project_name }}.xcworkspace` (at the repo root) in Xcode
 2. **File → New → Project**, choose **App** under **iOS** (not Multiplatform — see note below)
 3. Set the product name to **`{{ swift_project_name }}`**
-4. In the save sheet, set **"Add to: {{ swift_project_name }}"** — this wires the project into
-   the workspace in one step
-5. Set the save location to **this directory** (`apps/ios/`) and click **Create**
+4. Navigate into **this directory** (`apps/ios/`) as the save location
+5. In the save sheet at the bottom, confirm these options:
+   - **Add to:** `{{ swift_project_name }}` ← wires into the workspace in one step
+   - **Group:** `{{ project_name }}`
+   - **Create Git repository:** unchecked ← repo already exists
+6. Click **Create**
 
 Always open Xcode via the workspace going forward, not the `.xcodeproj` directly.
 
