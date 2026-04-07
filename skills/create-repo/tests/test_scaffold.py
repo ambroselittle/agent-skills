@@ -1287,7 +1287,7 @@ def test_scaffold_swift_ts_creates_expected_structure(tmp_path, versions):
     assert (output / "apps" / "mobile" / "Sources" / "MyApp" / "Services" / "APIClient.swift").exists()
     assert (output / "apps" / "mobile" / "Sources" / "MyApp" / "Views" / "UsersView.swift").exists()
     assert (output / "apps" / "mobile" / "Tests" / "MyAppTests" / "APIClientTests.swift").exists()
-    assert (output / "apps" / "mobile" / "Resources" / "Assets.xcassets" / "Contents.json").exists()
+    assert (output / "apps" / "mobile" / "Sources" / "MyApp" / "Resources" / "Assets.xcassets" / "Contents.json").exists()
 
     # NO apps/web
     assert not (output / "apps" / "web").exists()

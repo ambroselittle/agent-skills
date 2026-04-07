@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import atexit
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -759,36 +760,25 @@ def verify_swift_ts(
     )
 
     # Swift-side verification (macOS only)
-    import sys
-
     if sys.platform != "darwin":
         result.steps.append(StepResult(
-            "swift: skipped",
-            "(not macOS)",
-            True,
-            0,
+            "swift: skipped", True, 0, "(not macOS)",
         ))
         return result
 
     mobile_dir = project_dir / "apps" / "mobile"
     if not mobile_dir.exists():
         result.steps.append(StepResult(
-            "swift: skipped",
-            "apps/mobile/ not found",
-            True,
-            0,
+            "swift: skipped", True, 0, "apps/mobile/ not found",
         ))
         return result
 
     # Check if full Xcode (not just CLT) is available.
     # xcodebuild exists in Command Line Tools but can't build iOS apps.
-    import shutil
-    import subprocess as _sp
-
     has_full_xcode = False
     if shutil.which("xcodebuild"):
         try:
-            out = _sp.run(
+            out = subprocess.run(
                 ["xcode-select", "-p"],
                 capture_output=True, text=True, timeout=5,
             )
@@ -800,10 +790,8 @@ def verify_swift_ts(
 
     if not has_full_xcode:
         result.steps.append(StepResult(
-            "swift: skipped",
+            "swift: skipped", True, 0,
             "Full Xcode not found (Command Line Tools alone can't build iOS apps).",
-            True,
-            0,
         ))
         return result
 
@@ -858,10 +846,9 @@ def verify_swift_ts(
 def _find_ios_simulator() -> str | None:
     """Find an available iOS Simulator destination string for xcodebuild."""
     import json
-    import subprocess as _sp
 
     try:
-        out = _sp.run(
+        out = subprocess.run(
             ["xcrun", "simctl", "list", "devices", "available", "-j"],
             capture_output=True, text=True, timeout=10,
         )

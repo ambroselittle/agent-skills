@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "{{ swift_project_name }}",
-    platforms: [.iOS(.v17)],
+    platforms: [.iOS(.v17), .macOS(.v14), .visionOS(.v1)],
     targets: [
         .executableTarget(
             name: "{{ swift_project_name }}",
