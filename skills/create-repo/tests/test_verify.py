@@ -337,11 +337,11 @@ def test_verify_python_runs_correct_sequence():
 
 
 def test_detect_platform_swift_ts(tmp_path):
-    """Returns 'swift-ts' when package.json and apps/mobile/project.yml both exist."""
+    """Returns 'swift-ts' when package.json and apps/mobile/Package.swift both exist."""
     (tmp_path / "package.json").write_text("{}")
     mobile = tmp_path / "apps" / "mobile"
     mobile.mkdir(parents=True)
-    (mobile / "project.yml").write_text("name: MyApp")
+    (mobile / "Package.swift").write_text('// swift-tools-version: 6.0\nimport PackageDescription\nlet package = Package(name: "MyApp")')
     assert detect_platform(tmp_path) == "swift-ts"
 
 
@@ -364,7 +364,7 @@ def test_detect_platform_swift_ts_beats_fullstack_python(tmp_path):
     (tmp_path / "pyproject.toml").write_text("[project]")
     mobile = tmp_path / "apps" / "mobile"
     mobile.mkdir(parents=True)
-    (mobile / "project.yml").write_text("name: MyApp")
+    (mobile / "Package.swift").write_text('// swift-tools-version: 6.0\nimport PackageDescription\nlet package = Package(name: "MyApp")')
     # swift-ts check comes first
     assert detect_platform(tmp_path) == "swift-ts"
 

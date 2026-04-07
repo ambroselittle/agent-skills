@@ -24,7 +24,7 @@ When scaffolding greenfield projects or choosing technologies, default to these 
 - Ruff for linting/formatting, pytest + httpx for testing
 
 ### Mobile (Swift)
-- Xcode CLI tooling (xcodegen or similar)
+- Swift Package Manager (Package.swift) for project definition
 - Multi-platform: iOS, iPadOS, Designed for iPad (Mac), visionOS
 - REST + OpenAPI spec for typed Swift client generation
 - Not Supabase — prefers portable Hono + Prisma + Postgres

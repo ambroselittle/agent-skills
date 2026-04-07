@@ -1280,7 +1280,7 @@ def test_scaffold_swift_ts_creates_expected_structure(tmp_path, versions):
     assert (output / "scripts" / "cleanup-samples.ts").exists()
 
     # Swift multiplatform app (directory name substituted from __swift_project_name__)
-    assert (output / "apps" / "mobile" / "project.yml").exists()
+    assert (output / "apps" / "mobile" / "Package.swift").exists()
     assert (output / "apps" / "mobile" / "Sources" / "MyApp" / "App.swift").exists()
     assert (output / "apps" / "mobile" / "Sources" / "MyApp" / "ContentView.swift").exists()
     assert (output / "apps" / "mobile" / "Sources" / "MyApp" / "Models" / "User.swift").exists()
@@ -1332,9 +1332,9 @@ def test_scaffold_swift_ts_renders_jinja2_variables(tmp_path, versions):
     dc = (output / "docker-compose.yml").read_text()
     assert "cool-app_dev" in dc
 
-    # Swift project.yml has PascalCase project name
-    project_yml = (output / "apps" / "mobile" / "project.yml").read_text()
-    assert "CoolApp" in project_yml
+    # Swift Package.swift has PascalCase project name
+    package_swift = (output / "apps" / "mobile" / "Package.swift").read_text()
+    assert "CoolApp" in package_swift
 
     # Swift source directories use PascalCase
     assert (output / "apps" / "mobile" / "Sources" / "CoolApp" / "App.swift").exists()

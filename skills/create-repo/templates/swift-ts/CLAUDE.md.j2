@@ -22,8 +22,7 @@ This is a Swift + TypeScript monorepo: SwiftUI multiplatform app + Hono REST API
 - `pnpm db:studio` — Open Prisma Studio
 
 ### Swift (Mobile)
-- `cd apps/mobile && xcodegen generate` — Generate Xcode project
-- Open `apps/mobile/{{ swift_project_name }}.xcodeproj` in Xcode
+- Open `apps/mobile/` in Xcode (it reads Package.swift automatically)
 - Build and run from Xcode (Cmd+R)
 - Run tests from Xcode (Cmd+U)
 
@@ -33,8 +32,7 @@ This is a Swift + TypeScript monorepo: SwiftUI multiplatform app + Hono REST API
 2. `pnpm install` — Install TS dependencies
 3. `pnpm db:push` — Push database schema
 4. `pnpm dev` — Start API server
-5. `cd apps/mobile && xcodegen generate` — Generate Xcode project
-6. Open in Xcode and run
+5. Open `apps/mobile/` in Xcode and run
 
 ## API
 
@@ -53,6 +51,6 @@ This is a Swift + TypeScript monorepo: SwiftUI multiplatform app + Hono REST API
 
 ### Swift (apps/mobile/)
 - Swift 6.0, SwiftUI for all views
-- XcodeGen for project generation (never edit .xcodeproj directly)
+- Package.swift for project definition (SPM-based, Xcode reads it directly)
 - Swift Testing framework for unit tests
 - URLSession + Codable for API communication (no third-party networking libs)

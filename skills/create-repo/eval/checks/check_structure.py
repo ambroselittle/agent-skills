@@ -16,7 +16,7 @@ from eval.models import CheckResult
 def _detect_platform(project_dir: Path) -> str:
     """Detect platform from scaffolded output."""
     if (project_dir / "package.json").exists() and (
-        project_dir / "apps" / "mobile" / "project.yml"
+        project_dir / "apps" / "mobile" / "Package.swift"
     ).exists():
         return "swift-ts"
     # Mixed platform: both Python and Node files present
@@ -630,9 +630,9 @@ def _check_swift_ts(project_dir: Path, checks: list[CheckResult]) -> None:
             )
         )
 
-    # Swift app files (project.yml + at least one source dir with App.swift pattern)
+    # Swift app files (Package.swift + at least one source dir with App.swift pattern)
     swift_files = [
-        "apps/mobile/project.yml",
+        "apps/mobile/Package.swift",
     ]
     for f in swift_files:
         path = project_dir / f

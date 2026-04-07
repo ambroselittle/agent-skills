@@ -112,14 +112,14 @@ def _kill_process_group(pgid: int) -> None:
 def detect_platform(project_dir: Path) -> str:
     """Detect the project platform from its files.
 
-    Returns 'swift-ts' if package.json and apps/mobile/project.yml both exist,
+    Returns 'swift-ts' if package.json and apps/mobile/Package.swift both exist,
     'fullstack-python' if both pyproject.toml and package.json exist,
     'python' if only pyproject.toml, 'node' if only package.json.
     Raises ValueError if neither is found.
     """
     has_pyproject = (project_dir / "pyproject.toml").exists()
     has_package_json = (project_dir / "package.json").exists()
-    has_mobile_project = (project_dir / "apps" / "mobile" / "project.yml").exists()
+    has_mobile_project = (project_dir / "apps" / "mobile" / "Package.swift").exists()
     if has_package_json and has_mobile_project:
         return "swift-ts"
     if has_pyproject and has_package_json:
@@ -748,7 +748,7 @@ def verify_swift_ts(
     """Verify a swift-ts project (Swift multiplatform + TypeScript REST API).
 
     Runs the standard Node pipeline for the TypeScript API side, then
-    optionally runs xcodegen + xcodebuild for the Swift side (macOS only).
+    optionally runs xcodebuild for the Swift side (macOS only).
     On non-macOS platforms, Swift verification is skipped with a message.
     """
     result = verify_node(
@@ -780,37 +780,42 @@ def verify_swift_ts(
         ))
         return result
 
-    # Check if Swift tools are available
+    # Check if full Xcode (not just CLT) is available.
+    # xcodebuild exists in Command Line Tools but can't build iOS apps.
     import shutil
+    import subprocess as _sp
 
-    if not shutil.which("xcodegen") or not shutil.which("xcodebuild"):
-        missing = [t for t in ("xcodegen", "xcodebuild") if not shutil.which(t)]
+    has_full_xcode = False
+    if shutil.which("xcodebuild"):
+        try:
+            out = _sp.run(
+                ["xcode-select", "-p"],
+                capture_output=True, text=True, timeout=5,
+            )
+            # Full Xcode: /Applications/Xcode.app/Contents/Developer
+            # CLT only:   /Library/Developer/CommandLineTools
+            has_full_xcode = out.returncode == 0 and "Xcode.app" in out.stdout
+        except Exception:
+            pass
+
+    if not has_full_xcode:
         result.steps.append(StepResult(
             "swift: skipped",
-            f"Missing tools: {', '.join(missing)}. Install Xcode and xcodegen for Swift verification.",
+            "Full Xcode not found (Command Line Tools alone can't build iOS apps).",
             True,
             0,
         ))
         return result
 
-    # xcodegen generate
-    step = run_step(
-        "xcodegen generate",
-        ["xcodegen", "generate"],
-        mobile_dir,
-        timeout=60,
-    )
-    result.steps.append(step)
-    if not step.passed:
-        return result
+    scheme = _detect_scheme(mobile_dir)
 
-    # xcodebuild build (iOS Simulator)
+    # xcodebuild build (generic iOS Simulator — no specific device needed)
     step = run_step(
         "xcodebuild build",
         [
             "xcodebuild", "build",
-            "-scheme", _detect_scheme(mobile_dir),
-            "-destination", "platform=iOS Simulator,name=iPhone 16,OS=latest",
+            "-scheme", scheme,
+            "-destination", "generic/platform=iOS Simulator",
             "-skipPackagePluginValidation",
             "CODE_SIGNING_ALLOWED=NO",
         ],
@@ -821,13 +826,24 @@ def verify_swift_ts(
     if not step.passed:
         return result
 
-    # xcodebuild test (iOS Simulator)
+    # xcodebuild test — needs a concrete simulator.
+    # Find the first available iPhone simulator.
+    sim_dest = _find_ios_simulator()
+    if not sim_dest:
+        result.steps.append(StepResult(
+            "xcodebuild test: skipped",
+            "No iOS Simulator found. Install an iOS Simulator runtime in Xcode.",
+            True,
+            0,
+        ))
+        return result
+
     step = run_step(
         "xcodebuild test",
         [
             "xcodebuild", "test",
-            "-scheme", _detect_scheme(mobile_dir),
-            "-destination", "platform=iOS Simulator,name=iPhone 16,OS=latest",
+            "-scheme", scheme,
+            "-destination", sim_dest,
             "-skipPackagePluginValidation",
             "CODE_SIGNING_ALLOWED=NO",
         ],
@@ -839,14 +855,38 @@ def verify_swift_ts(
     return result
 
 
+def _find_ios_simulator() -> str | None:
+    """Find an available iOS Simulator destination string for xcodebuild."""
+    import json
+    import subprocess as _sp
+
+    try:
+        out = _sp.run(
+            ["xcrun", "simctl", "list", "devices", "available", "-j"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if out.returncode != 0:
+            return None
+        data = json.loads(out.stdout)
+        for runtime, devices in data.get("devices", {}).items():
+            if "iOS" not in runtime:
+                continue
+            for dev in devices:
+                if "iPhone" in dev.get("name", ""):
+                    return f"platform=iOS Simulator,id={dev['udid']}"
+    except Exception:
+        pass
+    return None
+
+
 def _detect_scheme(mobile_dir: Path) -> str:
-    """Detect the Xcode scheme name from project.yml or .xcodeproj."""
+    """Detect the Xcode scheme name from Package.swift or .xcodeproj."""
     import re
 
-    project_yml = mobile_dir / "project.yml"
-    if project_yml.exists():
-        # Simple regex to find 'name: <value>' at the top level of project.yml
-        match = re.search(r"^name:\s*(.+)$", project_yml.read_text(), re.MULTILINE)
+    package_swift = mobile_dir / "Package.swift"
+    if package_swift.exists():
+        # Extract package name from: name: "MyApp"
+        match = re.search(r'name:\s*"([^"]+)"', package_swift.read_text())
         if match:
             return match.group(1).strip()
     # Fallback: look for .xcodeproj

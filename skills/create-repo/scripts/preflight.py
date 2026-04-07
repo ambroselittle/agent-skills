@@ -90,13 +90,6 @@ TEMPLATE_CHECKS: dict[str, list[dict]] = {
     ],
     "swift-ts": [
         {
-            "tool": "xcodegen",
-            "command": ["xcodegen", "--version"],
-            "pattern": r"Version:?\s*(\d+\.\d+(?:\.\d+)?)",
-            "min": None,
-            "install": "brew install xcodegen",
-        },
-        {
             "tool": "xcodebuild",
             "command": ["xcodebuild", "-version"],
             "pattern": r"Xcode (\d+\.\d+(?:\.\d+)?)",
