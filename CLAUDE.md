@@ -76,7 +76,10 @@ Each template has a `template.json` declaring its platform (a string like `"pyth
 **Template variables:**
 - `{{ project_name }}` — e.g., `my-app`
 - `{{ scope }}` — e.g., `@my-app`
+- `{{ swift_project_name }}` — PascalCase, e.g., `MyApp`
 - `{{ versions.<key> }}` — resolved package versions
+
+**Directory name templating:** Use `__variable_name__` in template directory names to substitute context variables at scaffold time. E.g., `Sources/__swift_project_name__/` becomes `Sources/MyApp/`. Unknown variables (like `__pycache__`) are left unchanged.
 
 **Version key normalization:** npm names convert to underscore keys — `@scope/package` becomes `scope_package`. Strip `@`, replace `/`, `-`, `.` with `_`. Example: `@hono/node-server` → `hono_node_server`.
 

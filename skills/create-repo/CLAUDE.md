@@ -77,6 +77,7 @@ For `versions.*` in Jinja2 templates, convert package names:
 ## Platform detection
 
 `verify.py` and `check_structure.py` detect the platform from the scaffolded output:
+- `package.json` + `apps/mobile/Package.swift` → swift-ts (Node pipeline for API + xcodebuild for Swift on macOS, skipped on Linux)
 - Both `pyproject.toml` and `package.json` present → fullstack-python (combined: uv + pnpm, ruff + biome, pytest + vitest, both dev servers)
 - `pyproject.toml` only → Python (uv sync, ruff, pytest, uvicorn)
 - `package.json` only → Node (pnpm install, biome, turbo, vitest)
