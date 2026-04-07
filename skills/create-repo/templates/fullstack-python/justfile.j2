@@ -71,7 +71,7 @@ test-web:
 # Lint all code
 lint:
     uv run ruff check .
-    npx @biomejs/biome check apps/web/
+    npx @biomejs/biome check --error-on-warnings apps/web/
 
 # Format all code
 format:
@@ -81,7 +81,7 @@ format:
 # Check formatting without modifying files
 format-check:
     uv run ruff format --check .
-    npx @biomejs/biome check apps/web/
+    npx @biomejs/biome check --error-on-warnings apps/web/
 
 # Apply database migrations
 db-migrate:

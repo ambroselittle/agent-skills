@@ -606,14 +606,28 @@ def verify_fullstack_python(
     if not step.passed:
         return result
 
-    # Step 1: Lint — just lint runs ruff + biome together, matching what developers run
-    step = run_step("lint", ["just", "lint"], project_dir, timeout=60)
+    # Step 1: Lint — just lint runs ruff + biome together, matching what developers run.
+    # fail_on_output catches biome info-level diagnostics that exit 0 by default.
+    step = run_step(
+        "lint",
+        ["just", "lint"],
+        project_dir,
+        timeout=60,
+        fail_on_output=[r"Found \d+ (error|warning|info)"],
+    )
     result.steps.append(step)
     if not step.passed:
         return result
 
-    # Step 2: Format check — just format-check runs ruff + biome together
-    step = run_step("format-check", ["just", "format-check"], project_dir, timeout=60)
+    # Step 2: Format check — just format-check runs ruff + biome together.
+    # fail_on_output catches biome info-level diagnostics that exit 0 by default.
+    step = run_step(
+        "format-check",
+        ["just", "format-check"],
+        project_dir,
+        timeout=60,
+        fail_on_output=[r"Found \d+ (error|warning|info)"],
+    )
     result.steps.append(step)
     if not step.passed:
         return result
