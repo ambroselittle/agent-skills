@@ -76,18 +76,35 @@ Then based on the category, ask the **variant** (skip if the category only has o
 
 ### Project name, output directory, customizations, and GitHub
 
-After template is resolved, batch the remaining questions in a single `AskUserQuestion` call (up to 4 questions):
+After template is resolved, ask the project description first (needed to generate name suggestions), then batch the remaining questions:
 
-**Question 1 — Name:**
-- header: `"Name"`
-- question: `"What should the project be called? (lowercase-hyphenated, e.g. my-cool-app)"`
+**Round 1 — single question:**
+
+**Question 1 — What it does:**
+- header: `"About"`
+- question: `"What will this project do? (one sentence — helps generate a good name, or skip for a random one)"`
 - options:
-  - label: `"my-app"`, description: `"Default project name"`
-  - label: `"my-project"`, description: `"Alternative default"`
-- The user will likely choose "Other" and type their own name. That's expected.
+  - label: `"Skip"`, description: `"Just give me a creative name"`
+
+**Round 2 — batch the rest (up to 4 questions):**
+
+**Question 2 — Name:**
+
+Generate 3–4 name suggestions as the options. Names should be lowercase-hyphenated, memorable, and short (1–2 words).
+
+**Channel your inner naming consultant.** The best project names are like the best band names — they stick, they spark curiosity, and they sound good when you say them out loud. Draw from mythology, science, obscure words, culinary terms, nautical language, music, architecture, nature — whatever resonates with the project's soul. Puns and wordplay welcome. Boring is the only wrong answer.
+
+- **If the user described the project:** generate names that rhyme with the domain — not literally but emotionally. A recipe app could be `mise`, `saffron`, `mortar`; a task tracker could be `cadence`, `slate`, `trellis`; a chat app could be `murmur`, `signal-fire`, `parlor`. Never suggest literal descriptions (`recipe-app`, `task-tracker`) — that's what boring tools do.
+- **If the user skipped:** go wild. Generate names with personality — the kind that make you want to build something just because the name is that good. `zephyr`, `anvil`, `foxglove`, `parallax`. Vary the vibe: one playful, one elegant, one punchy, one weird.
+
+Present as options:
+- header: `"Name"`
+- question: `"Pick a name or type your own (lowercase-hyphenated)"`
+- options: your 3–4 generated names, each with a one-line description explaining the inspiration (e.g., `label: "saffron"`, `description: "A rare spice — for a project with flavor"`)
+- The user can always pick "Other" and type their own. That's expected and fine.
 - Validate: no spaces, no uppercase, no special chars beyond hyphens.
 
-**Question 2 — Output directory:**
+**Question 3 — Output directory:**
 - header: `"Location"`
 - question: `"Where should the project be created?"`
 - options:
@@ -96,7 +113,7 @@ After template is resolved, batch the remaining questions in a single `AskUserQu
 - The user will likely choose "Other" and type their own path. That's expected.
 - Resolve `~` and relative paths. The scaffold `--output` flag receives this value.
 
-**Question 3 — Customizations:**
+**Question 4 — Customizations:**
 - header: `"Stack"`
 - question: `"Any changes to the default stack?"`
 - options:
@@ -104,7 +121,7 @@ After template is resolved, batch the remaining questions in a single `AskUserQu
   - label: `"Let me specify"`, description: `"I want to swap out or add specific technologies"`
 - If they pick "Let me specify", ask a follow-up for details.
 
-**Question 4 — GitHub:**
+**Question 5 — GitHub:**
 - header: `"GitHub"`
 - question: `"Create a private GitHub repo and push?"`
 - options:
