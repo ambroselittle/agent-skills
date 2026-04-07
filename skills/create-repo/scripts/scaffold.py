@@ -535,11 +535,18 @@ def _setup_python(project_dir: Path, skip_docker: bool) -> SetupResult:
     if "API_PORT" in dotenv:
         result.api_port = int(dotenv["API_PORT"])
 
-    # Step 3: Start Postgres
+    # Step 3: Auto-format with ruff (fix formatting drift from generation)
+    step = _run_setup_step(
+        "ruff format", ["uv", "run", "ruff", "format", "."], project_dir, timeout=60
+    )
+    result.steps.append(step)
+    # Non-fatal — continue even if format step fails
+
+    # Step 4: Start Postgres
     if not _start_postgres_setup(project_dir, result, skip_docker):
         return result
 
-    # Step 4: Run Alembic migrations
+    # Step 5: Run Alembic migrations
     alembic_dirs = list(project_dir.glob("apps/*/alembic.ini"))
     alembic_env = {**os.environ}
     if "DATABASE_URL" in dotenv:
@@ -606,11 +613,18 @@ def _setup_fullstack_python(project_dir: Path, skip_docker: bool) -> SetupResult
     if "WEB_PORT" in dotenv:
         result.web_port = int(dotenv["WEB_PORT"])
 
-    # Step 3: Start Postgres
+    # Step 3: Auto-format with ruff (fix formatting drift from generation)
+    step = _run_setup_step(
+        "ruff format", ["uv", "run", "ruff", "format", "."], project_dir, timeout=60
+    )
+    result.steps.append(step)
+    # Non-fatal — continue even if format step fails
+
+    # Step 4: Start Postgres
     if not _start_postgres_setup(project_dir, result, skip_docker):
         return result
 
-    # Step 4: Run Alembic migrations
+    # Step 5: Run Alembic migrations
     alembic_dirs = list(project_dir.glob("apps/*/alembic.ini"))
     alembic_env = {**os.environ}
     if "DATABASE_URL" in dotenv:

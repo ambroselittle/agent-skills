@@ -137,11 +137,14 @@ def _kill_process_group(pgid: int) -> None:
         time.sleep(0.5)
 
 
-# Error patterns that indicate a dirty SIGINT exit
+# Error patterns that indicate a dirty SIGINT exit.
+# These are turbo/npm-specific error strings that appear when a child process
+# errors out rather than shutting down cleanly. "Interrupted by SIGINT" is
+# intentionally excluded — just and other process runners print it on a normal
+# SIGINT-triggered shutdown, which is the expected exit path.
 _DIRTY_EXIT_PATTERNS = [
     "ELIFECYCLE",
     "run failed",
-    "Interrupted by SIGINT",
     "Command failed",
 ]
 
@@ -507,7 +510,7 @@ def verify_python(
     if not step.passed:
         return result
 
-    # Step 2: Format check
+    # Step 2: Format check — fatal, templates must be formatted before verify
     step = run_step(
         "ruff format --check",
         ["uv", "run", "ruff", "format", "--check", "."],
@@ -515,7 +518,8 @@ def verify_python(
         timeout=60,
     )
     result.steps.append(step)
-    # Non-fatal — continue even if format check fails
+    if not step.passed:
+        return result
 
     # Step 3: Test
     step = run_step("pytest", ["uv", "run", "pytest"], project_dir, timeout=120)
@@ -637,7 +641,7 @@ def verify_fullstack_python(
     if not step.passed:
         return result
 
-    # Step 2: Python format check (non-fatal)
+    # Step 2: Python format check — fatal, templates must be formatted before verify
     step = run_step(
         "ruff format --check",
         ["uv", "run", "ruff", "format", "--check", "."],
@@ -645,6 +649,8 @@ def verify_fullstack_python(
         timeout=60,
     )
     result.steps.append(step)
+    if not step.passed:
+        return result
 
     # Step 3: Python tests
     step = run_step("pytest", ["uv", "run", "pytest"], project_dir, timeout=120)
