@@ -22,7 +22,8 @@ create-repo/
 │   ├── fullstack-graphql/ # React + Hono + Yoga/Pothos + Apollo + Prisma (extends fullstack-ts)
 │   ├── api-ts/           # Hono + tRPC + Prisma, no frontend (extends fullstack-ts)
 │   ├── api-python/       # FastAPI + SQLModel + Postgres
-│   └── fullstack-python/ # React + FastAPI + Postgres (extends fullstack-ts, multi-platform)
+│   ├── fullstack-python/ # React + FastAPI + Postgres (extends fullstack-ts, multi-platform)
+│   └── swift-ts/         # Swift multiplatform + Hono REST API (extends fullstack-ts)
 ├── tests/                # pytest tests for all scripts
 └── eval/                 # Eval framework
 ```
@@ -55,12 +56,16 @@ cd create-repo && uv sync --group dev && uv run pytest tests/ -v
    - Use `"exclude": ["pattern/**"]` to skip base template files (fnmatch globs)
 3. Add shared platform files to `__common/<platform>/` if they don't exist yet
 4. Use `.j2` extension for files needing Jinja2 substitution
-5. Available variables: `{{ project_name }}`, `{{ scope }}`, `{{ versions.<pkg> }}`
+5. Available variables: `{{ project_name }}`, `{{ scope }}`, `{{ swift_project_name }}` (PascalCase), `{{ versions.<pkg> }}`
 6. Add template-specific preflight checks to `TEMPLATE_CHECKS` in `preflight.py`
 7. Add template to `AVAILABLE_TEMPLATES` and version fallbacks in `eval/run_eval.py`
 8. Add structural checks to `eval/checks/check_structure.py`
 9. Add the template to the SKILL.md interview options
 10. Write scaffold tests in `tests/test_scaffold.py`
+
+## Directory name templating
+
+Use `__variable_name__` in template directory names to substitute context variables at scaffold time. For example, `Sources/__swift_project_name__/` becomes `Sources/MyApp/` when the project name is `my-app`. Unknown variables (like `__pycache__`) are left unchanged.
 
 ## Template variable naming
 

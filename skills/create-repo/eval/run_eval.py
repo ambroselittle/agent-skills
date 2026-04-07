@@ -297,6 +297,7 @@ AVAILABLE_TEMPLATES = [
     "api-ts",
     "api-python",
     "fullstack-python",
+    "swift-ts",
 ]
 
 
