@@ -57,4 +57,4 @@ Fix commit: https://github.com/org/repo/commit/<sha>
 ## What this comment is NOT
 
 This is a summary of the code review workflow outcome — what was found, what was fixed, what was
-skipped. It is not a response to PR reviewer comments (that is handled by `/handle-pr-feedback`).
+skipped. It is not a response to PR reviewer comments.

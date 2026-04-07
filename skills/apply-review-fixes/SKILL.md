@@ -207,7 +207,7 @@ After the fixes are complete:
 3. Ask the user if any review agents or the code-review skill should be updated based on what was missed or noisy.
 4. With user approval, suggest edits to the relevant `.claude/agents/reviewers/` files.
 
-**Next step:** If the PR has reviewer feedback to address, run `/handle-pr-feedback`. Otherwise, merge the PR.
+**Next step:** If the PR has reviewer feedback to address, handle it before merging. Otherwise, merge the PR.
 
 ---
 
