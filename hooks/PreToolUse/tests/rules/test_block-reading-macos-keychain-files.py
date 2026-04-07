@@ -1,6 +1,6 @@
 """Tests for rule: Block reading macOS Keychain files."""
-from pathlib import Path
 
+from pathlib import Path
 
 from engine import evaluate
 

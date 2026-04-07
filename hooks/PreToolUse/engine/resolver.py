@@ -1,4 +1,5 @@
 """Path normalization, repo-root detection, and glob matching for the hook rules engine."""
+
 import os
 import re
 import subprocess
@@ -65,6 +66,7 @@ def _glob_match(path: str, pattern: str) -> bool:
     """Match a path against a glob pattern. Supports *, ?, **."""
     if "**" not in pattern:
         from pathlib import PurePosixPath
+
         try:
             return PurePosixPath(path).match(pattern)
         except (ValueError, TypeError):

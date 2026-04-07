@@ -1,6 +1,6 @@
 """Tests for rule: Block reading SSH keys."""
-from pathlib import Path
 
+from pathlib import Path
 
 from engine import evaluate
 

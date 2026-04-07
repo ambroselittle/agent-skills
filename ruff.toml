@@ -1,0 +1,16 @@
+line-length = 100
+target-version = "py312"
+extend-exclude = ["**/templates/**", "**/.eval-runs/**", "skills/solve-take-home/**"]
+
+[lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[lint.isort]
+known-first-party = ["engine", "src"]
+
+[lint.per-file-ignores]
+# Tests can have longer lines and more imports
+"**/tests/**" = ["E501"]
+# Scripts that manipulate sys.path before imports
+"scripts/test-scaffolds.py" = ["E402"]
+"hooks/PreToolUse/tests/operations/test_bash.py" = ["E402"]

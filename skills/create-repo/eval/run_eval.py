@@ -13,16 +13,17 @@ import shutil
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Add parent to path so we can import scripts
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from eval.checks.check_structure import check_structure
-from eval.models import CheckResult, EvalResult
 from scripts.scaffold import scaffold
 from scripts.verify import verify as run_verify
+
+from eval.checks.check_structure import check_structure
+from eval.models import CheckResult, EvalResult
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 EVAL_RUNS_DIR = PROJECT_ROOT / ".eval-runs"
@@ -106,12 +107,17 @@ def save_version_cache(template: str, versions: dict) -> None:
     """Save resolved versions to cache with a timestamp."""
     VERSION_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     cache_file = VERSION_CACHE_DIR / f"{template}.json"
-    cache_file.write_text(json.dumps({
-        "cached_at": time.time(),
-        "cached_at_human": datetime.now(timezone.utc).isoformat(),
-        "template": template,
-        "versions": versions,
-    }, indent=2))
+    cache_file.write_text(
+        json.dumps(
+            {
+                "cached_at": time.time(),
+                "cached_at_human": datetime.now(UTC).isoformat(),
+                "template": template,
+                "versions": versions,
+            },
+            indent=2,
+        )
+    )
 
 
 def get_versions(template: str) -> dict:
@@ -148,7 +154,7 @@ def run_eval(
     # Determine output directory
     if output_dir is None:
         EVAL_RUNS_DIR.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
         project_dir = EVAL_RUNS_DIR / f"{template}-{timestamp}" / "eval-project"
     else:
         project_dir = output_dir
@@ -172,9 +178,13 @@ def run_eval(
     # Step 3: Full verification (optional — install, build, test, etc.)
     if full:
         if not result.passed:
-            result.checks.append(CheckResult(
-                "verify (skipped)", False, "Structural checks failed — skipping verification",
-            ))
+            result.checks.append(
+                CheckResult(
+                    "verify (skipped)",
+                    False,
+                    "Structural checks failed — skipping verification",
+                )
+            )
             return result
 
         # In CI (skip_docker=True), write .env files before verify since
@@ -189,11 +199,13 @@ def run_eval(
                 skip_docker=skip_docker,
             )
             for step in verify_result.steps:
-                result.checks.append(CheckResult(
-                    f"verify: {step.name}",
-                    step.passed,
-                    step.error,
-                ))
+                result.checks.append(
+                    CheckResult(
+                        f"verify: {step.name}",
+                        step.passed,
+                        step.error,
+                    )
+                )
         finally:
             # Clean up Docker resources if we started them
             if not skip_docker:
@@ -230,17 +242,13 @@ def _write_ci_env_files(project_dir: Path) -> None:
 
     if is_mixed:
         # Mixed platform (fullstack-python): both Python and Node env files
-        (project_dir / ".env").write_text(
-            f"DATABASE_URL={db_url}\n"
-            f"API_PORT=8000\n"
-            f"WEB_PORT=3000\n"
-        )
+        (project_dir / ".env").write_text(f"DATABASE_URL={db_url}\nAPI_PORT=8000\nWEB_PORT=3000\n")
         api_dir = project_dir / "apps" / "api"
         if api_dir.exists():
             (api_dir / ".env").write_text(f"DATABASE_URL={db_url}\n")
         web_dir = project_dir / "apps" / "web"
         if web_dir.exists():
-            (web_dir / ".env").write_text(f"WEB_PORT=3000\nVITE_API_PORT=8000\n")
+            (web_dir / ".env").write_text("WEB_PORT=3000\nVITE_API_PORT=8000\n")
     elif has_pyproject:
         # Pure Python projects: root .env + apps/api/.env
         (project_dir / ".env").write_text(f"DATABASE_URL={db_url}\n")
@@ -250,10 +258,7 @@ def _write_ci_env_files(project_dir: Path) -> None:
     else:
         # Node projects: root + per-package .env files
         (project_dir / ".env").write_text(
-            f"DATABASE_URL={db_url}\n"
-            f"DB_PORT=5432\n"
-            f"API_PORT=3001\n"
-            f"WEB_PORT=3000\n"
+            f"DATABASE_URL={db_url}\nDB_PORT=5432\nAPI_PORT=3001\nWEB_PORT=3000\n"
         )
 
         db_dir = project_dir / "packages" / "db"
@@ -266,7 +271,7 @@ def _write_ci_env_files(project_dir: Path) -> None:
 
         web_dir = project_dir / "apps" / "web"
         if web_dir.exists():
-            (web_dir / ".env").write_text(f"WEB_PORT=3000\nVITE_API_PORT=3001\n")
+            (web_dir / ".env").write_text("WEB_PORT=3000\nVITE_API_PORT=3001\n")
 
 
 def print_results(result: EvalResult) -> None:
@@ -286,7 +291,13 @@ def print_results(result: EvalResult) -> None:
     print(f"\n{result.pass_count}/{len(result.checks)} checks passed")
 
 
-AVAILABLE_TEMPLATES = ["fullstack-ts", "fullstack-graphql", "api-ts", "api-python", "fullstack-python"]
+AVAILABLE_TEMPLATES = [
+    "fullstack-ts",
+    "fullstack-graphql",
+    "api-ts",
+    "api-python",
+    "fullstack-python",
+]
 
 
 def main() -> None:

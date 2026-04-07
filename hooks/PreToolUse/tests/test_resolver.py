@@ -1,11 +1,9 @@
 """Tests for path normalization and glob matching in resolver.py."""
+
 import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
-import pytest
-
-from resolver import matches_path_pattern, _glob_match, normalize_path
-
+from resolver import _glob_match, matches_path_pattern, normalize_path
 
 HOME = str(Path.home())
 REPO = "/repo/myproject"
@@ -14,6 +12,7 @@ REPO = "/repo/myproject"
 # ---------------------------------------------------------------------------
 # normalize_path
 # ---------------------------------------------------------------------------
+
 
 def test_normalize_expands_tilde():
     result = normalize_path("~/foo/bar")
@@ -30,6 +29,7 @@ def test_normalize_absolute_path_unchanged():
 # ---------------------------------------------------------------------------
 # _glob_match: basic patterns
 # ---------------------------------------------------------------------------
+
 
 def test_glob_exact_match():
     assert _glob_match("/a/b/c.py", "/a/b/c.py") is True
@@ -56,6 +56,7 @@ def test_glob_question_mark():
 # _glob_match: ** patterns
 # ---------------------------------------------------------------------------
 
+
 def test_double_star_matches_zero_components():
     # /base/**/.env should match /base/.env (zero intermediate dirs)
     assert _glob_match(f"{REPO}/.env", f"{REPO}/**/.env") is True
@@ -81,6 +82,7 @@ def test_double_star_no_match_wrong_suffix():
 # matches_path_pattern: anchored ~ paths
 # ---------------------------------------------------------------------------
 
+
 def test_tilde_anchored_matches_home():
     ssh_key = f"{HOME}/.ssh/id_rsa"
     assert matches_path_pattern(ssh_key, "~/.ssh/*", None, REPO) is True
@@ -101,6 +103,7 @@ def test_tilde_anchored_matches_specific_file():
 # matches_path_pattern: anchored / paths
 # ---------------------------------------------------------------------------
 
+
 def test_absolute_anchored_matches():
     assert matches_path_pattern("/etc/passwd", "/etc/passwd", None, "") is True
 
@@ -112,6 +115,7 @@ def test_absolute_anchored_no_match():
 # ---------------------------------------------------------------------------
 # matches_path_pattern: unanchored patterns
 # ---------------------------------------------------------------------------
+
 
 def test_unanchored_uses_repo_root():
     # **/.env resolved against REPO
@@ -144,6 +148,7 @@ def test_unanchored_envrc_matches():
 # normalize_path: cwd-aware resolution
 # ---------------------------------------------------------------------------
 
+
 def test_normalize_relative_with_cwd():
     """Relative path is resolved against cwd, not the process cwd."""
     result = normalize_path(".env", cwd="/repo/myproject")
@@ -153,6 +158,7 @@ def test_normalize_relative_with_cwd():
 def test_normalize_relative_no_cwd_uses_process_cwd():
     """Without cwd, falls back to os.path.abspath (process-relative)."""
     import os
+
     result = normalize_path("somefile.txt")
     assert result == os.path.abspath("somefile.txt")
 
@@ -172,6 +178,7 @@ def test_normalize_tilde_ignores_cwd():
 # ---------------------------------------------------------------------------
 # matches_path_pattern: relative path in payload resolved against cwd
 # ---------------------------------------------------------------------------
+
 
 def test_relative_path_resolved_against_cwd_matches():
     """'.env' in repo cwd correctly matches **/.env pattern."""

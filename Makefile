@@ -1,4 +1,4 @@
-.PHONY: init test test-hooks test-create-repo test-scaffolds
+.PHONY: init test test-hooks test-create-repo test-scaffolds lint format
 
 # Copy .work/ from the main repo into this worktree.
 # Safe to run in the main repo too — it no-ops when source == destination.
@@ -26,3 +26,12 @@ test-create-repo:
 # Usage: make test-scaffolds [TEMPLATE=fullstack-ts]
 test-scaffolds:
 	cd skills/create-repo && uv run python ../../scripts/test-scaffolds.py $(TEMPLATE)
+
+# Lint all Python code
+lint:
+	uvx ruff check .
+
+# Format all Python code
+format:
+	uvx ruff format .
+	uvx ruff check --fix .

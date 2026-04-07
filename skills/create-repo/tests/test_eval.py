@@ -3,42 +3,32 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
 import pytest
-
 from eval.run_eval import run_eval
 
 
 def test_eval_fullstack_ts_passes():
     result = run_eval("fullstack-ts")
-    assert result.passed, [
-        f"{c.name}: {c.detail}" for c in result.checks if not c.passed
-    ]
+    assert result.passed, [f"{c.name}: {c.detail}" for c in result.checks if not c.passed]
     assert result.pass_count > 40  # Expect at least 40 checks
 
 
 def test_eval_fullstack_graphql_passes():
     result = run_eval("fullstack-graphql")
-    assert result.passed, [
-        f"{c.name}: {c.detail}" for c in result.checks if not c.passed
-    ]
+    assert result.passed, [f"{c.name}: {c.detail}" for c in result.checks if not c.passed]
     assert result.pass_count > 40  # Expect at least 40 checks
 
 
 def test_eval_api_ts_passes():
     result = run_eval("api-ts")
-    assert result.passed, [
-        f"{c.name}: {c.detail}" for c in result.checks if not c.passed
-    ]
+    assert result.passed, [f"{c.name}: {c.detail}" for c in result.checks if not c.passed]
     assert result.pass_count > 30  # Expect at least 30 checks
 
 
 def test_eval_api_python_passes():
     result = run_eval("api-python")
-    assert result.passed, [
-        f"{c.name}: {c.detail}" for c in result.checks if not c.passed
-    ]
+    assert result.passed, [f"{c.name}: {c.detail}" for c in result.checks if not c.passed]
     assert result.pass_count > 15  # Expect at least 15 checks
 
 
@@ -64,9 +54,7 @@ def test_eval_fullstack_ts_full_verify(tmp_path):
 
     output_dir = tmp_path / "eval-project"
     result = run_eval("fullstack-ts", output_dir=output_dir, full=True, skip_docker=skip_docker)
-    assert result.passed, [
-        f"{c.name}: {c.detail}" for c in result.checks if not c.passed
-    ]
+    assert result.passed, [f"{c.name}: {c.detail}" for c in result.checks if not c.passed]
 
     # Should have structural checks + verify steps
     verify_checks = [c for c in result.checks if c.name.startswith("verify:")]

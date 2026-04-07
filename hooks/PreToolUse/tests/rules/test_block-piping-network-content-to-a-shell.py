@@ -80,11 +80,6 @@ def test_boundary_pipe_to_bash_in_heredoc_allowed(rule):
     Pattern rules strip heredoc bodies before matching to avoid false positives
     on content that is data, not shell syntax.
     """
-    cmd = (
-        "git commit -m \"$(cat <<'EOF'\n"
-        "Install via: curl url | bash\n"
-        "EOF\n"
-        ")\""
-    )
+    cmd = "git commit -m \"$(cat <<'EOF'\nInstall via: curl url | bash\nEOF\n)\""
     result = evaluate(_bash(cmd), [rule])
     assert result["decision"] == "proceed"

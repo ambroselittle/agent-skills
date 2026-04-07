@@ -1,9 +1,7 @@
 """Verify a scaffolded project builds, typechecks, lints, and tests.
 
 Runs the full verification suite in sequence. Detects the project platform
-(Node/Python) and runs the appropriate tool chain:
-  - Node: pnpm install → prisma generate → biome → docker → db push → build → typecheck → lint → test → dev server → E2E
-  - Python: uv sync → docker → alembic migrate → ruff → pytest → dev server
+(Node/Python/fullstack-python) and runs the appropriate tool chain.
 """
 
 from __future__ import annotations
@@ -37,7 +35,9 @@ class VerifyResult:
         return all(s.passed for s in self.steps)
 
 
-def run_step(name: str, cmd: list[str], cwd: Path, timeout: int = 300, env: dict | None = None) -> StepResult:
+def run_step(
+    name: str, cmd: list[str], cwd: Path, timeout: int = 300, env: dict | None = None
+) -> StepResult:
     """Run a single verification step and return the result."""
     start = time.monotonic()
     try:
@@ -62,10 +62,14 @@ def run_step(name: str, cmd: list[str], cwd: Path, timeout: int = 300, env: dict
         return StepResult(name=name, passed=True, duration_s=elapsed)
     except subprocess.TimeoutExpired:
         elapsed = time.monotonic() - start
-        return StepResult(name=name, passed=False, duration_s=elapsed, error=f"Timed out after {timeout}s")
+        return StepResult(
+            name=name, passed=False, duration_s=elapsed, error=f"Timed out after {timeout}s"
+        )
     except FileNotFoundError:
         elapsed = time.monotonic() - start
-        return StepResult(name=name, passed=False, duration_s=elapsed, error=f"Command not found: {cmd[0]}")
+        return StepResult(
+            name=name, passed=False, duration_s=elapsed, error=f"Command not found: {cmd[0]}"
+        )
 
 
 def wait_for_port(port: int, host: str = "localhost", timeout: float = 30) -> bool:
@@ -92,6 +96,7 @@ def check_health(url: str, timeout: float = 10) -> bool:
 def _kill_process_group(pgid: int) -> None:
     """Kill an entire process group, ignoring errors if already dead."""
     import signal
+
     for sig in (signal.SIGTERM, signal.SIGKILL):
         try:
             os.killpg(pgid, sig)
@@ -125,6 +130,7 @@ def detect_platform(project_dir: Path) -> str:
 # ---------------------------------------------------------------------------
 # Docker / Postgres helpers (shared across platforms)
 # ---------------------------------------------------------------------------
+
 
 def _start_postgres(project_dir: Path, result: VerifyResult, skip_docker: bool) -> bool:
     """Start Postgres via docker compose if needed. Returns True if ready."""
@@ -160,6 +166,7 @@ def _start_postgres(project_dir: Path, result: VerifyResult, skip_docker: bool) 
 # ---------------------------------------------------------------------------
 # Node verification
 # ---------------------------------------------------------------------------
+
 
 def verify_node(
     project_dir: Path,
@@ -297,9 +304,13 @@ def verify_node(
         elapsed = time.monotonic() - start
 
         if not api_up:
-            result.steps.append(StepResult("dev server (API)", False, elapsed, f"Port {api_port} not reachable"))
+            result.steps.append(
+                StepResult("dev server (API)", False, elapsed, f"Port {api_port} not reachable")
+            )
         elif not check_health(f"http://localhost:{api_port}/api/health"):
-            result.steps.append(StepResult("dev server (API)", False, elapsed, "Health check failed"))
+            result.steps.append(
+                StepResult("dev server (API)", False, elapsed, "Health check failed")
+            )
         else:
             result.steps.append(StepResult("dev server (API)", True, elapsed))
 
@@ -308,7 +319,11 @@ def verify_node(
             web_up = wait_for_port(web_port, timeout=30)
             web_elapsed = time.monotonic() - start
             if not web_up:
-                result.steps.append(StepResult("dev server (web)", False, web_elapsed, f"Port {web_port} not reachable"))
+                result.steps.append(
+                    StepResult(
+                        "dev server (web)", False, web_elapsed, f"Port {web_port} not reachable"
+                    )
+                )
             else:
                 result.steps.append(StepResult("dev server (web)", True, web_elapsed))
 
@@ -330,6 +345,7 @@ def verify_node(
                 e2e_env["E2E_WEB_PORT"] = str(web_port)
 
             import tempfile
+
             for e2e_name, e2e_dir in e2e_targets:
                 e2e_start = time.monotonic()
                 with tempfile.NamedTemporaryFile(mode="w+", suffix=".log", delete=False) as e2e_log:
@@ -374,6 +390,7 @@ def verify_node(
 # Python verification
 # ---------------------------------------------------------------------------
 
+
 def verify_python(
     project_dir: Path,
     api_port: int = 8000,
@@ -388,6 +405,7 @@ def verify_python(
     uv_sync_cmd = ["uv", "sync"]
     try:
         import subprocess as _sp
+
         _sp.run(["uv", "python", "find", "3.13"], capture_output=True, check=True)
         uv_sync_cmd = ["uv", "sync", "--python", "3.13"]
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -423,7 +441,12 @@ def verify_python(
         return result
 
     # Step 5: Format check
-    step = run_step("ruff format --check", ["uv", "run", "ruff", "format", "--check", "."], project_dir, timeout=60)
+    step = run_step(
+        "ruff format --check",
+        ["uv", "run", "ruff", "format", "--check", "."],
+        project_dir,
+        timeout=60,
+    )
     result.steps.append(step)
     # Non-fatal — continue even if format check fails
 
@@ -458,7 +481,9 @@ def verify_python(
         elapsed = time.monotonic() - start
 
         if not api_up:
-            result.steps.append(StepResult("dev server", False, elapsed, f"Port {api_port} not reachable"))
+            result.steps.append(
+                StepResult("dev server", False, elapsed, f"Port {api_port} not reachable")
+            )
         elif not check_health(f"http://localhost:{api_port}/health"):
             result.steps.append(StepResult("dev server", False, elapsed, "Health check failed"))
         else:
@@ -476,6 +501,7 @@ def verify_python(
 # ---------------------------------------------------------------------------
 # Fullstack Python verification (mixed: Python API + Node web)
 # ---------------------------------------------------------------------------
+
 
 def verify_fullstack_python(
     project_dir: Path,
@@ -495,6 +521,7 @@ def verify_fullstack_python(
     uv_sync_cmd = ["uv", "sync"]
     try:
         import subprocess as _sp
+
         _sp.run(["uv", "python", "find", "3.13"], capture_output=True, check=True)
         uv_sync_cmd = ["uv", "sync", "--python", "3.13"]
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -541,7 +568,12 @@ def verify_fullstack_python(
         return result
 
     # Step 5: Python format check (non-fatal)
-    step = run_step("ruff format --check", ["uv", "run", "ruff", "format", "--check", "."], project_dir, timeout=60)
+    step = run_step(
+        "ruff format --check",
+        ["uv", "run", "ruff", "format", "--check", "."],
+        project_dir,
+        timeout=60,
+    )
     result.steps.append(step)
 
     # Step 6: Python tests
@@ -619,22 +651,35 @@ def verify_fullstack_python(
         elapsed = time.monotonic() - start
 
         if not api_up:
-            result.steps.append(StepResult("dev server (API)", False, elapsed, f"Port {api_port} not reachable"))
+            result.steps.append(
+                StepResult("dev server (API)", False, elapsed, f"Port {api_port} not reachable")
+            )
         elif not check_health(f"http://localhost:{api_port}/api/health"):
-            result.steps.append(StepResult("dev server (API)", False, elapsed, "Health check at /api/health failed"))
+            result.steps.append(
+                StepResult("dev server (API)", False, elapsed, "Health check at /api/health failed")
+            )
         else:
             result.steps.append(StepResult("dev server (API)", True, elapsed))
 
         web_up = wait_for_port(web_port, timeout=30)
         web_elapsed = time.monotonic() - start
         if not web_up:
-            result.steps.append(StepResult("dev server (web)", False, web_elapsed, f"Port {web_port} not reachable"))
+            result.steps.append(
+                StepResult("dev server (web)", False, web_elapsed, f"Port {web_port} not reachable")
+            )
         else:
             # Health check through the Vite proxy
             if check_health(f"http://localhost:{web_port}/api/health"):
                 result.steps.append(StepResult("dev server (web)", True, web_elapsed))
             else:
-                result.steps.append(StepResult("dev server (web)", False, web_elapsed, "Proxy health check at web_port/api/health failed"))
+                result.steps.append(
+                    StepResult(
+                        "dev server (web)",
+                        False,
+                        web_elapsed,
+                        "Proxy health check at web_port/api/health failed",
+                    )
+                )
 
         # Step 9: E2E tests (while dev servers are running)
         if api_up and web_up and playwright_config.exists():
@@ -646,6 +691,7 @@ def verify_fullstack_python(
             }
 
             import tempfile
+
             e2e_start = time.monotonic()
             with tempfile.NamedTemporaryFile(mode="w+", suffix=".log", delete=False) as e2e_log:
                 try:
@@ -688,6 +734,7 @@ def verify_fullstack_python(
 # ---------------------------------------------------------------------------
 # Main dispatch
 # ---------------------------------------------------------------------------
+
 
 def verify(
     project_dir: Path,
@@ -756,12 +803,25 @@ def print_results(result: VerifyResult) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Verify a scaffolded project")
     parser.add_argument("project_dir", help="Path to the scaffolded project")
-    parser.add_argument("--api-port", type=int, default=None, help="API server port (default: auto-detect)")
-    parser.add_argument("--web-port", type=int, default=3000, help="Web server port (default: 3000)")
-    parser.add_argument("--skip-docker", action="store_true", help="Skip docker compose (Postgres already available)")
+    parser.add_argument(
+        "--api-port", type=int, default=None, help="API server port (default: auto-detect)"
+    )
+    parser.add_argument(
+        "--web-port", type=int, default=3000, help="Web server port (default: 3000)"
+    )
+    parser.add_argument(
+        "--skip-docker",
+        action="store_true",
+        help="Skip docker compose (Postgres already available)",
+    )
     args = parser.parse_args()
 
-    result = verify(Path(args.project_dir), api_port=args.api_port, web_port=args.web_port, skip_docker=args.skip_docker)
+    result = verify(
+        Path(args.project_dir),
+        api_port=args.api_port,
+        web_port=args.web_port,
+        skip_docker=args.skip_docker,
+    )
     print_results(result)
 
     if not result.passed:

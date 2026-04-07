@@ -41,10 +41,13 @@ def test_match_nested_package_json(rule):
 
 def test_match_edit_new_string(rule):
     """Edit adding 'latest' to package.json is denied."""
-    payload = _payload("Edit", {
-        "file_path": f"{REPO}/package.json",
-        "new_string": '    "jsdom": "latest"\n',
-    })
+    payload = _payload(
+        "Edit",
+        {
+            "file_path": f"{REPO}/package.json",
+            "new_string": '    "jsdom": "latest"\n',
+        },
+    )
     result = evaluate(payload, [rule], repo_root=REPO)
     assert result["decision"] == "deny"
 

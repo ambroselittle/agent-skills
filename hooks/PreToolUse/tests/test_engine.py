@@ -1,11 +1,11 @@
 """Tests for the rule evaluation engine (deny-wins priority, pattern matching, etc.)."""
-import pytest
-from engine import evaluate, _match_pattern
 
+from engine import _match_pattern, evaluate
 
 # ---------------------------------------------------------------------------
 # Helper
 # ---------------------------------------------------------------------------
+
 
 def bash(command, cwd="/repo"):
     return {"tool_name": "Bash", "tool_input": {"command": command}, "cwd": cwd}
@@ -19,9 +19,20 @@ def read_tool(path, cwd="/repo"):
 # Priority: deny > ask > allow
 # ---------------------------------------------------------------------------
 
-ALLOW_RULE = {"description": "allow all bash", "operation": None, "pattern": ".*", "action": "allow"}
-ASK_RULE   = {"description": "ask all bash",   "operation": None, "pattern": ".*", "action": "ask"}
-DENY_RULE  = {"description": "deny all bash",  "operation": None, "pattern": ".*", "action": "deny", "reason": "denied"}
+ALLOW_RULE = {
+    "description": "allow all bash",
+    "operation": None,
+    "pattern": ".*",
+    "action": "allow",
+}
+ASK_RULE = {"description": "ask all bash", "operation": None, "pattern": ".*", "action": "ask"}
+DENY_RULE = {
+    "description": "deny all bash",
+    "operation": None,
+    "pattern": ".*",
+    "action": "deny",
+    "reason": "denied",
+}
 
 
 def test_deny_beats_allow():
@@ -65,8 +76,14 @@ def test_proceed_on_empty_rules():
 # Deny reason is passed through
 # ---------------------------------------------------------------------------
 
+
 def test_deny_includes_reason():
-    rule = {"description": "x", "pattern": "dangerous", "action": "deny", "reason": "it is dangerous"}
+    rule = {
+        "description": "x",
+        "pattern": "dangerous",
+        "action": "deny",
+        "reason": "it is dangerous",
+    }
     result = evaluate(bash("dangerous command"), [rule])
     assert result["decision"] == "deny"
     assert result["reason"] == "it is dangerous"
@@ -83,9 +100,10 @@ def test_allow_has_no_reason():
 # All rules evaluated — not just first match
 # ---------------------------------------------------------------------------
 
+
 def test_all_rules_evaluated_deny_wins_even_if_not_first():
     allow_first = {"description": "allow", "pattern": "git", "action": "allow"}
-    deny_later  = {"description": "deny",  "pattern": "force", "action": "deny", "reason": "no force"}
+    deny_later = {"description": "deny", "pattern": "force", "action": "deny", "reason": "no force"}
     result = evaluate(bash("git push --force"), [allow_first, deny_later])
     assert result["decision"] == "deny"
 
@@ -93,6 +111,7 @@ def test_all_rules_evaluated_deny_wins_even_if_not_first():
 # ---------------------------------------------------------------------------
 # _match_pattern: Bash command matching
 # ---------------------------------------------------------------------------
+
 
 def test_pattern_matches_bash_command():
     assert _match_pattern(bash("gh repo delete my-repo"), "gh repo delete") is True
@@ -120,6 +139,7 @@ def test_pattern_non_bash_non_read_returns_false():
 # ---------------------------------------------------------------------------
 # Unknown operation is ignored (no crash)
 # ---------------------------------------------------------------------------
+
 
 def test_unknown_operation_ignored():
     rule = {"description": "x", "operation": "nonexistent-op", "action": "deny", "reason": "x"}

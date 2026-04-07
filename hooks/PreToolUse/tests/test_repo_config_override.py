@@ -1,10 +1,8 @@
 """Tests for per-repo .agent-skills/config.json override support."""
 
 import json
-import os
-from pathlib import Path
 
-from engine import evaluate, _repo_config_cache
+from engine import _repo_config_cache, evaluate
 
 
 def _payload(tool_name, tool_input, cwd="/repo"):
@@ -29,18 +27,22 @@ def test_override_allows_denied_path(tmp_path):
     repo = tmp_path / "myrepo"
     config_dir = repo / ".agent-skills"
     config_dir.mkdir(parents=True)
-    (config_dir / "config.json").write_text(json.dumps({
-        "hooks": {
-            "PreToolUse": {
-                "rules": [
-                    {
-                        "rule": "block-env-reads",
-                        "allowedPaths": [".eval-runs/**/.env*"],
+    (config_dir / "config.json").write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PreToolUse": {
+                        "rules": [
+                            {
+                                "rule": "block-env-reads",
+                                "allowedPaths": [".eval-runs/**/.env*"],
+                            }
+                        ]
                     }
-                ]
+                }
             }
-        }
-    }))
+        )
+    )
 
     payload = _payload("Read", {"file_path": str(repo / ".eval-runs" / "test" / ".env")})
     result = evaluate(payload, [_env_deny_rule()], repo_root=str(repo))
@@ -54,18 +56,22 @@ def test_override_allows_bash_read_of_denied_path(tmp_path):
     repo = tmp_path / "myrepo"
     config_dir = repo / ".agent-skills"
     config_dir.mkdir(parents=True)
-    (config_dir / "config.json").write_text(json.dumps({
-        "hooks": {
-            "PreToolUse": {
-                "rules": [
-                    {
-                        "rule": "block-env-reads",
-                        "allowedPaths": [".eval-runs/**/.env*"],
+    (config_dir / "config.json").write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PreToolUse": {
+                        "rules": [
+                            {
+                                "rule": "block-env-reads",
+                                "allowedPaths": [".eval-runs/**/.env*"],
+                            }
+                        ]
                     }
-                ]
+                }
             }
-        }
-    }))
+        )
+    )
 
     env_path = str(repo / ".eval-runs" / "test" / ".env.ports")
     payload = _payload("Bash", {"command": f"wc -l {env_path}"})
@@ -80,18 +86,22 @@ def test_override_does_not_affect_non_matching_paths(tmp_path):
     repo = tmp_path / "myrepo"
     config_dir = repo / ".agent-skills"
     config_dir.mkdir(parents=True)
-    (config_dir / "config.json").write_text(json.dumps({
-        "hooks": {
-            "PreToolUse": {
-                "rules": [
-                    {
-                        "rule": "block-env-reads",
-                        "allowedPaths": [".eval-runs/**/.env*"],
+    (config_dir / "config.json").write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PreToolUse": {
+                        "rules": [
+                            {
+                                "rule": "block-env-reads",
+                                "allowedPaths": [".eval-runs/**/.env*"],
+                            }
+                        ]
                     }
-                ]
+                }
             }
-        }
-    }))
+        )
+    )
 
     payload = _payload("Read", {"file_path": str(repo / ".env")})
     result = evaluate(payload, [_env_deny_rule()], repo_root=str(repo))
@@ -117,18 +127,22 @@ def test_rule_without_id_is_not_overridable(tmp_path):
     repo = tmp_path / "myrepo"
     config_dir = repo / ".agent-skills"
     config_dir.mkdir(parents=True)
-    (config_dir / "config.json").write_text(json.dumps({
-        "hooks": {
-            "PreToolUse": {
-                "rules": [
-                    {
-                        "rule": "block-env-reads",
-                        "allowedPaths": ["**/.env*"],
+    (config_dir / "config.json").write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PreToolUse": {
+                        "rules": [
+                            {
+                                "rule": "block-env-reads",
+                                "allowedPaths": ["**/.env*"],
+                            }
+                        ]
                     }
-                ]
+                }
             }
-        }
-    }))
+        )
+    )
 
     rule_no_id = {
         "description": "Block reading .env files",

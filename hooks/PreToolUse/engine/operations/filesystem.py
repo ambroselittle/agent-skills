@@ -1,24 +1,52 @@
 """Filesystem operation handlers: read-path, write-path, delete-path."""
+
 import re
 from pathlib import Path
 
-from operations.common import _tokenize, _split_subcommands, _COMPOUND_OPS
-from resolver import matches_path_pattern, normalize_path
+from resolver import matches_path_pattern
 
-_READ_COMMANDS = frozenset([
-    "cat", "head", "tail", "less", "more", "grep", "egrep", "fgrep",
-    "rg", "ripgrep", "awk", "sed", "sort", "wc", "diff", "cut", "strings",
-])
+from operations.common import _split_subcommands
 
-_WRITE_COMMANDS = frozenset([
-    "cp", "mv", "tee", "install",
-])
+_READ_COMMANDS = frozenset(
+    [
+        "cat",
+        "head",
+        "tail",
+        "less",
+        "more",
+        "grep",
+        "egrep",
+        "fgrep",
+        "rg",
+        "ripgrep",
+        "awk",
+        "sed",
+        "sort",
+        "wc",
+        "diff",
+        "cut",
+        "strings",
+    ]
+)
 
-_DELETE_COMMANDS = frozenset([
-    "rm", "rmdir", "unlink",
-])
+_WRITE_COMMANDS = frozenset(
+    [
+        "cp",
+        "mv",
+        "tee",
+        "install",
+    ]
+)
 
-_REDIRECT_WRITE_RE = re.compile(r'(?:>>?)\s*([^\s;|&]+)')
+_DELETE_COMMANDS = frozenset(
+    [
+        "rm",
+        "rmdir",
+        "unlink",
+    ]
+)
+
+_REDIRECT_WRITE_RE = re.compile(r"(?:>>?)\s*([^\s;|&]+)")
 
 
 def _path_args(tokens: list[str]) -> list[str]:
@@ -46,7 +74,9 @@ def _python_open_paths(command: str) -> list[str]:
     return re.findall(r"""open\s*\(\s*['"]([^'"]+)['"]""", command)
 
 
-def _any_path_matches(paths: list[str], rule_paths: list[str], repo_root: str | None, cwd: str) -> bool:
+def _any_path_matches(
+    paths: list[str], rule_paths: list[str], repo_root: str | None, cwd: str
+) -> bool:
     for p in paths:
         for pattern in rule_paths:
             if matches_path_pattern(p, pattern, repo_root, cwd):
@@ -76,7 +106,7 @@ def matches_read_path(payload: dict, rule: dict, repo_root: str | None, cwd: str
 
         candidates.extend(_python_open_paths(command))
 
-        for m in re.finditer(r'<\s*([^\s;|&<>]+)', command):
+        for m in re.finditer(r"<\s*([^\s;|&<>]+)", command):
             candidates.append(m.group(1))
 
         return _any_path_matches(candidates, rule_paths, repo_root, cwd)

@@ -1,7 +1,6 @@
 """Unit tests for GitHub CLI operation handlers."""
-import pytest
 
-from operations.gh import matches_gh_pr_merge, matches_gh_api
+from operations.gh import matches_gh_api, matches_gh_pr_merge
 
 DENY_MERGE_MAIN = {"deny-base-branches": ["main", "master"], "action": "deny"}
 DENY_DELETE_METHOD = {"deny-methods": ["DELETE"], "action": "deny"}
@@ -15,6 +14,7 @@ def bash(command):
 # ---------------------------------------------------------------------------
 # matches_gh_pr_merge
 # ---------------------------------------------------------------------------
+
 
 class TestMatchesGhPrMerge:
     def test_merge_with_base_main(self):
@@ -54,6 +54,7 @@ class TestMatchesGhPrMerge:
 # ---------------------------------------------------------------------------
 # matches_gh_api
 # ---------------------------------------------------------------------------
+
 
 class TestMatchesGhApi:
     def test_delete_method_denied(self):
@@ -96,6 +97,7 @@ class TestMatchesGhApi:
 # ---------------------------------------------------------------------------
 # Compound command splitting
 # ---------------------------------------------------------------------------
+
 
 class TestCompoundCommands:
     """Verify that sensitive gh operations in compound commands are caught."""

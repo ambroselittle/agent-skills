@@ -30,12 +30,7 @@ def test_no_match(rule):
 
 def test_boundary_multiline_for_loop(rule):
     """For loop with sed and echo is allowed (all safe commands)."""
-    command = (
-        "for f in a b c; do\n"
-        '  echo "$f"\n'
-        "  sed -i '' 's/x/y/' \"$f\"\n"
-        "done"
-    )
+    command = "for f in a b c; do\n  echo \"$f\"\n  sed -i '' 's/x/y/' \"$f\"\ndone"
     payload = _bash(command)
     result = evaluate(payload, [rule])
     assert result["decision"] == "allow"
@@ -73,6 +68,7 @@ def test_boundary_deny_wins(rule):
 # ---------------------------------------------------------------------------
 # Integration tests: realistic workflows through the full engine
 # ---------------------------------------------------------------------------
+
 
 def test_allow_python3_inline_analysis(rule):
     """python3 -c for JSON/config inspection → allow."""
@@ -134,7 +130,9 @@ def test_allow_uv_run_pytest(rule):
 
 def test_allow_timeout_pytest(rule):
     """timeout wrapping pytest → allow."""
-    assert evaluate(_bash("timeout 120 pytest tests/integration/ -v"), [rule])["decision"] == "allow"
+    assert (
+        evaluate(_bash("timeout 120 pytest tests/integration/ -v"), [rule])["decision"] == "allow"
+    )
 
 
 def test_allow_pytest_tee_tail(rule):
@@ -173,17 +171,23 @@ def test_falls_through_ssh(rule):
 
 def test_falls_through_dd(rule):
     """dd is in _UNSAFE — not matched by bash-safe, falls through."""
-    assert evaluate(_bash("dd if=/dev/urandom of=/tmp/out bs=4M count=1"), [rule])["decision"] == "proceed"
+    assert (
+        evaluate(_bash("dd if=/dev/urandom of=/tmp/out bs=4M count=1"), [rule])["decision"]
+        == "proceed"
+    )
 
 
 def test_falls_through_eval(rule):
     """eval is in _UNSAFE — not matched by bash-safe, falls through."""
-    assert evaluate(_bash("eval \"$(cat script.sh)\""), [rule])["decision"] == "proceed"
+    assert evaluate(_bash('eval "$(cat script.sh)"'), [rule])["decision"] == "proceed"
 
 
 def test_falls_through_security(rule):
     """security is in _UNSAFE — not matched by bash-safe, falls through."""
-    assert evaluate(_bash("security find-generic-password -s 'myservice' -w"), [rule])["decision"] == "proceed"
+    assert (
+        evaluate(_bash("security find-generic-password -s 'myservice' -w"), [rule])["decision"]
+        == "proceed"
+    )
 
 
 def test_unknown_tool_allowed(rule):
@@ -193,4 +197,6 @@ def test_unknown_tool_allowed(rule):
 
 def test_rdme_cli_allowed(rule):
     """rdme (readme.com CLI) is allowed — not in denylist."""
-    assert evaluate(_bash("result=$(npx rdme docs upload --key=$KEY)"), [rule])["decision"] == "allow"
+    assert (
+        evaluate(_bash("result=$(npx rdme docs upload --key=$KEY)"), [rule])["decision"] == "allow"
+    )

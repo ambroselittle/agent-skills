@@ -6,12 +6,9 @@ import json
 from pathlib import Path
 
 import pytest
-
 from scripts.scaffold import (
-    TEMPLATES_DIR,
     build_context,
     normalize_version_key,
-    read_template_config,
     scaffold,
 )
 
@@ -582,9 +579,7 @@ def fullstack_python_versions(versions, python_versions) -> dict:
     return {**versions, **python_versions}
 
 
-def test_scaffold_fullstack_python_creates_expected_structure(
-    tmp_path, fullstack_python_versions
-):
+def test_scaffold_fullstack_python_creates_expected_structure(tmp_path, fullstack_python_versions):
     output = tmp_path / "my-app"
     created = scaffold("my-app", "fullstack-python", fullstack_python_versions, output)
 
@@ -641,9 +636,7 @@ def test_scaffold_fullstack_python_creates_expected_structure(
     assert not (output / "apps" / "api" / "src" / "router.ts").exists()
 
 
-def test_scaffold_fullstack_python_renders_jinja2_variables(
-    tmp_path, fullstack_python_versions
-):
+def test_scaffold_fullstack_python_renders_jinja2_variables(tmp_path, fullstack_python_versions):
     output = tmp_path / "cool-app"
     scaffold("cool-app", "fullstack-python", fullstack_python_versions, output)
 
@@ -676,9 +669,7 @@ def test_scaffold_fullstack_python_renders_jinja2_variables(
     assert "cool-app" in claude_md
 
 
-def test_scaffold_fullstack_python_has_merged_gitignore(
-    tmp_path, fullstack_python_versions
-):
+def test_scaffold_fullstack_python_has_merged_gitignore(tmp_path, fullstack_python_versions):
     output = tmp_path / "my-app"
     scaffold("my-app", "fullstack-python", fullstack_python_versions, output)
 
@@ -688,9 +679,7 @@ def test_scaffold_fullstack_python_has_merged_gitignore(
     assert ".env" in gitignore
 
 
-def test_scaffold_fullstack_python_vite_proxies_to_python_api(
-    tmp_path, fullstack_python_versions
-):
+def test_scaffold_fullstack_python_vite_proxies_to_python_api(tmp_path, fullstack_python_versions):
     output = tmp_path / "my-app"
     scaffold("my-app", "fullstack-python", fullstack_python_versions, output)
 
@@ -712,9 +701,7 @@ def test_scaffold_fullstack_python_no_trpc_files(tmp_path, fullstack_python_vers
     assert "trpc" not in app_tsx.lower()
 
 
-def test_scaffold_fullstack_python_ci_uses_both_toolchains(
-    tmp_path, fullstack_python_versions
-):
+def test_scaffold_fullstack_python_ci_uses_both_toolchains(tmp_path, fullstack_python_versions):
     output = tmp_path / "my-app"
     scaffold("my-app", "fullstack-python", fullstack_python_versions, output)
 
@@ -765,10 +752,14 @@ def _setup_extends_templates(tmp_path, monkeypatch):
     # Child template (extends base, excludes sub/excluded.txt)
     child = templates / "child-tmpl"
     child.mkdir(parents=True)
-    (child / "template.json").write_text(json.dumps({
-        "extends": "base-tmpl",
-        "exclude": ["sub/excluded.txt"],
-    }))
+    (child / "template.json").write_text(
+        json.dumps(
+            {
+                "extends": "base-tmpl",
+                "exclude": ["sub/excluded.txt"],
+            }
+        )
+    )
     (child / "child-file.txt").write_text("from-child")
     (child / "override-me.txt").write_text("child-version")
 
@@ -878,10 +869,14 @@ def test_exclude_glob_pattern(tmp_path, monkeypatch):
 
     child = templates / "api-only"
     child.mkdir()
-    (child / "template.json").write_text(json.dumps({
-        "extends": "base",
-        "exclude": ["apps/web/**"],
-    }))
+    (child / "template.json").write_text(
+        json.dumps(
+            {
+                "extends": "base",
+                "exclude": ["apps/web/**"],
+            }
+        )
+    )
 
     monkeypatch.setattr("scripts.scaffold.TEMPLATES_DIR", templates)
     monkeypatch.setattr("scripts.scaffold.COMMON_DIR_NAME", "__common")
@@ -1083,9 +1078,7 @@ def test_multi_platform_unknown_platform_ignored(tmp_path, monkeypatch):
 
     tpl = templates / "mixed"
     tpl.mkdir()
-    (tpl / "template.json").write_text(
-        json.dumps({"platform": ["ts", "nonexistent"]})
-    )
+    (tpl / "template.json").write_text(json.dumps({"platform": ["ts", "nonexistent"]}))
 
     monkeypatch.setattr("scripts.scaffold.TEMPLATES_DIR", templates)
     monkeypatch.setattr("scripts.scaffold.COMMON_DIR_NAME", "__common")

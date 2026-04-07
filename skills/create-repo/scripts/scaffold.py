@@ -131,6 +131,7 @@ def render_template_dir(
 @dataclass
 class TemplateConfig:
     """Configuration read from a template's template.json."""
+
     platform: str | list[str] | None = None
     extends: str | None = None
     exclude: list[str] = field(default_factory=list)
@@ -184,12 +185,9 @@ def scaffold(
 
     if not template_dir.is_dir():
         available = [
-            d.name for d in TEMPLATES_DIR.iterdir()
-            if d.is_dir() and d.name != COMMON_DIR_NAME
+            d.name for d in TEMPLATES_DIR.iterdir() if d.is_dir() and d.name != COMMON_DIR_NAME
         ]
-        raise FileNotFoundError(
-            f"Template '{template_name}' not found. Available: {available}"
-        )
+        raise FileNotFoundError(f"Template '{template_name}' not found. Available: {available}")
 
     config = read_template_config(template_dir)
 
@@ -238,27 +236,40 @@ def scaffold(
     # Layer 1: Universal common files (exclude platform subdirectories)
     if common_dir.is_dir():
         platform_dirs = {
-            d for d in common_dir.iterdir()
-            if d.is_dir() and not d.name.startswith(".")
+            d for d in common_dir.iterdir() if d.is_dir() and not d.name.startswith(".")
         }
-        created.extend(render_template_dir(
-            env, common_dir, output_dir, context, common_dir,
-            exclude_dirs=platform_dirs,
-        ))
+        created.extend(
+            render_template_dir(
+                env,
+                common_dir,
+                output_dir,
+                context,
+                common_dir,
+                exclude_dirs=platform_dirs,
+            )
+        )
 
     # Layer 2: Platform-specific common files (e.g., __common/ts/, __common/python/)
     # When multiple platforms are declared, each is applied in order (later overrides earlier).
     for plat in platforms:
         platform_dir = common_dir / plat
         if platform_dir.is_dir():
-            created.extend(render_template_dir(env, platform_dir, output_dir, context, platform_dir))
+            created.extend(
+                render_template_dir(env, platform_dir, output_dir, context, platform_dir)
+            )
 
     # Layer 3: Base template files (if extends), with exclude patterns applied
     if base_dir:
-        created.extend(render_template_dir(
-            env, base_dir, output_dir, context, base_dir,
-            exclude_patterns=config.exclude,
-        ))
+        created.extend(
+            render_template_dir(
+                env,
+                base_dir,
+                output_dir,
+                context,
+                base_dir,
+                exclude_patterns=config.exclude,
+            )
+        )
 
     # Layer 4: Template-specific files
     created.extend(render_template_dir(env, template_dir, output_dir, context, template_dir))

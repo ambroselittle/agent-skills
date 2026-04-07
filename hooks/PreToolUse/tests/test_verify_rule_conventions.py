@@ -7,6 +7,7 @@ For each rule in hook-rules:
 
 Run with: pytest hooks/PreToolUse/tests/test_verify_rule_conventions.py
 """
+
 import importlib.util
 import json
 import re
@@ -59,10 +60,7 @@ def load_module_from_path(path: Path):
 # ---------------------------------------------------------------------------
 
 _rules = load_hook_rules()
-_rule_params = [
-    pytest.param(rule, id=description_to_slug(rule["description"]))
-    for rule in _rules
-]
+_rule_params = [pytest.param(rule, id=description_to_slug(rule["description"])) for rule in _rules]
 
 
 @pytest.mark.parametrize("rule", _rule_params)
@@ -95,9 +93,7 @@ def test_rule_has_required_functions(rule: dict) -> None:
 
     functions = [name for name in dir(module) if callable(getattr(module, name))]
 
-    assert "test_match" in functions, (
-        f"test file for '{rule['description']}' is missing test_match"
-    )
+    assert "test_match" in functions, f"test file for '{rule['description']}' is missing test_match"
     assert "test_no_match" in functions, (
         f"test file for '{rule['description']}' is missing test_no_match"
     )

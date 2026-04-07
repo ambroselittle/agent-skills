@@ -6,8 +6,6 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from scripts.verify import StepResult, VerifyResult, run_step, verify
 
 
@@ -27,14 +25,19 @@ def test_run_step_success():
 
 
 def test_run_step_failure():
-    with patch("scripts.verify.subprocess.run", return_value=_mock_run(returncode=1, stderr="build failed")):
+    with patch(
+        "scripts.verify.subprocess.run", return_value=_mock_run(returncode=1, stderr="build failed")
+    ):
         result = run_step("build", ["pnpm", "build"], Path("/tmp"))
     assert not result.passed
     assert result.error == "build failed"
 
 
 def test_run_step_timeout():
-    with patch("scripts.verify.subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="test", timeout=10)):
+    with patch(
+        "scripts.verify.subprocess.run",
+        side_effect=subprocess.TimeoutExpired(cmd="test", timeout=10),
+    ):
         result = run_step("slow step", ["sleep", "999"], Path("/tmp"), timeout=10)
     assert not result.passed
     assert "Timed out" in result.error
@@ -42,7 +45,9 @@ def test_run_step_timeout():
 
 def test_run_step_truncates_long_errors():
     long_error = "x" * 3000
-    with patch("scripts.verify.subprocess.run", return_value=_mock_run(returncode=1, stderr=long_error)):
+    with patch(
+        "scripts.verify.subprocess.run", return_value=_mock_run(returncode=1, stderr=long_error)
+    ):
         result = run_step("failing", ["cmd"], Path("/tmp"))
     assert len(result.error) < 2100  # 2000 + truncation message
 
@@ -51,18 +56,22 @@ def test_run_step_truncates_long_errors():
 
 
 def test_verify_result_all_pass():
-    r = VerifyResult(steps=[
-        StepResult("a", True, 1.0),
-        StepResult("b", True, 2.0),
-    ])
+    r = VerifyResult(
+        steps=[
+            StepResult("a", True, 1.0),
+            StepResult("b", True, 2.0),
+        ]
+    )
     assert r.passed
 
 
 def test_verify_result_one_fail():
-    r = VerifyResult(steps=[
-        StepResult("a", True, 1.0),
-        StepResult("b", False, 2.0, "oops"),
-    ])
+    r = VerifyResult(
+        steps=[
+            StepResult("a", True, 1.0),
+            StepResult("b", False, 2.0, "oops"),
+        ]
+    )
     assert not r.passed
 
 
@@ -80,8 +89,10 @@ def test_verify_node_stops_on_first_failure():
             return _mock_run(returncode=1, stderr="install failed")
         return _mock_run()
 
-    with patch("scripts.verify.detect_platform", return_value="node"), \
-         patch("scripts.verify.subprocess.run", side_effect=fake_run):
+    with (
+        patch("scripts.verify.detect_platform", return_value="node"),
+        patch("scripts.verify.subprocess.run", side_effect=fake_run),
+    ):
         result = verify(Path("/tmp/test-project"))
 
     assert not result.passed
@@ -99,21 +110,22 @@ def test_verify_node_runs_correct_command_sequence():
         commands_run.append(cmd[0] if isinstance(cmd, list) else cmd)
         return _mock_run()
 
-    with patch("scripts.verify.detect_platform", return_value="node"), \
-         patch("scripts.verify.subprocess.run", side_effect=fake_run), \
-         patch("scripts.verify.subprocess.Popen") as mock_popen, \
-         patch("scripts.verify.wait_for_port", return_value=True), \
-         patch("scripts.verify.check_health", return_value=True), \
-         patch("scripts.verify.os.getpgid", return_value=99999), \
-         patch("scripts.verify.atexit.register"), \
-         patch("scripts.verify._kill_process_group"):
-
+    with (
+        patch("scripts.verify.detect_platform", return_value="node"),
+        patch("scripts.verify.subprocess.run", side_effect=fake_run),
+        patch("scripts.verify.subprocess.Popen") as mock_popen,
+        patch("scripts.verify.wait_for_port", return_value=True),
+        patch("scripts.verify.check_health", return_value=True),
+        patch("scripts.verify.os.getpgid", return_value=99999),
+        patch("scripts.verify.atexit.register"),
+        patch("scripts.verify._kill_process_group"),
+    ):
         mock_proc = MagicMock()
         mock_proc.terminate = MagicMock()
         mock_proc.wait = MagicMock()
         mock_popen.return_value = mock_proc
 
-        result = verify(Path("/tmp/test-project"))
+        verify(Path("/tmp/test-project"))
 
     # Should have run: install, docker up, pg_isready, db:push, build, typecheck, lint, test, e2e
     assert len(commands_run) >= 9
@@ -135,15 +147,16 @@ def test_verify_node_runs_e2e_when_servers_are_up(tmp_path):
         commands_run.append(cmd if isinstance(cmd, list) else [cmd])
         return _mock_run()
 
-    with patch("scripts.verify.detect_platform", return_value="node"), \
-         patch("scripts.verify.subprocess.run", side_effect=fake_run), \
-         patch("scripts.verify.subprocess.Popen") as mock_popen, \
-         patch("scripts.verify.wait_for_port", return_value=True), \
-         patch("scripts.verify.check_health", return_value=True), \
-         patch("scripts.verify.os.getpgid", return_value=99999), \
-         patch("scripts.verify.atexit.register"), \
-         patch("scripts.verify._kill_process_group"):
-
+    with (
+        patch("scripts.verify.detect_platform", return_value="node"),
+        patch("scripts.verify.subprocess.run", side_effect=fake_run),
+        patch("scripts.verify.subprocess.Popen") as mock_popen,
+        patch("scripts.verify.wait_for_port", return_value=True),
+        patch("scripts.verify.check_health", return_value=True),
+        patch("scripts.verify.os.getpgid", return_value=99999),
+        patch("scripts.verify.atexit.register"),
+        patch("scripts.verify._kill_process_group"),
+    ):
         mock_proc = MagicMock()
         mock_proc.terminate = MagicMock()
         mock_proc.wait = MagicMock()
@@ -167,15 +180,16 @@ def test_verify_node_skips_e2e_when_server_down(tmp_path):
     def fake_run(cmd, **kwargs):
         return _mock_run()
 
-    with patch("scripts.verify.detect_platform", return_value="node"), \
-         patch("scripts.verify.subprocess.run", side_effect=fake_run), \
-         patch("scripts.verify.subprocess.Popen") as mock_popen, \
-         patch("scripts.verify.wait_for_port", return_value=False), \
-         patch("scripts.verify.check_health", return_value=True), \
-         patch("scripts.verify.os.getpgid", return_value=99999), \
-         patch("scripts.verify.atexit.register"), \
-         patch("scripts.verify._kill_process_group"):
-
+    with (
+        patch("scripts.verify.detect_platform", return_value="node"),
+        patch("scripts.verify.subprocess.run", side_effect=fake_run),
+        patch("scripts.verify.subprocess.Popen") as mock_popen,
+        patch("scripts.verify.wait_for_port", return_value=False),
+        patch("scripts.verify.check_health", return_value=True),
+        patch("scripts.verify.os.getpgid", return_value=99999),
+        patch("scripts.verify.atexit.register"),
+        patch("scripts.verify._kill_process_group"),
+    ):
         mock_proc = MagicMock()
         mock_proc.terminate = MagicMock()
         mock_proc.wait = MagicMock()
@@ -202,15 +216,16 @@ def test_verify_node_api_only_skips_web(tmp_path):
         commands_run.append(cmd if isinstance(cmd, list) else [cmd])
         return _mock_run()
 
-    with patch("scripts.verify.detect_platform", return_value="node"), \
-         patch("scripts.verify.subprocess.run", side_effect=fake_run), \
-         patch("scripts.verify.subprocess.Popen") as mock_popen, \
-         patch("scripts.verify.wait_for_port", return_value=True), \
-         patch("scripts.verify.check_health", return_value=True), \
-         patch("scripts.verify.os.getpgid", return_value=99999), \
-         patch("scripts.verify.atexit.register"), \
-         patch("scripts.verify._kill_process_group"):
-
+    with (
+        patch("scripts.verify.detect_platform", return_value="node"),
+        patch("scripts.verify.subprocess.run", side_effect=fake_run),
+        patch("scripts.verify.subprocess.Popen") as mock_popen,
+        patch("scripts.verify.wait_for_port", return_value=True),
+        patch("scripts.verify.check_health", return_value=True),
+        patch("scripts.verify.os.getpgid", return_value=99999),
+        patch("scripts.verify.atexit.register"),
+        patch("scripts.verify._kill_process_group"),
+    ):
         mock_proc = MagicMock()
         mock_popen.return_value = mock_proc
 
@@ -242,15 +257,16 @@ def test_verify_node_fullstack_runs_both_e2e(tmp_path):
     def fake_run(cmd, **kwargs):
         return _mock_run()
 
-    with patch("scripts.verify.detect_platform", return_value="node"), \
-         patch("scripts.verify.subprocess.run", side_effect=fake_run), \
-         patch("scripts.verify.subprocess.Popen") as mock_popen, \
-         patch("scripts.verify.wait_for_port", return_value=True), \
-         patch("scripts.verify.check_health", return_value=True), \
-         patch("scripts.verify.os.getpgid", return_value=99999), \
-         patch("scripts.verify.atexit.register"), \
-         patch("scripts.verify._kill_process_group"):
-
+    with (
+        patch("scripts.verify.detect_platform", return_value="node"),
+        patch("scripts.verify.subprocess.run", side_effect=fake_run),
+        patch("scripts.verify.subprocess.Popen") as mock_popen,
+        patch("scripts.verify.wait_for_port", return_value=True),
+        patch("scripts.verify.check_health", return_value=True),
+        patch("scripts.verify.os.getpgid", return_value=99999),
+        patch("scripts.verify.atexit.register"),
+        patch("scripts.verify._kill_process_group"),
+    ):
         mock_proc = MagicMock()
         mock_popen.return_value = mock_proc
 
@@ -268,13 +284,16 @@ def test_verify_node_fullstack_runs_both_e2e(tmp_path):
 
 def test_verify_python_stops_on_first_failure():
     """Python verify should stop at the first failing step."""
+
     def fake_run(cmd, **kwargs):
         if "sync" in cmd:
             return _mock_run(returncode=1, stderr="sync failed")
         return _mock_run()
 
-    with patch("scripts.verify.detect_platform", return_value="python"), \
-         patch("scripts.verify.subprocess.run", side_effect=fake_run):
+    with (
+        patch("scripts.verify.detect_platform", return_value="python"),
+        patch("scripts.verify.subprocess.run", side_effect=fake_run),
+    ):
         result = verify(Path("/tmp/test-project"))
 
     assert not result.passed
@@ -290,15 +309,16 @@ def test_verify_python_runs_correct_sequence():
         commands_run.append(cmd if isinstance(cmd, list) else [cmd])
         return _mock_run()
 
-    with patch("scripts.verify.detect_platform", return_value="python"), \
-         patch("scripts.verify.subprocess.run", side_effect=fake_run), \
-         patch("scripts.verify.subprocess.Popen") as mock_popen, \
-         patch("scripts.verify.wait_for_port", return_value=True), \
-         patch("scripts.verify.check_health", return_value=True), \
-         patch("scripts.verify.os.getpgid", return_value=99999), \
-         patch("scripts.verify.atexit.register"), \
-         patch("scripts.verify._kill_process_group"):
-
+    with (
+        patch("scripts.verify.detect_platform", return_value="python"),
+        patch("scripts.verify.subprocess.run", side_effect=fake_run),
+        patch("scripts.verify.subprocess.Popen") as mock_popen,
+        patch("scripts.verify.wait_for_port", return_value=True),
+        patch("scripts.verify.check_health", return_value=True),
+        patch("scripts.verify.os.getpgid", return_value=99999),
+        patch("scripts.verify.atexit.register"),
+        patch("scripts.verify._kill_process_group"),
+    ):
         mock_proc = MagicMock()
         mock_popen.return_value = mock_proc
 

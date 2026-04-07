@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from unittest.mock import call, patch
+from unittest.mock import patch
 
 import pytest
-
 from scripts.init_git import init_git, run_cmd
 
 
@@ -26,7 +25,9 @@ def test_run_cmd_success():
 
 
 def test_run_cmd_failure_raises():
-    with patch("scripts.init_git.subprocess.run", side_effect=subprocess.CalledProcessError(1, "git")):
+    with patch(
+        "scripts.init_git.subprocess.run", side_effect=subprocess.CalledProcessError(1, "git")
+    ):
         with pytest.raises(subprocess.CalledProcessError):
             run_cmd(["git", "bad-command"], Path("/tmp"))
 
@@ -90,6 +91,7 @@ def test_init_git_commit_message_format():
 
 def test_init_git_with_github():
     """Should create a GitHub repo and return the URL."""
+
     def fake_run(cmd, **kwargs):
         check = kwargs.get("check", True)
         cmd_str = " ".join(cmd)
@@ -118,6 +120,7 @@ def test_init_git_with_github():
 
 def test_init_git_not_authenticated():
     """Should raise if gh is not authenticated."""
+
     def fake_run(cmd, **kwargs):
         cmd_str = " ".join(cmd)
         if "auth status" in cmd_str:
@@ -137,6 +140,7 @@ def test_init_git_not_authenticated():
 
 def test_init_git_repo_already_exists():
     """Should raise if the GitHub repo already exists."""
+
     def fake_run(cmd, **kwargs):
         cmd_str = " ".join(cmd)
         if "auth status" in cmd_str:

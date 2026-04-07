@@ -3,6 +3,7 @@
 Evaluates all hook rules against a tool call payload.
 Priority: deny > ask > allow > proceed (no match).
 """
+
 import json
 import os
 import re
@@ -33,21 +34,26 @@ def _get_rule_overrides(config: dict | None, rule_id: str | None) -> dict | None
     """Get per-repo overrides for a specific rule by id."""
     if config is None or rule_id is None:
         return None
-    rules = (
-        config.get("hooks", {})
-        .get("PreToolUse", {})
-        .get("rules", [])
-    )
+    rules = config.get("hooks", {}).get("PreToolUse", {}).get("rules", [])
     for rule_override in rules:
         if rule_override.get("rule") == rule_id:
             return rule_override
     return None
 
 
-def _path_matches_allowed(payload: dict, allowed_paths: list[str], repo_root: str, cwd: str) -> bool:
+def _path_matches_allowed(
+    payload: dict, allowed_paths: list[str], repo_root: str, cwd: str
+) -> bool:
     """Check if all file paths in the tool call match at least one allowed pattern."""
+    from operations.filesystem import (
+        _DELETE_COMMANDS,
+        _READ_COMMANDS,
+        _WRITE_COMMANDS,
+        _path_args,
+        _python_open_paths,
+        _split_subcommands,
+    )
     from resolver import matches_path_pattern
-    from operations.filesystem import _path_args, _split_subcommands, _READ_COMMANDS, _WRITE_COMMANDS, _DELETE_COMMANDS, _python_open_paths
 
     tool_name = payload.get("tool_name", "")
     tool_input = payload.get("tool_input", {})
@@ -65,6 +71,7 @@ def _path_matches_allowed(payload: dict, allowed_paths: list[str], repo_root: st
             if not tokens:
                 continue
             from pathlib import Path as P
+
             cmd = P(tokens[0]).name
             if cmd in _READ_COMMANDS | _WRITE_COMMANDS | _DELETE_COMMANDS:
                 paths.extend(_path_args(tokens))
@@ -95,9 +102,18 @@ def evaluate(payload: dict, rules: list, repo_root: str | None = None) -> dict:
       {"decision": "allow"}
       {"decision": "proceed"}   -- no rule matched, defer to Claude
     """
-    from operations.filesystem import matches_read_path, matches_write_path, matches_write_content, matches_delete_path
-    from operations.git import matches_git_force_push, matches_git_reset_hard, matches_git_push_direct
-    from operations.gh import matches_gh_pr_merge, matches_gh_api
+    from operations.filesystem import (
+        matches_delete_path,
+        matches_read_path,
+        matches_write_content,
+        matches_write_path,
+    )
+    from operations.gh import matches_gh_api, matches_gh_pr_merge
+    from operations.git import (
+        matches_git_force_push,
+        matches_git_push_direct,
+        matches_git_reset_hard,
+    )
 
     cwd = payload.get("cwd", "")
 
@@ -131,6 +147,7 @@ def evaluate(payload: dict, rules: list, repo_root: str | None = None) -> dict:
             matched = matches_gh_api(payload, rule)
         elif operation == "bash-safe":
             from operations.bash import matches_bash_safe
+
             matched = matches_bash_safe(payload, rule)
         elif operation == "tool-name":
             matched = payload.get("tool_name", "") in rule.get("names", [])
@@ -155,10 +172,10 @@ def evaluate(payload: dict, rules: list, repo_root: str | None = None) -> dict:
                 if _path_matches_allowed(payload, overrides["allowedPaths"], repo_root or "", cwd):
                     continue  # Skip this deny — path is allowed by repo config
             return {"decision": "deny", "reason": reason}
-    for action, reason, rule_ref in decisions:
+    for action, reason, _rule_ref in decisions:
         if action == "ask":
             return {"decision": "ask", "reason": reason}
-    for action, reason, rule_ref in decisions:
+    for action, _reason, _rule_ref in decisions:
         if action == "allow":
             return {"decision": "allow"}
 

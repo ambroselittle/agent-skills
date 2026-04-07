@@ -1,9 +1,9 @@
 """GitHub CLI operation handlers: gh-pr-merge, gh-api."""
+
 import re
 from fnmatch import fnmatch
 
-from operations.common import _tokenize, _split_subcommands, _COMPOUND_OPS
-from operations.common import _is_bash, _command
+from operations.common import _command, _is_bash, _split_subcommands
 
 
 def _is_gh_command(tokens: list[str], *subcommands: str) -> bool:
@@ -73,10 +73,25 @@ def matches_gh_api(payload: dict, rule: dict) -> bool:
                 i = api_idx + 1
                 while i < len(tokens):
                     tok = tokens[i]
-                    if tok in ("--method", "-X", "--field", "-f", "--input",
-                               "--header", "-H", "--paginate", "--preview",
-                               "--cache", "--hostname", "--jq", "-q",
-                               "--template", "-t", "--include", "-i"):
+                    if tok in (
+                        "--method",
+                        "-X",
+                        "--field",
+                        "-f",
+                        "--input",
+                        "--header",
+                        "-H",
+                        "--paginate",
+                        "--preview",
+                        "--cache",
+                        "--hostname",
+                        "--jq",
+                        "-q",
+                        "--template",
+                        "-t",
+                        "--include",
+                        "-i",
+                    ):
                         i += 2
                         continue
                     if tok.startswith("-"):

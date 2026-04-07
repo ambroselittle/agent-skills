@@ -20,7 +20,7 @@ from pathlib import Path
 CREATE_REPO_DIR = Path(__file__).resolve().parent.parent / "skills" / "create-repo"
 sys.path.insert(0, str(CREATE_REPO_DIR))
 
-from eval.run_eval import AVAILABLE_TEMPLATES, run_eval, print_results
+from eval.run_eval import AVAILABLE_TEMPLATES, print_results, run_eval
 
 
 def pick_template(templates: list[str]) -> list[str]:
@@ -72,9 +72,9 @@ def main() -> None:
     all_passed = True
 
     for template in selected:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"Testing scaffold: {template}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         result = run_eval(template, full=True, skip_docker=skip_docker)
         print_results(result)
@@ -82,11 +82,11 @@ def main() -> None:
         if not result.passed:
             all_passed = False
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     if all_passed:
         print(f"All {len(selected)} template(s) passed.")
     else:
-        print(f"Some templates failed.")
+        print("Some templates failed.")
         sys.exit(1)
 
 
