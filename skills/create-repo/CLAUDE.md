@@ -21,7 +21,8 @@ create-repo/
 │   ├── fullstack-ts/     # React + Hono + tRPC + Prisma (base for TS templates)
 │   ├── fullstack-graphql/ # React + Hono + Yoga/Pothos + Apollo + Prisma (extends fullstack-ts)
 │   ├── api-ts/           # Hono + tRPC + Prisma, no frontend (extends fullstack-ts)
-│   └── api-python/       # FastAPI + SQLModel + Postgres
+│   ├── api-python/       # FastAPI + SQLModel + Postgres
+│   └── fullstack-python/ # React + FastAPI + Postgres (extends fullstack-ts, multi-platform)
 ├── tests/                # pytest tests for all scripts
 └── eval/                 # Eval framework
 ```
@@ -38,7 +39,7 @@ Templates render in up to 4 layers, each overriding the previous:
 3. `<base_template>/` — base template files (when `"extends"` declared in template.json, with `"exclude"` globs applied)
 4. `<template>/` — template-specific files
 
-Each template has a `template.json` declaring its platform (e.g., `{"platform": "python"}`) and optionally `"extends"` + `"exclude"`. The scaffold engine reads this to determine which layers to include.
+Each template has a `template.json` declaring its platform (e.g., `{"platform": "python"}` or `{"platform": ["ts", "python"]}` for multi-platform templates) and optionally `"extends"` + `"exclude"`. When platform is a list, each `__common/<platform>/` layer is applied in order (later overrides earlier). The scaffold engine reads this to determine which layers to include.
 
 ## Running tests
 
@@ -49,7 +50,7 @@ cd create-repo && uv sync --group dev && uv run pytest tests/ -v
 ## Adding a new template
 
 1. Create `templates/<template-name>/` with the template's files
-2. Add `template.json` with `{"platform": "<platform>"}` (e.g., "python", "ts")
+2. Add `template.json` with `{"platform": "<platform>"}` (e.g., `"python"`, `"ts"`, or `["ts", "python"]` for multi-platform)
    - To inherit from an existing template, add `"extends": "<base-template>"` and only include files that differ
    - Use `"exclude": ["pattern/**"]` to skip base template files (fnmatch globs)
 3. Add shared platform files to `__common/<platform>/` if they don't exist yet
@@ -71,5 +72,6 @@ For `versions.*` in Jinja2 templates, convert package names:
 ## Platform detection
 
 `verify.py` and `check_structure.py` detect the platform from the scaffolded output:
-- `pyproject.toml` present → Python (uv sync, ruff, pytest, uvicorn)
-- `package.json` present → Node (pnpm install, biome, turbo, vitest)
+- Both `pyproject.toml` and `package.json` present → fullstack-python (combined: uv + pnpm, ruff + biome, pytest + vitest, both dev servers)
+- `pyproject.toml` only → Python (uv sync, ruff, pytest, uvicorn)
+- `package.json` only → Node (pnpm install, biome, turbo, vitest)

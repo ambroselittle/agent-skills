@@ -1,0 +1,34 @@
+{
+  "name": "{{ scope }}/web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "{{ versions.tanstack_react_query }}",
+    "react": "{{ versions.react }}",
+    "react-dom": "{{ versions.react_dom }}"
+  },
+  "devDependencies": {
+    "@types/react": "{{ versions.types_react }}",
+    "@types/react-dom": "{{ versions.types_react_dom }}",
+    "@vitejs/plugin-react": "{{ versions.vitejs_plugin_react }}",
+    "tailwindcss": "{{ versions.tailwindcss }}",
+    "@tailwindcss/vite": "{{ versions.tailwindcss_vite }}",
+    "typescript": "{{ versions.typescript }}",
+    "vite": "{{ versions.vite }}",
+    "vitest": "{{ versions.vitest }}",
+    "@playwright/test": "{{ versions.playwright_test }}",
+    "@testing-library/react": "{{ versions.testing_library_react }}",
+    "@testing-library/jest-dom": "{{ versions.testing_library_jest_dom }}",
+    "dotenv": "{{ versions.dotenv }}",
+    "jsdom": "{{ versions.jsdom }}"
+  }
+}

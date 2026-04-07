@@ -1,0 +1,29 @@
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from "@tanstack/react-query"
+
+const queryClient = new QueryClient()
+
+function AppContent() {
+  const healthQuery = useQuery({
+    queryKey: ["health"],
+    queryFn: () => fetch("/api/health").then((res) => res.json()),
+  })
+
+  return (
+    <div>
+      <h1>{{ project_name }}</h1>
+      <p>API status: {healthQuery.data?.status ?? "loading..."}</p>
+    </div>
+  )
+}
+
+export function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AppContent />
+    </QueryClientProvider>
+  )
+}

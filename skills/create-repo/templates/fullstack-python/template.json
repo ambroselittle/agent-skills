@@ -1,0 +1,19 @@
+{
+  "platform": ["ts", "python"],
+  "extends": "fullstack-ts",
+  "exclude": [
+    "apps/api/**",
+    "packages/**",
+    "turbo.json",
+    "scripts/**",
+    "package.json.j2",
+    "pnpm-workspace.yaml",
+    "apps/web/package.json.j2",
+    "apps/web/src/App.tsx.j2",
+    "apps/web/src/lib/trpc.ts.j2",
+    "apps/web/vite.config.ts.j2",
+    "apps/web/e2e/smoke.test.ts.j2",
+    "apps/web/e2e/users.test.ts",
+    "apps/web/__tests__/App.test.tsx.j2"
+  ]
+}

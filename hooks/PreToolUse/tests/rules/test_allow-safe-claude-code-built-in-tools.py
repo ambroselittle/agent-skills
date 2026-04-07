@@ -35,7 +35,14 @@ def test_boundary_workflow_tools(rule):
 
 
 def test_boundary_meta_tools(rule):
-    for name in ("ToolSearch", "ListMcpResourcesTool", "ReadMcpResourceTool", "LSP", "AskUserQuestion", "TodoWrite"):
+    for name in (
+        "ToolSearch",
+        "ListMcpResourcesTool",
+        "ReadMcpResourceTool",
+        "LSP",
+        "AskUserQuestion",
+        "TodoWrite",
+    ):
         assert evaluate(_tool(name), [rule])["decision"] == "allow", f"{name} should be allowed"
 
 

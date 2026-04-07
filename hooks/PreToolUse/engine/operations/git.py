@@ -1,9 +1,9 @@
 """Git operation handlers: git-force-push, git-reset-hard, git-push-direct."""
+
 import re
 from fnmatch import fnmatch
 
-from operations.common import _tokenize, _split_subcommands, _COMPOUND_OPS
-from operations.common import _is_bash, _command
+from operations.common import _command, _is_bash, _split_subcommands
 
 
 def _is_git_subcommand(tokens: list[str], subcommand: str) -> bool:
@@ -124,7 +124,7 @@ def matches_git_reset_hard(payload: dict, rule: dict) -> bool:
             continue
 
         target = None
-        for tok in tokens[reset_idx + 1:]:
+        for tok in tokens[reset_idx + 1 :]:
             if not tok.startswith("-"):
                 target = tok
 

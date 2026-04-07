@@ -6,7 +6,6 @@ import subprocess
 from unittest.mock import patch
 
 import pytest
-
 from scripts.preflight import (
     CheckResult,
     Status,
@@ -17,7 +16,6 @@ from scripts.preflight import (
     run_runtime_check,
     version_tuple,
 )
-
 
 # --- parse_version ---
 
@@ -108,7 +106,9 @@ def test_run_check_missing_unparseable_output():
         "min": (2, 39),
         "install": "xcode-select --install",
     }
-    with patch("scripts.preflight.subprocess.run", return_value=_mock_run(stdout="something unexpected")):
+    with patch(
+        "scripts.preflight.subprocess.run", return_value=_mock_run(stdout="something unexpected")
+    ):
         result = run_check(check)
     assert result.status == Status.MISSING
     assert result.found_version is None
@@ -122,7 +122,10 @@ def test_run_check_timeout():
         "min": (27, 0),
         "install": "brew install --cask docker",
     }
-    with patch("scripts.preflight.subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="docker", timeout=10)):
+    with patch(
+        "scripts.preflight.subprocess.run",
+        side_effect=subprocess.TimeoutExpired(cmd="docker", timeout=10),
+    ):
         result = run_check(check)
     assert result.status == Status.MISSING
 
@@ -136,7 +139,9 @@ def test_run_check_no_min_version():
         "min": None,
         "install": "brew install xcodegen",
     }
-    with patch("scripts.preflight.subprocess.run", return_value=_mock_run(stdout="Version: 2.42.0")):
+    with patch(
+        "scripts.preflight.subprocess.run", return_value=_mock_run(stdout="Version: 2.42.0")
+    ):
         result = run_check(check)
     assert result.status == Status.OK
     assert result.required_version is None
@@ -165,7 +170,10 @@ def test_runtime_check_failure():
         "success_means": "daemon running",
         "install": "open -a Docker",
     }
-    with patch("scripts.preflight.subprocess.run", return_value=_mock_run(returncode=1, stderr="Cannot connect")):
+    with patch(
+        "scripts.preflight.subprocess.run",
+        return_value=_mock_run(returncode=1, stderr="Cannot connect"),
+    ):
         result = run_runtime_check(check)
     assert result.status == Status.MISSING
 
@@ -187,6 +195,7 @@ def test_runtime_check_not_installed():
 
 def _make_version_responses(responses: dict[str, str | None]):
     """Build a side_effect function that returns canned output per command."""
+
     def fake_run(cmd, **kwargs):
         key = cmd[0]
         if key in responses:
@@ -202,6 +211,7 @@ def _make_version_responses(responses: dict[str, str | None]):
                 return _mock_run(returncode=1)
             return _mock_run(stdout=val, returncode=0)
         return _mock_run(returncode=1)
+
     return fake_run
 
 

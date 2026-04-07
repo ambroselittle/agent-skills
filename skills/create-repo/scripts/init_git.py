@@ -59,9 +59,7 @@ def init_git(
     # Check if gh is authenticated
     auth_check = run_cmd(["gh", "auth", "status"], project_dir, check=False)
     if auth_check.returncode != 0:
-        raise RuntimeError(
-            "GitHub CLI is not authenticated. Run `gh auth login` first."
-        )
+        raise RuntimeError("GitHub CLI is not authenticated. Run `gh auth login` first.")
 
     # Check if repo already exists
     repo_check = run_cmd(
@@ -85,7 +83,9 @@ def init_git(
     url = result.stdout.strip()
     if not url:
         # Try to get it from gh repo view
-        view = run_cmd(["gh", "repo", "view", "--json", "url", "-q", ".url"], project_dir, check=False)
+        view = run_cmd(
+            ["gh", "repo", "view", "--json", "url", "-q", ".url"], project_dir, check=False
+        )
         url = view.stdout.strip()
 
     return url or f"https://github.com/{project_name}"

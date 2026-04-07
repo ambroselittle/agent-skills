@@ -1,0 +1,55 @@
+# {{ project_name }}
+
+## Project Structure
+
+This is a mixed-language monorepo: TypeScript frontend + Python API.
+
+- `apps/web/` — React + Vite frontend (TypeScript, managed with pnpm)
+- `apps/api/` — FastAPI backend (Python, managed with uv)
+
+Task runner: `just` coordinates both toolchains.
+
+## Commands
+
+All commands are run via `just` from the project root:
+
+- `just dev` — Start both API and web dev servers (parallel, labeled output)
+- `just dev-api` — Start API server only
+- `just dev-web` — Start web dev server only
+- `just test` — Run all tests (pytest + vitest)
+- `just lint` — Lint all code (Ruff + Biome)
+- `just format` — Format all code (Ruff + Biome)
+- `just db-migrate` — Apply database migrations (Alembic)
+- `just db-revision "description"` — Create a new migration
+- `just install` — Install all dependencies (uv sync + pnpm install)
+
+## Development
+
+1. `docker compose up -d` — Start Postgres
+2. `just install` — Install dependencies (Python + Node)
+3. `just db-migrate` — Apply migrations
+4. `just dev` — Start both dev servers
+
+The web app (Vite) proxies `/api/*` requests to the Python backend. No CORS middleware is needed — the proxy handles cross-origin concerns in development.
+
+## API
+
+- FastAPI backend serves all routes under `/api` prefix
+- OpenAPI docs available at `http://localhost:8000/api/docs`
+- Health check: `GET /api/health`
+- User CRUD: `/api/users/`
+
+## Conventions
+
+### Python (apps/api/)
+- Ruff for linting and formatting
+- SQLModel for database models (SQLAlchemy + Pydantic)
+- Alembic for database migrations
+- pytest for testing with httpx for API tests
+- Type hints on all function signatures
+
+### TypeScript (apps/web/)
+- Biome for linting and formatting
+- React Query + fetch for API communication
+- Vitest for unit tests, Playwright for E2E
+- `strict: true` in TypeScript config

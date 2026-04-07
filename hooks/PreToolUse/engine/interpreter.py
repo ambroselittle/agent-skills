@@ -3,14 +3,16 @@
 
 Reads tool call JSON from stdin, evaluates hook rules, writes JSON decision to stdout.
 """
+
 import json
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from engine import evaluate
 from resolver import resolve_repo_root
+
+from engine import evaluate
 
 HOOK_RULES_PATH = Path(__file__).parent.parent / "hook-rules.json"
 

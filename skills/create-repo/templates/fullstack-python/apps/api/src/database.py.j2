@@ -1,0 +1,16 @@
+import os
+from collections.abc import Generator
+
+from sqlmodel import Session, create_engine
+
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL",
+    "postgresql://postgres:postgres@localhost:5432/{{ project_name }}_dev",
+)
+
+engine = create_engine(DATABASE_URL)
+
+
+def get_session() -> Generator[Session]:
+    with Session(engine) as session:
+        yield session

@@ -1,0 +1,59 @@
+# {{ project_name }}
+{% raw %}
+# Start both API and web dev servers
+dev:
+    #!/usr/bin/env bash
+    trap 'kill 0' EXIT
+    (cd apps/api && uv run uvicorn src.main:app --reload --port ${API_PORT:-8000} 2>&1 | sed 's/^/[api] /') &
+    (cd apps/web && pnpm dev 2>&1 | sed 's/^/[web] /') &
+    wait
+
+# Start the API dev server only
+dev-api:
+    cd apps/api && uv run uvicorn src.main:app --reload --port ${API_PORT:-8000}
+
+# Start the web dev server only
+dev-web:
+    cd apps/web && pnpm dev
+
+# Run all tests
+test:
+    uv run pytest
+    cd apps/web && pnpm test
+
+# Run API tests only
+test-api:
+    uv run pytest
+
+# Run web tests only
+test-web:
+    cd apps/web && pnpm test
+
+# Lint all code
+lint:
+    uv run ruff check .
+    npx @biomejs/biome check apps/web/
+
+# Format all code
+format:
+    uv run ruff format .
+    npx @biomejs/biome check --write apps/web/
+
+# Check formatting without modifying files
+format-check:
+    uv run ruff format --check .
+    npx @biomejs/biome check apps/web/
+
+# Apply database migrations
+db-migrate:
+    cd apps/api && uv run alembic upgrade head
+
+# Create a new migration revision
+db-revision message:
+    cd apps/api && uv run alembic revision --autogenerate -m "{{message}}"
+
+# Install all dependencies
+install:
+    uv sync
+    cd apps/web && pnpm install
+{% endraw %}

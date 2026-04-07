@@ -1,0 +1,23 @@
+import tailwindcss from "@tailwindcss/vite"
+import react from "@vitejs/plugin-react"
+import { config } from "dotenv"
+import { defineConfig } from "vite"
+
+// Load .env before reading config values
+config()
+
+const webPort = Number(process.env.WEB_PORT) || 3000
+const apiPort = process.env.VITE_API_PORT || process.env.API_PORT || "8000"
+
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  server: {
+    port: webPort,
+    proxy: {
+      "/api": {
+        target: `http://localhost:${apiPort}`,
+        changeOrigin: true,
+      },
+    },
+  },
+})

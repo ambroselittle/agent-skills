@@ -15,6 +15,9 @@ from eval.models import CheckResult
 
 def _detect_platform(project_dir: Path) -> str:
     """Detect platform from scaffolded output."""
+    # Mixed platform: both Python and Node files present
+    if (project_dir / "pyproject.toml").exists() and (project_dir / "package.json").exists():
+        return "fullstack-python"
     if (project_dir / "pyproject.toml").exists():
         return "python"
     return "node"
@@ -38,11 +41,13 @@ def check_structure(project_dir: Path, template: str) -> list[CheckResult]:
     ]
     for f in universal_files:
         path = project_dir / f
-        checks.append(CheckResult(
-            f"file: {f}",
-            path.exists(),
-            None if path.exists() else f"Missing: {f}",
-        ))
+        checks.append(
+            CheckResult(
+                f"file: {f}",
+                path.exists(),
+                None if path.exists() else f"Missing: {f}",
+            )
+        )
 
     # --- Platform-specific common checks ---
 
@@ -57,11 +62,13 @@ def check_structure(project_dir: Path, template: str) -> list[CheckResult]:
         ]
         for f in node_common_files:
             path = project_dir / f
-            checks.append(CheckResult(
-                f"file: {f}",
-                path.exists(),
-                None if path.exists() else f"Missing: {f}",
-            ))
+            checks.append(
+                CheckResult(
+                    f"file: {f}",
+                    path.exists(),
+                    None if path.exists() else f"Missing: {f}",
+                )
+            )
 
     elif platform == "python":
         python_common_files = [
@@ -72,11 +79,45 @@ def check_structure(project_dir: Path, template: str) -> list[CheckResult]:
         ]
         for f in python_common_files:
             path = project_dir / f
-            checks.append(CheckResult(
-                f"file: {f}",
-                path.exists(),
-                None if path.exists() else f"Missing: {f}",
-            ))
+            checks.append(
+                CheckResult(
+                    f"file: {f}",
+                    path.exists(),
+                    None if path.exists() else f"Missing: {f}",
+                )
+            )
+
+    elif platform == "fullstack-python":
+        # Mixed platform: both Python and Node common files
+        mixed_common_files = [
+            "pyproject.toml",
+            "justfile",
+            "package.json",
+            "pnpm-workspace.yaml",
+            "biome.json",
+            ".claude/rules/modules.md",
+            ".claude/rules/types.md",
+        ]
+        for f in mixed_common_files:
+            path = project_dir / f
+            checks.append(
+                CheckResult(
+                    f"file: {f}",
+                    path.exists(),
+                    None if path.exists() else f"Missing: {f}",
+                )
+            )
+        # turbo.json should NOT exist
+        turbo_path = project_dir / "turbo.json"
+        checks.append(
+            CheckResult(
+                "no turbo.json",
+                not turbo_path.exists(),
+                "turbo.json exists but should not for fullstack-python"
+                if turbo_path.exists()
+                else None,
+            )
+        )
 
     # --- Template-specific checks ---
 
@@ -88,6 +129,8 @@ def check_structure(project_dir: Path, template: str) -> list[CheckResult]:
         _check_api_ts(project_dir, checks)
     elif template == "api-python":
         _check_api_python(project_dir, checks)
+    elif template == "fullstack-python":
+        _check_fullstack_python(project_dir, checks)
 
     # --- Content checks (universal) ---
 
@@ -96,10 +139,12 @@ def check_structure(project_dir: Path, template: str) -> list[CheckResult]:
     if dc_path.exists():
         dc_content = dc_path.read_text()
         has_postgres = "postgres" in dc_content
-        checks.append(CheckResult(
-            "docker-compose has postgres",
-            has_postgres,
-        ))
+        checks.append(
+            CheckResult(
+                "docker-compose has postgres",
+                has_postgres,
+            )
+        )
 
     # No unrendered Jinja2 in output files
     unrendered = []
@@ -113,11 +158,13 @@ def check_structure(project_dir: Path, template: str) -> list[CheckResult]:
             except Exception:
                 pass
 
-    checks.append(CheckResult(
-        "no unrendered Jinja2",
-        len(unrendered) == 0,
-        f"Found unrendered templates in: {', '.join(unrendered[:5])}" if unrendered else None,
-    ))
+    checks.append(
+        CheckResult(
+            "no unrendered Jinja2",
+            len(unrendered) == 0,
+            f"Found unrendered templates in: {', '.join(unrendered[:5])}" if unrendered else None,
+        )
+    )
 
     return checks
 
@@ -129,17 +176,21 @@ def _check_node_ts_common(project_dir: Path, checks: list[CheckResult]) -> None:
     if pkg_path.exists():
         pkg = json.loads(pkg_path.read_text())
         has_biome = "@biomejs/biome" in pkg.get("devDependencies", {})
-        checks.append(CheckResult(
-            "root package.json has biome",
-            has_biome,
-            None if has_biome else "Missing @biomejs/biome in devDependencies",
-        ))
+        checks.append(
+            CheckResult(
+                "root package.json has biome",
+                has_biome,
+                None if has_biome else "Missing @biomejs/biome in devDependencies",
+            )
+        )
         has_turbo = "turbo" in pkg.get("devDependencies", {})
-        checks.append(CheckResult(
-            "root package.json has turbo",
-            has_turbo,
-            None if has_turbo else "Missing turbo in devDependencies",
-        ))
+        checks.append(
+            CheckResult(
+                "root package.json has turbo",
+                has_turbo,
+                None if has_turbo else "Missing turbo in devDependencies",
+            )
+        )
 
     # turbo.json pipelines
     turbo_path = project_dir / "turbo.json"
@@ -149,38 +200,39 @@ def _check_node_ts_common(project_dir: Path, checks: list[CheckResult]) -> None:
         expected_tasks = ["build", "dev", "test", "typecheck", "lint"]
         for task in expected_tasks:
             has_task = task in tasks
-            checks.append(CheckResult(
-                f"turbo.json has '{task}' task",
-                has_task,
-                None if has_task else f"Missing task: {task}",
-            ))
+            checks.append(
+                CheckResult(
+                    f"turbo.json has '{task}' task",
+                    has_task,
+                    None if has_task else f"Missing task: {task}",
+                )
+            )
 
     # biome.json noExplicitAny
     biome_path = project_dir / "biome.json"
     if biome_path.exists():
         biome = json.loads(biome_path.read_text())
-        no_any = (
-            biome.get("linter", {})
-            .get("rules", {})
-            .get("suspicious", {})
-            .get("noExplicitAny")
+        no_any = biome.get("linter", {}).get("rules", {}).get("suspicious", {}).get("noExplicitAny")
+        checks.append(
+            CheckResult(
+                "biome noExplicitAny is error",
+                no_any == "error",
+                None if no_any == "error" else f"noExplicitAny is '{no_any}', expected 'error'",
+            )
         )
-        checks.append(CheckResult(
-            "biome noExplicitAny is error",
-            no_any == "error",
-            None if no_any == "error" else f"noExplicitAny is '{no_any}', expected 'error'",
-        ))
 
     # tsconfig strict
     tsconfig_path = project_dir / "tsconfig.json"
     if tsconfig_path.exists():
         tsconfig = json.loads(tsconfig_path.read_text())
         strict = tsconfig.get("compilerOptions", {}).get("strict")
-        checks.append(CheckResult(
-            "tsconfig strict: true",
-            strict is True,
-            None if strict is True else f"strict is {strict}",
-        ))
+        checks.append(
+            CheckResult(
+                "tsconfig strict: true",
+                strict is True,
+                None if strict is True else f"strict is {strict}",
+            )
+        )
 
     # Test files per app (only check apps that exist)
     for app_name in ("web", "api"):
@@ -189,18 +241,22 @@ def _check_node_ts_common(project_dir: Path, checks: list[CheckResult]) -> None:
         if (project_dir / app_path).exists():
             test_path = project_dir / app_path / test_dir
             has_tests = test_path.exists() and any(test_path.iterdir())
-            checks.append(CheckResult(
-                f"{app_path} has tests",
-                has_tests,
-                None if has_tests else f"No test files in {app_path}/{test_dir}",
-            ))
+            checks.append(
+                CheckResult(
+                    f"{app_path} has tests",
+                    has_tests,
+                    None if has_tests else f"No test files in {app_path}/{test_dir}",
+                )
+            )
 
     # Seed script
     seed_path = project_dir / "packages" / "db" / "prisma" / "seed.ts"
-    checks.append(CheckResult(
-        "seed script exists",
-        seed_path.exists(),
-    ))
+    checks.append(
+        CheckResult(
+            "seed script exists",
+            seed_path.exists(),
+        )
+    )
 
 
 def _check_fullstack_ts(project_dir: Path, checks: list[CheckResult]) -> None:
@@ -228,11 +284,13 @@ def _check_fullstack_ts(project_dir: Path, checks: list[CheckResult]) -> None:
     ]
     for f in ts_files:
         path = project_dir / f
-        checks.append(CheckResult(
-            f"file: {f}",
-            path.exists(),
-            None if path.exists() else f"Missing: {f}",
-        ))
+        checks.append(
+            CheckResult(
+                f"file: {f}",
+                path.exists(),
+                None if path.exists() else f"Missing: {f}",
+            )
+        )
 
     _check_node_ts_common(project_dir, checks)
 
@@ -265,11 +323,13 @@ def _check_fullstack_graphql(project_dir: Path, checks: list[CheckResult]) -> No
     ]
     for f in gql_files:
         path = project_dir / f
-        checks.append(CheckResult(
-            f"file: {f}",
-            path.exists(),
-            None if path.exists() else f"Missing: {f}",
-        ))
+        checks.append(
+            CheckResult(
+                f"file: {f}",
+                path.exists(),
+                None if path.exists() else f"Missing: {f}",
+            )
+        )
 
     _check_node_ts_common(project_dir, checks)
 
@@ -298,36 +358,44 @@ def _check_api_ts(project_dir: Path, checks: list[CheckResult]) -> None:
     ]
     for f in api_ts_files:
         path = project_dir / f
-        checks.append(CheckResult(
-            f"file: {f}",
-            path.exists(),
-            None if path.exists() else f"Missing: {f}",
-        ))
+        checks.append(
+            CheckResult(
+                f"file: {f}",
+                path.exists(),
+                None if path.exists() else f"Missing: {f}",
+            )
+        )
 
     # apps/web should NOT exist
     web_dir = project_dir / "apps" / "web"
-    checks.append(CheckResult(
-        "no apps/web directory",
-        not web_dir.exists(),
-        "apps/web/ exists but should not for api-ts template" if web_dir.exists() else None,
-    ))
+    checks.append(
+        CheckResult(
+            "no apps/web directory",
+            not web_dir.exists(),
+            "apps/web/ exists but should not for api-ts template" if web_dir.exists() else None,
+        )
+    )
 
     # api package.json should have Playwright and test:e2e
     api_pkg_path = project_dir / "apps" / "api" / "package.json"
     if api_pkg_path.exists():
         api_pkg = json.loads(api_pkg_path.read_text())
         has_playwright = "@playwright/test" in api_pkg.get("devDependencies", {})
-        checks.append(CheckResult(
-            "api has @playwright/test",
-            has_playwright,
-            None if has_playwright else "Missing @playwright/test in api devDependencies",
-        ))
+        checks.append(
+            CheckResult(
+                "api has @playwright/test",
+                has_playwright,
+                None if has_playwright else "Missing @playwright/test in api devDependencies",
+            )
+        )
         has_e2e_script = "test:e2e" in api_pkg.get("scripts", {})
-        checks.append(CheckResult(
-            "api has test:e2e script",
-            has_e2e_script,
-            None if has_e2e_script else "Missing test:e2e script in api package.json",
-        ))
+        checks.append(
+            CheckResult(
+                "api has test:e2e script",
+                has_e2e_script,
+                None if has_e2e_script else "Missing test:e2e script in api package.json",
+            )
+        )
 
     _check_node_ts_common(project_dir, checks)
 
@@ -351,22 +419,26 @@ def _check_api_python(project_dir: Path, checks: list[CheckResult]) -> None:
     ]
     for f in python_files:
         path = project_dir / f
-        checks.append(CheckResult(
-            f"file: {f}",
-            path.exists(),
-            None if path.exists() else f"Missing: {f}",
-        ))
+        checks.append(
+            CheckResult(
+                f"file: {f}",
+                path.exists(),
+                None if path.exists() else f"Missing: {f}",
+            )
+        )
 
     # Root pyproject.toml has uv workspace config
     root_pyproject = project_dir / "pyproject.toml"
     if root_pyproject.exists():
         content = root_pyproject.read_text()
         has_workspace = "[tool.uv.workspace]" in content
-        checks.append(CheckResult(
-            "root pyproject.toml has uv workspace",
-            has_workspace,
-            None if has_workspace else "Missing [tool.uv.workspace] in root pyproject.toml",
-        ))
+        checks.append(
+            CheckResult(
+                "root pyproject.toml has uv workspace",
+                has_workspace,
+                None if has_workspace else "Missing [tool.uv.workspace] in root pyproject.toml",
+            )
+        )
 
     # apps/api/pyproject.toml has expected dependencies
     api_pyproject = project_dir / "apps" / "api" / "pyproject.toml"
@@ -374,17 +446,144 @@ def _check_api_python(project_dir: Path, checks: list[CheckResult]) -> None:
         content = api_pyproject.read_text()
         for dep in ("fastapi", "sqlmodel"):
             has_dep = dep in content
-            checks.append(CheckResult(
-                f"api pyproject.toml has {dep}",
-                has_dep,
-                None if has_dep else f"Missing {dep} in apps/api/pyproject.toml",
-            ))
+            checks.append(
+                CheckResult(
+                    f"api pyproject.toml has {dep}",
+                    has_dep,
+                    None if has_dep else f"Missing {dep} in apps/api/pyproject.toml",
+                )
+            )
 
     # Test files exist
     test_dir = project_dir / "apps" / "api" / "tests"
-    has_tests = test_dir.exists() and any(f for f in test_dir.iterdir() if f.name.startswith("test_"))
-    checks.append(CheckResult(
-        "apps/api has tests",
-        has_tests,
-        None if has_tests else "No test_*.py files in apps/api/tests/",
-    ))
+    has_tests = test_dir.exists() and any(
+        f for f in test_dir.iterdir() if f.name.startswith("test_")
+    )
+    checks.append(
+        CheckResult(
+            "apps/api has tests",
+            has_tests,
+            None if has_tests else "No test_*.py files in apps/api/tests/",
+        )
+    )
+
+
+def _check_fullstack_python(project_dir: Path, checks: list[CheckResult]) -> None:
+    """Template-specific checks for fullstack-python."""
+    # Web app files (inherited from fullstack-ts + overrides)
+    web_files = [
+        "apps/web/package.json",
+        "apps/web/src/main.tsx",
+        "apps/web/src/App.tsx",
+        "apps/web/src/lib/api.ts",
+        "apps/web/vite.config.ts",
+        "apps/web/__tests__/App.test.tsx",
+        "apps/web/playwright.config.ts",
+        "apps/web/e2e/smoke.test.ts",
+        "apps/web/e2e/users.test.ts",
+        "apps/web/e2e/pages/base.page.ts",
+        "apps/web/e2e/pages/home.page.ts",
+    ]
+    for f in web_files:
+        path = project_dir / f
+        checks.append(
+            CheckResult(
+                f"file: {f}",
+                path.exists(),
+                None if path.exists() else f"Missing: {f}",
+            )
+        )
+
+    # Python API files
+    api_files = [
+        "apps/api/pyproject.toml",
+        "apps/api/src/__init__.py",
+        "apps/api/src/main.py",
+        "apps/api/src/database.py",
+        "apps/api/src/models.py",
+        "apps/api/src/routes/__init__.py",
+        "apps/api/src/routes/users.py",
+        "apps/api/tests/__init__.py",
+        "apps/api/tests/conftest.py",
+        "apps/api/tests/test_health.py",
+        "apps/api/tests/test_users.py",
+        "apps/api/alembic.ini",
+        "apps/api/alembic/env.py",
+    ]
+    for f in api_files:
+        path = project_dir / f
+        checks.append(
+            CheckResult(
+                f"file: {f}",
+                path.exists(),
+                None if path.exists() else f"Missing: {f}",
+            )
+        )
+
+    # tRPC files should NOT exist
+    trpc_files = [
+        "apps/web/src/lib/trpc.ts",
+        "apps/api/src/router.ts",
+        "apps/api/src/trpc.ts",
+    ]
+    for f in trpc_files:
+        path = project_dir / f
+        checks.append(
+            CheckResult(
+                f"no tRPC: {f}",
+                not path.exists(),
+                f"{f} exists but should not for fullstack-python" if path.exists() else None,
+            )
+        )
+
+    # No packages/ directory (Prisma not used)
+    packages_dir = project_dir / "packages"
+    checks.append(
+        CheckResult(
+            "no packages/ directory",
+            not packages_dir.exists(),
+            "packages/ exists but should not for fullstack-python"
+            if packages_dir.exists()
+            else None,
+        )
+    )
+
+    # Root pyproject.toml has uv workspace config
+    root_pyproject = project_dir / "pyproject.toml"
+    if root_pyproject.exists():
+        content = root_pyproject.read_text()
+        has_workspace = "[tool.uv.workspace]" in content
+        checks.append(
+            CheckResult(
+                "root pyproject.toml has uv workspace",
+                has_workspace,
+                None if has_workspace else "Missing [tool.uv.workspace] in root pyproject.toml",
+            )
+        )
+
+    # API deps check
+    api_pyproject = project_dir / "apps" / "api" / "pyproject.toml"
+    if api_pyproject.exists():
+        content = api_pyproject.read_text()
+        for dep in ("fastapi", "sqlmodel"):
+            has_dep = dep in content
+            checks.append(
+                CheckResult(
+                    f"api pyproject.toml has {dep}",
+                    has_dep,
+                    None if has_dep else f"Missing {dep} in apps/api/pyproject.toml",
+                )
+            )
+
+    # Vite proxy defaults to port 8000
+    vite_config = project_dir / "apps" / "web" / "vite.config.ts"
+    if vite_config.exists():
+        content = vite_config.read_text()
+        has_8000 = '"8000"' in content
+        checks.append(
+            CheckResult(
+                "vite proxy defaults to port 8000",
+                has_8000,
+                None if has_8000 else "vite.config.ts should default API_PORT to 8000",
+            )
+        )

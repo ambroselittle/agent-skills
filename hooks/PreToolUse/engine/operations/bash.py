@@ -3,29 +3,59 @@
 Parses compound shell commands to extract individual command names, then checks
 them against _UNSAFE (denylist): allow unless any command is in _UNSAFE.
 """
+
 import re
-from typing import Optional
 
-_CONTROL_FLOW = frozenset({
-    "for", "while", "until", "if", "then", "else", "elif", "fi",
-    "do", "done", "case", "esac", "in", "select", "function",
-    "time", "coproc", "!",
-})
+_CONTROL_FLOW = frozenset(
+    {
+        "for",
+        "while",
+        "until",
+        "if",
+        "then",
+        "else",
+        "elif",
+        "fi",
+        "do",
+        "done",
+        "case",
+        "esac",
+        "in",
+        "select",
+        "function",
+        "time",
+        "coproc",
+        "!",
+    }
+)
 
-_UNSAFE = frozenset({
-    # Privilege escalation
-    "sudo", "su", "doas",
-    # Arbitrary code execution
-    "eval", "exec",
-    # Block device / disk destruction
-    "dd", "shred", "fdisk", "parted", "mkfs",
-    # Remote execution
-    "ssh", "scp", "sftp",
-    # Network listeners / raw sockets
-    "nc", "netcat", "ncat",
-    # macOS Keychain access
-    "security",
-})
+_UNSAFE = frozenset(
+    {
+        # Privilege escalation
+        "sudo",
+        "su",
+        "doas",
+        # Arbitrary code execution
+        "eval",
+        "exec",
+        # Block device / disk destruction
+        "dd",
+        "shred",
+        "fdisk",
+        "parted",
+        "mkfs",
+        # Remote execution
+        "ssh",
+        "scp",
+        "sftp",
+        # Network listeners / raw sockets
+        "nc",
+        "netcat",
+        "ncat",
+        # macOS Keychain access
+        "security",
+    }
+)
 
 
 def _extract_command_names(command: str) -> list[str]:
@@ -82,7 +112,7 @@ def _extract_command_names(command: str) -> list[str]:
     return names
 
 
-def matches_bash_safe(payload: dict, rule: Optional[dict] = None) -> bool:
+def matches_bash_safe(payload: dict, rule: dict | None = None) -> bool:
     """
     True if the Bash command should be silently allowed.
 

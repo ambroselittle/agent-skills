@@ -1,9 +1,8 @@
 """Unit tests for filesystem operation handlers."""
+
 from pathlib import Path
 
-import pytest
-
-from operations.filesystem import matches_read_path, matches_write_path, matches_delete_path
+from operations.filesystem import matches_delete_path, matches_read_path, matches_write_path
 
 HOME = str(Path.home())
 REPO = "/repo/myproject"
@@ -39,6 +38,7 @@ def write_tool(path):
 # matches_read_path
 # ---------------------------------------------------------------------------
 
+
 class TestMatchesReadPath:
     def test_read_tool_matches_ssh_key(self):
         p = read_tool(f"{HOME}/.ssh/id_rsa")
@@ -61,7 +61,7 @@ class TestMatchesReadPath:
         assert matches_read_path(p, SSH_RULE, None, REPO) is True
 
     def test_bash_tail_no_match_other_file(self):
-        p = bash(f"tail /var/log/syslog")
+        p = bash("tail /var/log/syslog")
         assert matches_read_path(p, SSH_RULE, None, REPO) is False
 
     def test_bash_cat_env_file_unanchored(self):
@@ -89,6 +89,7 @@ class TestMatchesReadPath:
 # ---------------------------------------------------------------------------
 # matches_write_path
 # ---------------------------------------------------------------------------
+
 
 class TestMatchesWritePath:
     WRITE_RULE = {"paths": [f"{HOME}/.ssh/*"], "action": "deny"}
@@ -126,6 +127,7 @@ class TestMatchesWritePath:
 # matches_delete_path
 # ---------------------------------------------------------------------------
 
+
 class TestMatchesDeletePath:
     DELETE_RULE = {"paths": [f"{HOME}/.ssh/*"], "action": "deny"}
 
@@ -161,6 +163,7 @@ class TestMatchesDeletePath:
 # ---------------------------------------------------------------------------
 # Compound command splitting
 # ---------------------------------------------------------------------------
+
 
 class TestCompoundCommands:
     """Verify that sensitive operations in compound commands are caught."""

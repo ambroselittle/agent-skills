@@ -1,13 +1,12 @@
 """Unit tests for git operation handlers."""
-import pytest
 
+from operations.common import _tokenize
 from operations.git import (
-    matches_git_force_push,
-    matches_git_reset_hard,
-    matches_git_push_direct,
     _extract_push_branch,
     _is_force_flag,
-    _tokenize,
+    matches_git_force_push,
+    matches_git_push_direct,
+    matches_git_reset_hard,
 )
 
 DENY_MAIN = {"deny-branches": ["main", "master"], "action": "deny"}
@@ -24,6 +23,7 @@ def bash(command):
 # ---------------------------------------------------------------------------
 # _extract_push_branch
 # ---------------------------------------------------------------------------
+
 
 class TestExtractPushBranch:
     def test_simple(self):
@@ -52,14 +52,18 @@ class TestExtractPushBranch:
 # _is_force_flag
 # ---------------------------------------------------------------------------
 
+
 def test_force_flag_long():
     assert _is_force_flag(_tokenize("git push --force origin main")) is True
+
 
 def test_force_flag_short():
     assert _is_force_flag(_tokenize("git push -f origin main")) is True
 
+
 def test_force_with_lease():
     assert _is_force_flag(_tokenize("git push --force-with-lease origin main")) is True
+
 
 def test_no_force_flag():
     assert _is_force_flag(_tokenize("git push origin main")) is False
@@ -68,6 +72,7 @@ def test_no_force_flag():
 # ---------------------------------------------------------------------------
 # matches_git_force_push
 # ---------------------------------------------------------------------------
+
 
 class TestMatchesGitForcePush:
     def test_deny_force_push_main(self):
@@ -113,6 +118,7 @@ class TestMatchesGitForcePush:
 # matches_git_reset_hard
 # ---------------------------------------------------------------------------
 
+
 class TestMatchesGitResetHard:
     def test_deny_head_tilde(self):
         p = bash("git reset --hard HEAD~1")
@@ -151,6 +157,7 @@ class TestMatchesGitResetHard:
 # matches_git_push_direct
 # ---------------------------------------------------------------------------
 
+
 class TestMatchesGitPushDirect:
     def test_direct_push_main_denied(self):
         p = bash("git push origin main")
@@ -177,6 +184,7 @@ class TestMatchesGitPushDirect:
 # ---------------------------------------------------------------------------
 # Compound command splitting
 # ---------------------------------------------------------------------------
+
 
 class TestCompoundCommands:
     """Verify that sensitive git operations in compound commands are caught."""

@@ -1,4 +1,5 @@
 """Shared utilities for operation handlers."""
+
 import shlex
 
 _COMPOUND_OPS = frozenset(["&&", "||", ";", "|"])

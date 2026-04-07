@@ -36,6 +36,10 @@ def test_boundary_repo_view_not_matched(rule):
 
 def test_boundary_non_bash_not_matched(rule):
     """Pattern rules match Bash commands, not Read tool file paths."""
-    payload = {"tool_name": "Read", "tool_input": {"file_path": "/repo/scripts/deploy.sh"}, "cwd": "/repo"}
+    payload = {
+        "tool_name": "Read",
+        "tool_input": {"file_path": "/repo/scripts/deploy.sh"},
+        "cwd": "/repo",
+    }
     result = evaluate(payload, [rule])
     assert result["decision"] == "proceed"

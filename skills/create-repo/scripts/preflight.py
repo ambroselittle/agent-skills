@@ -252,7 +252,11 @@ def print_results(results: list[CheckResult]) -> None:
         symbol = STATUS_SYMBOLS[r.status]
         found = r.found_version or "not found"
         required = r.required_version or "any"
-        print(f"{r.tool:<{tool_width}}  {found:<{ver_width}}  {required:<10}  {symbol} {r.status.value}")
+        status_line = (
+            f"{r.tool:<{tool_width}}  {found:<{ver_width}}"
+            f"  {required:<10}  {symbol} {r.status.value}"
+        )
+        print(status_line)
 
 
 def generate_install_script(results: list[CheckResult], output_dir: Path) -> Path | None:
@@ -270,12 +274,12 @@ def generate_install_script(results: list[CheckResult], output_dir: Path) -> Pat
         "# Installs or upgrades missing/outdated tools.",
         "set -euo pipefail",
         "",
-        '# Ensure Homebrew is available (most commands use it)',
-        'if ! command -v brew &>/dev/null; then',
+        "# Ensure Homebrew is available (most commands use it)",
+        "if ! command -v brew &>/dev/null; then",
         '  echo "Homebrew is required but not installed."',
         '  echo "Install it from https://brew.sh and re-run this script."',
-        '  exit 1',
-        'fi',
+        "  exit 1",
+        "fi",
         "",
     ]
 
@@ -295,7 +299,10 @@ def generate_install_script(results: list[CheckResult], output_dir: Path) -> Pat
         lines.append("echo '└─────────────────────────────────────────────────────────────┘'")
 
     lines.append("echo ''")
-    lines.append("echo 'Done! Re-run preflight to verify: uv run python -m scripts.preflight --template <template>'")
+    lines.append(
+        "echo 'Done! Re-run preflight to verify:"
+        " uv run python -m scripts.preflight --template <template>'"
+    )
 
     script_path = output_dir / "install-deps.sh"
     script_path.write_text("\n".join(lines) + "\n")
@@ -321,9 +328,9 @@ def main() -> None:
         # Copy the command to clipboard on macOS for easy pasting
         try:
             subprocess.run(["pbcopy"], input=run_cmd, text=True, timeout=5)
-            print(f"\nTo install everything that's missing, run (copied to clipboard):")
+            print("\nTo install everything that's missing, run (copied to clipboard):")
         except (FileNotFoundError, subprocess.TimeoutExpired):
-            print(f"\nTo install everything that's missing, run:")
+            print("\nTo install everything that's missing, run:")
         print(f"  {run_cmd}")
         sys.exit(1)
     else:

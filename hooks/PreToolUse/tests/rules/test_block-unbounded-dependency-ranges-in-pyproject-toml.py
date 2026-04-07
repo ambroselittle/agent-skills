@@ -26,17 +26,22 @@ def test_match(rule):
 def test_match_nested(rule):
     """Bare >= in nested pyproject.toml is denied."""
     content = '[project]\ndependencies = [\n    "sqlmodel>=0.0.22",\n]'
-    payload = _payload("Write", {"file_path": f"{REPO}/apps/api/pyproject.toml", "content": content})
+    payload = _payload(
+        "Write", {"file_path": f"{REPO}/apps/api/pyproject.toml", "content": content}
+    )
     result = evaluate(payload, [rule], repo_root=REPO)
     assert result["decision"] == "deny"
 
 
 def test_match_edit(rule):
     """Edit adding bare >= to pyproject.toml is denied."""
-    payload = _payload("Edit", {
-        "file_path": f"{REPO}/pyproject.toml",
-        "new_string": '    "requests>=2.31.0",\n',
-    })
+    payload = _payload(
+        "Edit",
+        {
+            "file_path": f"{REPO}/pyproject.toml",
+            "new_string": '    "requests>=2.31.0",\n',
+        },
+    )
     result = evaluate(payload, [rule], repo_root=REPO)
     assert result["decision"] == "deny"
 
