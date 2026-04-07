@@ -2,7 +2,7 @@
   "name": "{{ project_name }}",
   "private": true,
   "scripts": {
-    "lint:web": "biome check --error-on-warnings apps/web/",
+    "lint:web": "bash scripts/biome-check.sh apps/web/",
     "lint:web:fix": "biome check --write apps/web/"
   },
   "devDependencies": {

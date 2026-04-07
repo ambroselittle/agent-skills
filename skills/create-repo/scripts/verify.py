@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import atexit
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -40,9 +41,21 @@ class VerifyResult:
 
 
 def run_step(
-    name: str, cmd: list[str], cwd: Path, timeout: int = 300, env: dict | None = None
+    name: str,
+    cmd: list[str],
+    cwd: Path,
+    timeout: int = 300,
+    env: dict | None = None,
+    fail_on_output: list[str] | None = None,
 ) -> StepResult:
-    """Run a single verification step and return the result."""
+    """Run a single verification step and return the result.
+
+    Args:
+        fail_on_output: Optional list of regex patterns. If any match the combined
+            stdout+stderr output (even when exit code is 0), the step fails. Use
+            this to catch tools that report issues in output without a non-zero exit
+            (e.g. biome info-level diagnostics).
+    """
     start = time.monotonic()
     try:
         proc = subprocess.run(
@@ -54,15 +67,26 @@ def run_step(
             env=env,
         )
         elapsed = time.monotonic() - start
+        combined = "\n".join(s for s in (proc.stderr.strip(), proc.stdout.strip()) if s)
         if proc.returncode != 0:
             # Combine stderr and stdout — tools like turbo put their own
             # error wrapper on stderr while the actual child error is on stdout.
-            parts = [s for s in (proc.stderr.strip(), proc.stdout.strip()) if s]
-            error = "\n".join(parts) if parts else f"Exit code {proc.returncode}"
+            error = combined if combined else f"Exit code {proc.returncode}"
             # Truncate long error output
             if len(error) > 2000:
                 error = error[:2000] + "\n... (truncated)"
             return StepResult(name=name, passed=False, duration_s=elapsed, error=error)
+        if fail_on_output:
+            for pattern in fail_on_output:
+                m = re.search(pattern, combined)
+                if m:
+                    snippet = combined[:2000] + ("\n... (truncated)" if len(combined) > 2000 else "")
+                    return StepResult(
+                        name=name,
+                        passed=False,
+                        duration_s=elapsed,
+                        error=f"Output matched failure pattern {pattern!r}:\n{snippet}",
+                    )
         return StepResult(name=name, passed=True, duration_s=elapsed)
     except subprocess.TimeoutExpired:
         elapsed = time.monotonic() - start
@@ -276,8 +300,15 @@ def verify_node(
     if not step.passed:
         return result
 
-    # Step 3: Lint
-    step = run_step("lint", ["pnpm", "lint"], project_dir, timeout=60, env=turbo_env)
+    # Step 3: Lint — fail on any diagnostic output (errors, warnings, or info)
+    step = run_step(
+        "lint",
+        ["pnpm", "lint"],
+        project_dir,
+        timeout=60,
+        env=turbo_env,
+        fail_on_output=[r"Found \d+ (error|warning|info)"],
+    )
     result.steps.append(step)
     if not step.passed:
         return result
@@ -621,12 +652,13 @@ def verify_fullstack_python(
     if not step.passed:
         return result
 
-    # Step 4: Biome check on web app
+    # Step 4: Biome check on web app — fail on any diagnostic output
     step = run_step(
         "biome check (web)",
         ["npx", "@biomejs/biome", "check", "--error-on-warnings", "apps/web/"],
         project_dir,
         timeout=60,
+        fail_on_output=[r"Found \d+ (error|warning|info)"],
     )
     result.steps.append(step)
     # Non-fatal
@@ -653,73 +685,35 @@ def verify_fullstack_python(
         )
         result.steps.append(step)
 
-    # Step 6b: Ensure Postgres is running (may have been stopped if setup ran separately)
-    compose_file = project_dir / "docker-compose.yml"
-    if compose_file.exists():
-        is_up = subprocess.run(
-            ["docker", "compose", "ps", "--quiet", "postgres"],
-            cwd=project_dir,
-            capture_output=True,
-            timeout=10,
-        ).stdout.strip()
-        if not is_up:
-            subprocess.run(
-                ["docker", "compose", "up", "-d"],
-                cwd=project_dir,
-                capture_output=True,
-                timeout=60,
-            )
-            for _ in range(15):
-                ready = subprocess.run(
-                    ["docker", "compose", "exec", "-T", "postgres", "pg_isready", "-U", "postgres"],
-                    cwd=project_dir,
-                    capture_output=True,
-                    timeout=5,
-                )
-                if ready.returncode == 0:
-                    break
-                time.sleep(2)
-
-    # Step 7: Start both dev servers
-    api_app_dir = project_dir / "apps" / "api"
-    dev_env = {**os.environ, "PORT": str(api_port)}
-    if "DATABASE_URL" in dotenv:
-        dev_env["DATABASE_URL"] = dotenv["DATABASE_URL"]
-
+    # Step 7: Start dev servers via `just start` — the exact user-facing entry point.
+    # This ensures the verified startup path is identical to what the developer runs,
+    # catching issues like missing PATH entries, broken traps, or signal handling bugs
+    # that only manifest through the justfile but not when processes are started directly.
+    #
+    # CI note: `just start` skips docker when DATABASE_URL is set in the environment,
+    # so no docker port conflict occurs against a CI service container.
     import tempfile
 
-    api_stderr = tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False)
-    api_proc = subprocess.Popen(
-        ["uv", "run", "uvicorn", "src.main:app", "--port", str(api_port)],
-        cwd=api_app_dir,
-        stdout=subprocess.DEVNULL,
-        stderr=api_stderr,
-        env=dev_env,
-        start_new_session=True,
-    )
-    api_pgid = os.getpgid(api_proc.pid)
-    atexit.register(_kill_process_group, api_pgid)
+    start_env = {**os.environ}
+    if "DATABASE_URL" in dotenv:
+        start_env["DATABASE_URL"] = dotenv["DATABASE_URL"]
 
-    web_env = {
-        **os.environ,
-        "WEB_PORT": str(web_port),
-        "VITE_API_PORT": str(api_port),
-    }
-    web_stderr = tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False)
-    web_proc = subprocess.Popen(
-        ["pnpm", "dev"],
-        cwd=project_dir / "apps" / "web",
+    dev_stderr = tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False)
+    dev_proc = subprocess.Popen(
+        ["just", "start"],
+        cwd=project_dir,
         stdout=subprocess.DEVNULL,
-        stderr=web_stderr,
-        env=web_env,
+        stderr=dev_stderr,
+        env=start_env,
         start_new_session=True,
     )
-    web_pgid = os.getpgid(web_proc.pid)
-    atexit.register(_kill_process_group, web_pgid)
+    dev_pgid = os.getpgid(dev_proc.pid)
+    atexit.register(_kill_process_group, dev_pgid)
 
     try:
         start = time.monotonic()
-        api_up = wait_for_port(api_port, timeout=15)
+        # Generous timeout — just start has port discovery + optional docker overhead
+        api_up = wait_for_port(api_port, timeout=60)
         elapsed = time.monotonic() - start
 
         if not api_up:
@@ -733,7 +727,7 @@ def verify_fullstack_python(
         else:
             result.steps.append(StepResult("dev server (API)", True, elapsed))
 
-        web_up = wait_for_port(web_port, timeout=30)
+        web_up = wait_for_port(web_port, timeout=60)
         web_elapsed = time.monotonic() - start
         if not web_up:
             result.steps.append(
@@ -761,8 +755,6 @@ def verify_fullstack_python(
                 "E2E_WEB_PORT": str(web_port),
                 "PLAYWRIGHT_SKIP_WEBSERVER": "1",
             }
-
-            import tempfile
 
             e2e_start = time.monotonic()
             with tempfile.NamedTemporaryFile(mode="w+", suffix=".log", delete=False) as e2e_log:
@@ -794,29 +786,15 @@ def verify_fullstack_python(
                     step = StepResult("e2e tests (web)", False, e2e_elapsed, error)
             result.steps.append(step)
 
-        # Step 10: Clean exit check — send SIGINT to both servers
-        api_stderr.close()
-        web_stderr.close()
-        api_exit = _sigint_and_check(api_proc, api_pgid, api_stderr.name)
-        web_exit = _sigint_and_check(web_proc, web_pgid, web_stderr.name)
-        # Report combined result
-        if api_exit.passed and web_exit.passed:
-            result.steps.append(StepResult("clean exit", True, api_exit.duration_s))
-        else:
-            errors = []
-            if not api_exit.passed:
-                errors.append(f"API: {api_exit.error}")
-            if not web_exit.passed:
-                errors.append(f"Web: {web_exit.error}")
-            result.steps.append(
-                StepResult("clean exit", False, api_exit.duration_s, "; ".join(errors))
-            )
+        # Step 9: Clean exit — SIGINT just start and verify it shuts down cleanly
+        dev_stderr.close()
+        exit_step = _sigint_and_check(dev_proc, dev_pgid, dev_stderr.name)
+        result.steps.append(exit_step)
     finally:
-        for pgid in (api_pgid, web_pgid):
-            try:
-                _kill_process_group(pgid)
-            except (ProcessLookupError, PermissionError):
-                pass
+        try:
+            _kill_process_group(dev_pgid)
+        except (ProcessLookupError, PermissionError):
+            pass
 
     return result
 
