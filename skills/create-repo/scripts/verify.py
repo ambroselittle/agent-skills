@@ -624,7 +624,7 @@ def verify_fullstack_python(
     # Step 4: Biome check on web app
     step = run_step(
         "biome check (web)",
-        ["npx", "@biomejs/biome", "check", "apps/web/"],
+        ["npx", "@biomejs/biome", "check", "--error-on-warnings", "apps/web/"],
         project_dir,
         timeout=60,
     )
