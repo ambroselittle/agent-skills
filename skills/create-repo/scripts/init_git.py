@@ -26,9 +26,6 @@ def run_cmd(cmd: list[str], cwd: Path, check: bool = True) -> subprocess.Complet
     )
     if check and result.returncode != 0:
         cmd_str = " ".join(cmd)
-        stderr = result.stderr.strip()
-        stdout = result.stdout.strip()
-        detail = stderr or stdout or "(no output)"
         raise subprocess.CalledProcessError(
             result.returncode,
             cmd_str,
@@ -71,9 +68,7 @@ def init_git(
     )
 
     # Check if git is already initialized with commits (partial prior run)
-    has_commits = (
-        run_cmd(["git", "rev-parse", "HEAD"], project_dir, check=False).returncode == 0
-    )
+    has_commits = run_cmd(["git", "rev-parse", "HEAD"], project_dir, check=False).returncode == 0
 
     if not has_commits:
         run_cmd(["git", "init"], project_dir)
@@ -140,9 +135,7 @@ def init_git(
                 return url or f"https://github.com/{repo_slug}"
             else:
                 # Repo exists but empty — remote already configured, just push
-                result = run_cmd(
-                    ["git", "push", "-u", "origin", "main"], project_dir, check=False
-                )
+                result = run_cmd(["git", "push", "-u", "origin", "main"], project_dir, check=False)
                 if result.returncode != 0:
                     _raise_with_output(result)
                 return repo_url or f"https://github.com/{repo_slug}"

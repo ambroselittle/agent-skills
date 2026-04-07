@@ -1,20 +1,26 @@
 # Mobile App
 
-This directory is ready for your Xcode project. A workspace has been pre-created at the repo
-root (`{{ swift_project_name }}.xcworkspace`) — open it in Xcode to see all repo files in the
-file navigator alongside your Swift code.
+This directory is the home for your iOS app. A workspace has been pre-created at the repo
+root — open **`{{ swift_project_name }}.xcworkspace`** in Xcode to get started.
 
-## Set Up the Xcode Project
+## Create the Xcode Project
 
-1. Open `{{ swift_project_name }}.xcworkspace` (at the repo root) in Xcode
-2. **File → New → Project**, choose **App** under **iOS** (not Multiplatform — see note below)
-3. Set the product name to **`{{ swift_project_name }}`**
-4. Navigate into **this directory** (`apps/ios/`) as the save location
-5. In the save sheet at the bottom, confirm these options:
-   - **Add to:** `{{ swift_project_name }}` ← wires into the workspace in one step
-   - **Group:** `{{ project_name }}`
-   - **Create Git repository:** unchecked ← repo already exists
-6. Click **Create**
+> **Open the workspace first.** The "Add to" dropdown in the save dialog only appears when a
+> workspace is already open. If you start from File → New → Project without opening the workspace
+> first, you'll get a standalone project instead.
+
+1. Open **`{{ swift_project_name }}.xcworkspace`** (at the repo root) in Xcode
+2. **File → New → Project**, choose **App** under **iOS** (see note below on iOS vs Multiplatform)
+3. Set the product name to **`{{ swift_project_name }}`**, then click Next
+4. In the save dialog, before clicking Create:
+   - Navigate the file picker into **`apps/ios/`** — Xcode defaults to the workspace directory, so you must manually navigate one level deeper
+   - Set **Add to:** `{{ swift_project_name }}` — pick the workspace entry (the one with the workspace icon, not the `{{ project_name }}` folder)
+   - Set **Group:** `{{ swift_project_name }}` — same workspace entry, same icon. **Do not pick the `{{ project_name }}` folder** — using the folder here breaks the workspace integration
+   - Uncheck **Create Git repository** ← one already exists
+5. Click **Create**
+
+When done, the Project Navigator will show `{{ swift_project_name }}` as a collapsible item with
+your source files, targets, and build settings underneath it — not just a flat file tree.
 
 Always open Xcode via the workspace going forward, not the `.xcodeproj` directly.
 
@@ -23,9 +29,9 @@ Always open Xcode via the workspace going forward, not the `.xcodeproj` directly
 > template creates separate Mac and iOS targets with divergent code paths, which is only needed
 > for a fully native Mac app experience.
 
-> **Fallback:** If you already created the project separately, drag
-> `apps/ios/{{ swift_project_name }}.xcodeproj` from Finder into the workspace's
-> Project Navigator to add it.
+> **Already created the project?** Drag `apps/ios/{{ swift_project_name }}.xcodeproj` from
+> Finder into the Project Navigator pane (look for the blue insertion indicator), or right-click
+> in the Project Navigator and choose **Add Files to "{{ swift_project_name }}"**.
 
 ## Connect to the API
 

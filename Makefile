@@ -1,4 +1,4 @@
-.PHONY: init test test-hooks test-create-repo test-scaffolds lint format format-check check help
+.PHONY: init test test-hooks test-create-repo test-scaffolds scaffold lint format format-check check help
 
 ## Setup & daily use
 help: ## Show available commands
@@ -38,6 +38,22 @@ test-create-repo: ## Run create-repo unit/structural tests
 test-scaffolds: ## Scaffold E2E (needs pnpm, node, Docker) [TEMPLATE=name|all] [KEEP=path]
 	@printf "\033[36mRunning scaffold E2E...\033[0m\n"
 	@cd skills/create-repo && uv run python ../../scripts/test-scaffolds.py $(TEMPLATE) $(if $(KEEP),--keep $(KEEP))
+
+scaffold: ## Scaffold + setup a project without the AI interview [TEMPLATE=swift-ts NAME=my-app OUTPUT=~/Repos/my-app]
+	@[ -n "$(TEMPLATE)" ] || { echo "Usage: make scaffold TEMPLATE=swift-ts NAME=my-app OUTPUT=~/Repos/my-app"; exit 1; }
+	@[ -n "$(NAME)" ] || { echo "Usage: make scaffold TEMPLATE=swift-ts NAME=my-app OUTPUT=~/Repos/my-app"; exit 1; }
+	@[ -n "$(OUTPUT)" ] || { echo "Usage: make scaffold TEMPLATE=swift-ts NAME=my-app OUTPUT=~/Repos/my-app"; exit 1; }
+	@printf "\033[36mResolving versions...\033[0m\n"
+	@cd skills/create-repo && uv run python -m scripts.resolve_versions --template $(TEMPLATE) --output /tmp/create-repo-versions.json
+	@printf "\033[36mScaffolding $(NAME)...\033[0m\n"
+	cd skills/create-repo && uv run python -m scripts.scaffold \
+		--project-name $(NAME) \
+		--template $(TEMPLATE) \
+		--versions /tmp/create-repo-versions.json \
+		--output $(OUTPUT) \
+		$(if $(FORCE),--force,)
+	@printf "\033[36mSetting up...\033[0m\n"
+	cd skills/create-repo && uv run python -m scripts.scaffold --setup $(OUTPUT) $(if $(SKIP_DOCKER),--skip-docker,)
 
 ## Code quality
 check: format lint ## Auto-fix formatting and lint
