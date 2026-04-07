@@ -1,6 +1,9 @@
 """Git operation handlers: git-force-push, git-reset-hard, git-push-direct."""
 
+from __future__ import annotations
+
 import re
+import subprocess
 from fnmatch import fnmatch
 
 from operations.common import _command, _is_bash, _split_subcommands
@@ -68,6 +71,57 @@ def _is_force_flag(tokens: list[str]) -> bool:
 
 def _branch_matches_any(branch: str, patterns: list[str]) -> bool:
     return any(fnmatch(branch, p) for p in patterns)
+
+
+def _extract_git_cwd(tokens: list[str]) -> str | None:
+    """Extract working directory from -C flag, e.g. git -C /path push ..."""
+    i = 1
+    while i < len(tokens):
+        if tokens[i] == "-C" and i + 1 < len(tokens):
+            return tokens[i + 1]
+        if tokens[i].startswith("-") and not tokens[i].startswith("--"):
+            i += 1
+            continue
+        break
+    return None
+
+
+def _extract_push_remote(tokens: list[str]) -> str | None:
+    """Extract the remote name from push tokens (first positional arg after 'push')."""
+    push_idx = next((i for i, t in enumerate(tokens) if t == "push"), None)
+    if push_idx is None:
+        return None
+    positional = []
+    i = push_idx + 1
+    while i < len(tokens):
+        tok = tokens[i]
+        if tok in ("--push-option", "-o", "--receive-pack", "--repo", "--signed"):
+            i += 2
+            continue
+        if tok in ("--set-upstream", "-u", "--force-with-lease-ifvalue"):
+            i += 1
+            continue
+        if tok.startswith("-"):
+            i += 1
+            continue
+        positional.append(tok)
+        i += 1
+    return positional[0] if positional else None
+
+
+def _remote_is_empty(remote: str, cwd: str | None) -> bool:
+    """Return True if the remote has no refs (initial push to empty repo)."""
+    try:
+        result = subprocess.run(
+            ["git", "ls-remote", "--exit-code", remote],
+            cwd=cwd,
+            capture_output=True,
+            timeout=5,
+        )
+        # exit code 2 means no matching refs; empty stdout also means no refs
+        return result.returncode == 2 or result.stdout.strip() == b""
+    except Exception:
+        return False
 
 
 def matches_git_force_push(payload: dict, rule: dict) -> bool:
@@ -163,7 +217,15 @@ def matches_git_push_direct(payload: dict, rule: dict) -> bool:
         if branch is None:
             continue
 
-        if _branch_matches_any(branch, deny_branches):
-            return True
+        if not _branch_matches_any(branch, deny_branches):
+            continue
+
+        # Allow initial pushes to empty remotes — no history to protect
+        remote = _extract_push_remote(tokens)
+        cwd = _extract_git_cwd(tokens)
+        if remote and _remote_is_empty(remote, cwd):
+            continue
+
+        return True
 
     return False

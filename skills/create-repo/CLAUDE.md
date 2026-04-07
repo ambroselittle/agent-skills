@@ -11,8 +11,8 @@ create-repo/
 ├── pyproject.toml        # Python project config (uv-managed)
 ├── scripts/              # Python modules called by the skill
 │   ├── preflight.py      # Environment checker (tools, versions)
-│   ├── scaffold.py       # Jinja2 template renderer (layered, with extends)
-│   ├── verify.py         # Build/test/lint verification (platform-aware)
+│   ├── scaffold.py       # Jinja2 template renderer + setup_project() (install, docker, db)
+│   ├── verify.py         # Quality checks only: build/typecheck/lint/test/e2e (platform-aware)
 │   └── init_git.py       # Git init + GitHub repo creation
 ├── templates/            # Jinja2 template files
 │   ├── __common/         # Universal files (all templates)
@@ -30,7 +30,15 @@ create-repo/
 
 ## How it works
 
-The SKILL.md orchestrates the flow: interview → preflight → version resolution → scaffold → verify → git init. The Python scripts handle deterministic work (rendering templates, running verification commands). The AI handles intelligence work (version resolution via parallel agents, applying customizations, diagnosing failures).
+The SKILL.md orchestrates the flow: interview → preflight → version resolution → scaffold → setup → verify → git init. The Python scripts handle deterministic work (rendering templates, installing deps, running verification commands). The AI handles intelligence work (version resolution via parallel agents, applying customizations, diagnosing failures).
+
+### Post-scaffold pipeline (setup vs verify)
+
+After templates are rendered, the pipeline splits into two phases:
+- **Setup** (`scaffold.py: setup_project()`) — deterministic steps to get a working project: install deps, run setup scripts (port discovery, .env generation), prisma generate, biome format, docker compose up, db push, db seed / alembic migrate.
+- **Verify** (`verify.py: verify()`) — quality checks that assume setup is done: build, typecheck, lint, test, dev server smoke check, E2E tests.
+
+Both the skill (SKILL.md) and E2E tests (run_eval.py) use the exact same `setup_project()` → `verify()` code path.
 
 ## Template layers
 
@@ -77,7 +85,7 @@ For `versions.*` in Jinja2 templates, convert package names:
 ## Platform detection
 
 `verify.py` and `check_structure.py` detect the platform from the scaffolded output:
-- `package.json` + `apps/mobile/Package.swift` → swift-ts (Node pipeline for API + xcodebuild for Swift on macOS, skipped on Linux)
+- `package.json` + `apps/ios/` directory → swift-ts (Node pipeline for API; Swift side is not auto-verified — user creates Xcode project in apps/ios/)
 - Both `pyproject.toml` and `package.json` present → fullstack-python (combined: uv + pnpm, ruff + biome, pytest + vitest, both dev servers)
 - `pyproject.toml` only → Python (uv sync, ruff, pytest, uvicorn)
 - `package.json` only → Node (pnpm install, biome, turbo, vitest)

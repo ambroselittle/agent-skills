@@ -1,20 +1,39 @@
 # {{ project_name }}
 {% raw %}
-# Start both API and web dev servers
-dev:
+set dotenv-load := true
+
+# Discover free ports and write .env files (run once before starting, or to resolve port conflicts)
+setup:
+    uv run python scripts/setup.py
+
+# Start everything (Postgres + API + web dev servers). Tears down Docker on exit.
+# Re-runs setup automatically if .env is missing or DB port is already taken.
+start:
     #!/usr/bin/env bash
-    trap 'kill 0' EXIT
-    (cd apps/api && uv run uvicorn src.main:app --reload --port ${API_PORT:-8000} 2>&1 | sed 's/^/[api] /') &
-    (cd apps/web && pnpm dev 2>&1 | sed 's/^/[web] /') &
-    wait
-
-# Start the API dev server only
-dev-api:
-    cd apps/api && uv run uvicorn src.main:app --reload --port ${API_PORT:-8000}
-
-# Start the web dev server only
-dev-web:
-    cd apps/web && pnpm dev
+    set -euo pipefail
+    # Auto-discover ports on first run
+    if [ ! -f .env ]; then
+        echo "No .env found — running setup to discover ports..."
+        just setup
+    fi
+    # Load .env so we can read the ports in this script
+    set -a; source .env; set +a
+    db_port="${DB_PORT:-5432}"
+    # If DB_PORT is already taken by something other than our container, rediscover
+    if ! python3 -c "import socket; s=socket.socket(socket.AF_INET,socket.SOCK_STREAM); s.bind(('', ${db_port})); s.close()" 2>/dev/null; then
+        if ! docker compose ps --quiet postgres 2>/dev/null | grep -q .; then
+            echo "Port ${db_port} is already taken. Re-running setup to find free ports..."
+            just setup
+            set -a; source .env; set +a
+        fi
+    fi
+    docker compose up -d
+    trap '' INT
+    set +e
+    trap 'echo ""; echo "Shutting down..."; kill 0 2>/dev/null; wait 2>/dev/null; docker compose down 2>/dev/null' EXIT
+    (cd apps/api && uv run uvicorn src.main:app --reload --port "${API_PORT:-8000}" 2> >(grep -v "Interrupted by SIGINT" >&2) | sed 's/^/[api] /') &
+    (cd apps/web && bash scripts/dev.sh 2>&1 | sed 's/^/[web] /') &
+    wait 2>/dev/null
 
 # Run all tests
 test:

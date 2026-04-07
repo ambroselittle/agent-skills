@@ -15,9 +15,7 @@ from eval.models import CheckResult
 
 def _detect_platform(project_dir: Path) -> str:
     """Detect platform from scaffolded output."""
-    if (project_dir / "package.json").exists() and (
-        project_dir / "apps" / "mobile" / "Package.swift"
-    ).exists():
+    if (project_dir / "package.json").exists() and (project_dir / "apps" / "ios").is_dir():
         return "swift-ts"
     # Mixed platform: both Python and Node files present
     if (project_dir / "pyproject.toml").exists() and (project_dir / "package.json").exists():
@@ -630,64 +628,13 @@ def _check_swift_ts(project_dir: Path, checks: list[CheckResult]) -> None:
             )
         )
 
-    # Swift app files (Package.swift + at least one source dir with App.swift pattern)
-    swift_files = [
-        "apps/mobile/Package.swift",
-    ]
-    for f in swift_files:
-        path = project_dir / f
-        checks.append(
-            CheckResult(
-                f"file: {f}",
-                path.exists(),
-                None if path.exists() else f"Missing: {f}",
-            )
-        )
-
-    # Check for Swift source files (PascalCase dir from __swift_project_name__)
-    sources_dir = project_dir / "apps" / "mobile" / "Sources"
-    has_swift_sources = False
-    if sources_dir.exists():
-        for child in sources_dir.iterdir():
-            if child.is_dir() and (child / "App.swift").exists():
-                has_swift_sources = True
-                break
+    # Mobile directory should exist with README for Xcode project setup
+    mobile_readme = project_dir / "apps" / "ios" / "README.md"
     checks.append(
         CheckResult(
-            "swift: Sources/*/App.swift exists",
-            has_swift_sources,
-            None if has_swift_sources else "No App.swift found in apps/mobile/Sources/*/",
-        )
-    )
-
-    # Check for Swift APIClient
-    has_api_client = False
-    if sources_dir.exists():
-        for child in sources_dir.iterdir():
-            if child.is_dir() and (child / "Services" / "APIClient.swift").exists():
-                has_api_client = True
-                break
-    checks.append(
-        CheckResult(
-            "swift: Services/APIClient.swift exists",
-            has_api_client,
-            None if has_api_client else "No APIClient.swift found in apps/mobile/Sources/*/Services/",
-        )
-    )
-
-    # Check for Swift tests
-    tests_dir = project_dir / "apps" / "mobile" / "Tests"
-    has_swift_tests = False
-    if tests_dir.exists():
-        for child in tests_dir.iterdir():
-            if child.is_dir() and any(child.glob("*.swift")):
-                has_swift_tests = True
-                break
-    checks.append(
-        CheckResult(
-            "swift: Tests/*/swift test files exist",
-            has_swift_tests,
-            None if has_swift_tests else "No Swift test files found in apps/mobile/Tests/*/",
+            "file: apps/ios/README.md",
+            mobile_readme.exists(),
+            None if mobile_readme.exists() else "Missing: apps/ios/README.md",
         )
     )
 
@@ -697,9 +644,7 @@ def _check_swift_ts(project_dir: Path, checks: list[CheckResult]) -> None:
         CheckResult(
             "no apps/web directory",
             not web_dir.exists(),
-            "apps/web/ exists but should not for swift-ts template"
-            if web_dir.exists()
-            else None,
+            "apps/web/ exists but should not for swift-ts template" if web_dir.exists() else None,
         )
     )
 

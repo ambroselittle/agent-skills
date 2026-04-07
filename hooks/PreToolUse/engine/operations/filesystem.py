@@ -1,5 +1,7 @@
 """Filesystem operation handlers: read-path, write-path, delete-path."""
 
+from __future__ import annotations
+
 import re
 from pathlib import Path
 

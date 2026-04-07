@@ -140,7 +140,8 @@ def test_run_check_no_min_version():
         "install": "Install Xcode from the App Store",
     }
     with patch(
-        "scripts.preflight.subprocess.run", return_value=_mock_run(stdout="Swift version 6.0 (swift-6.0-RELEASE)")
+        "scripts.preflight.subprocess.run",
+        return_value=_mock_run(stdout="Swift version 6.0 (swift-6.0-RELEASE)"),
     ):
         result = run_check(check)
     assert result.status == Status.OK
@@ -222,6 +223,7 @@ def test_preflight_fullstack_ts_all_present():
         "node": "v22.22.2",
         "pnpm": "10.33.0",
         "docker": "Docker version 29.3.1, build afdd53b",
+        "corepack": "0.31.0",
         "gh auth status": "Logged in",
         "docker info": "Server Version: 29.3.1",
     }
@@ -242,6 +244,7 @@ def test_preflight_template_specific_checks_python():
         "pnpm": "10.33.0",
         "docker": "Docker version 29.3.1",
         "uv": None,  # uv not installed
+        "corepack": "0.31.0",
         "gh auth status": "Logged in",
         "docker info": "ok",
     }
@@ -262,6 +265,7 @@ def test_preflight_template_specific_not_included_for_other_templates():
         "node": "v22.22.2",
         "pnpm": "10.33.0",
         "docker": "Docker version 29.3.1",
+        "corepack": "0.31.0",
         "gh auth status": "Logged in",
         "docker info": "ok",
     }
@@ -274,16 +278,15 @@ def test_preflight_template_specific_not_included_for_other_templates():
     assert "swift" not in tool_names
 
 
-def test_preflight_swift_ts_includes_all_swift_checks():
-    """swift-ts should include xcodebuild and swift checks."""
+def test_preflight_swift_ts_has_no_xcode_checks():
+    """swift-ts should not require xcodebuild or swift — Xcode project created manually."""
     responses = {
         "git": "git version 2.53.0",
         "gh": "gh version 2.89.0",
         "node": "v22.22.2",
         "pnpm": "10.33.0",
         "docker": "Docker version 29.3.1",
-        "xcodebuild": "Xcode 16.0\nBuild version 16A242d",
-        "swift": "Swift version 6.0 (swift-6.0-RELEASE)",
+        "corepack": "0.31.0",
         "gh auth status": "Logged in",
         "docker info": "ok",
     }
@@ -291,36 +294,8 @@ def test_preflight_swift_ts_includes_all_swift_checks():
         results = preflight("swift-ts")
 
     tool_names = [r.tool for r in results]
-    assert "xcodebuild" in tool_names
-    assert "swift" in tool_names
-
-    # All should pass with the given versions
-    for r in results:
-        if r.tool in ("xcodebuild", "swift"):
-            assert r.status == Status.OK, f"{r.tool}: {r.status}"
-
-
-def test_preflight_swift_ts_missing_xcodebuild():
-    """Missing xcodebuild should report MISSING, not crash."""
-    responses = {
-        "git": "git version 2.53.0",
-        "gh": "gh version 2.89.0",
-        "node": "v22.22.2",
-        "pnpm": "10.33.0",
-        "docker": "Docker version 29.3.1",
-        "xcodebuild": None,  # not installed
-        "swift": None,  # not installed
-        "gh auth status": "Logged in",
-        "docker info": "ok",
-    }
-    with patch("scripts.preflight.subprocess.run", side_effect=_make_version_responses(responses)):
-        results = preflight("swift-ts")
-
-    xcodebuild = next(r for r in results if r.tool == "xcodebuild")
-    assert xcodebuild.status == Status.MISSING
-
-    swift_result = next(r for r in results if r.tool == "swift")
-    assert swift_result.status == Status.MISSING
+    assert "xcodebuild" not in tool_names
+    assert "swift" not in tool_names
 
 
 # --- generate_install_script ---

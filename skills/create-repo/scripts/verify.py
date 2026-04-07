@@ -1,7 +1,11 @@
 """Verify a scaffolded project builds, typechecks, lints, and tests.
 
-Runs the full verification suite in sequence. Detects the project platform
-(Node/Python/fullstack-python) and runs the appropriate tool chain.
+Runs quality checks only — assumes the project is already set up (deps
+installed, docker running, db pushed/migrated). Use ``setup_project()``
+from ``scaffold.py`` for the setup phase.
+
+Detects the project platform (Node/Python/fullstack-python) and runs
+the appropriate tool chain.
 """
 
 from __future__ import annotations
@@ -9,7 +13,6 @@ from __future__ import annotations
 import argparse
 import atexit
 import os
-import shutil
 import socket
 import subprocess
 import sys
@@ -110,18 +113,81 @@ def _kill_process_group(pgid: int) -> None:
         time.sleep(0.5)
 
 
+# Error patterns that indicate a dirty SIGINT exit
+_DIRTY_EXIT_PATTERNS = [
+    "ELIFECYCLE",
+    "run failed",
+    "Interrupted by SIGINT",
+    "Command failed",
+]
+
+
+def _sigint_and_check(
+    proc: subprocess.Popen,
+    pgid: int,
+    stderr_file: str | None = None,
+) -> StepResult:
+    """Send SIGINT to a process group and verify clean exit.
+
+    Returns a StepResult indicating whether the process exited cleanly
+    (no error patterns in stderr, exit code 0 or SIGINT-related).
+    """
+    import signal
+
+    start = time.monotonic()
+
+    try:
+        os.killpg(pgid, signal.SIGINT)
+    except (ProcessLookupError, PermissionError):
+        return StepResult("clean exit", True, 0)
+
+    # Wait up to 10s for graceful shutdown
+    try:
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        # Force kill if it didn't exit
+        _kill_process_group(pgid)
+        elapsed = time.monotonic() - start
+        return StepResult(
+            "clean exit", False, elapsed, "Process did not exit within 10s after SIGINT"
+        )
+
+    elapsed = time.monotonic() - start
+
+    # Read stderr if captured to a file
+    errors: list[str] = []
+    if stderr_file:
+        try:
+            stderr_content = Path(stderr_file).read_text()
+            for pattern in _DIRTY_EXIT_PATTERNS:
+                if pattern in stderr_content:
+                    errors.append(pattern)
+        except OSError:
+            pass
+
+    if errors:
+        return StepResult(
+            "clean exit",
+            False,
+            elapsed,
+            f"Dirty exit — found error output: {', '.join(errors)}",
+        )
+
+    return StepResult("clean exit", True, elapsed)
+
+
 def detect_platform(project_dir: Path) -> str:
     """Detect the project platform from its files.
 
-    Returns 'swift-ts' if package.json and apps/mobile/Package.swift both exist,
+    Returns 'swift-ts' if package.json and apps/ios/ directory both exist,
     'fullstack-python' if both pyproject.toml and package.json exist,
     'python' if only pyproject.toml, 'node' if only package.json.
     Raises ValueError if neither is found.
     """
     has_pyproject = (project_dir / "pyproject.toml").exists()
     has_package_json = (project_dir / "package.json").exists()
-    has_mobile_project = (project_dir / "apps" / "mobile" / "Package.swift").exists()
-    if has_package_json and has_mobile_project:
+    has_mobile_dir = (project_dir / "apps" / "ios").is_dir()
+    if has_package_json and has_mobile_dir:
         return "swift-ts"
     if has_pyproject and has_package_json:
         return "fullstack-python"
@@ -137,35 +203,32 @@ def detect_platform(project_dir: Path) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _start_postgres(project_dir: Path, result: VerifyResult, skip_docker: bool) -> bool:
-    """Start Postgres via docker compose if needed. Returns True if ready."""
-    if skip_docker:
-        return True
+def _read_dotenv(dotenv_file: Path) -> dict[str, str]:
+    """Parse a .env file and return key-value pairs (ignores comments and blanks)."""
+    if not dotenv_file.exists():
+        return {}
+    result: dict[str, str] = {}
+    for line in dotenv_file.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, _, value = line.partition("=")
+            result[key.strip()] = value.strip()
+    return result
 
-    step = run_step("docker compose up", ["docker", "compose", "up", "-d"], project_dir, timeout=60)
-    result.steps.append(step)
-    if not step.passed:
-        return False
 
-    # Wait for Postgres health check
-    step = run_step(
-        "postgres health",
-        ["docker", "compose", "exec", "-T", "postgres", "pg_isready", "-U", "postgres"],
-        project_dir,
-        timeout=30,
-    )
-    for _ in range(5):
-        if step.passed:
-            break
-        time.sleep(2)
-        step = run_step(
-            "postgres health",
-            ["docker", "compose", "exec", "-T", "postgres", "pg_isready", "-U", "postgres"],
-            project_dir,
-            timeout=10,
+def _teardown_docker(project_dir: Path) -> None:
+    """Tear down docker compose stack."""
+    if not project_dir.exists():
+        return
+    try:
+        subprocess.run(
+            ["docker", "compose", "down", "-v"],
+            cwd=project_dir,
+            capture_output=True,
+            timeout=30,
         )
-    result.steps.append(step)
-    return step.passed
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -177,9 +240,12 @@ def verify_node(
     project_dir: Path,
     api_port: int = 3001,
     web_port: int = 3000,
-    skip_docker: bool = False,
 ) -> VerifyResult:
-    """Verify a Node/TypeScript scaffolded project."""
+    """Verify a Node/TypeScript scaffolded project.
+
+    Assumes setup is already done (deps installed, docker running, db pushed).
+    Reads ports from .env.ports if available.
+    """
     result = VerifyResult()
 
     # Force a project-local turbo cache to prevent cross-worktree cache
@@ -187,80 +253,36 @@ def verify_node(
     # different worktrees share stale cached logs with wrong absolute paths).
     turbo_env = {**os.environ, "TURBO_CACHE_DIR": str(project_dir / ".turbo")}
 
-    # Step 1: Install dependencies
-    step = run_step("pnpm install", ["pnpm", "install"], project_dir, timeout=120)
-    result.steps.append(step)
-    if not step.passed:
-        return result
+    # Read discovered ports from .env.ports (written by setup)
+    ports_file = project_dir / ".env.ports"
+    if ports_file.exists():
+        for line in ports_file.read_text().splitlines():
+            if "=" in line:
+                key, val = line.split("=", 1)
+                if key == "API_PORT":
+                    api_port = int(val)
+                elif key == "WEB_PORT":
+                    web_port = int(val)
 
-    # Step 1b: Run project setup (port discovery + .env generation)
-    setup_script = project_dir / "scripts" / "setup.ts"
-    if setup_script.exists() and not skip_docker:
-        step = run_step("setup", ["pnpm", "project:setup"], project_dir, timeout=30)
-        result.steps.append(step)
-        if not step.passed:
-            return result
-
-        ports_file = project_dir / ".env.ports"
-        if ports_file.exists():
-            for line in ports_file.read_text().splitlines():
-                if "=" in line:
-                    key, val = line.split("=", 1)
-                    if key == "API_PORT":
-                        api_port = int(val)
-                    elif key == "WEB_PORT":
-                        web_port = int(val)
-
-    # Step 1c: Generate Prisma client + barrel exports
-    step = run_step(
-        "prisma generate",
-        ["pnpm", "--filter", "**/db", "run", "generate"],
-        project_dir,
-        timeout=60,
-    )
-    result.steps.append(step)
-    if not step.passed:
-        return result
-
-    # Step 1d: Auto-format with Biome (fix formatting drift from generation)
-    step = run_step("biome format", ["pnpm", "lint:fix"], project_dir, timeout=60)
-    result.steps.append(step)
-    # Non-fatal — continue even if format step fails
-
-    # Step 2: Start Postgres
-    if not _start_postgres(project_dir, result, skip_docker):
-        return result
-
-    # Step 3: Push database schema
-    step = run_step("db push", ["pnpm", "db:push"], project_dir, timeout=60)
-    result.steps.append(step)
-    if not step.passed:
-        return result
-
-    # Step 3b: Seed database
-    step = run_step("db seed", ["pnpm", "db:seed"], project_dir, timeout=60)
-    result.steps.append(step)
-    # Non-fatal — tests can run without seed data
-
-    # Step 4: Build
+    # Step 1: Build
     step = run_step("build", ["pnpm", "build"], project_dir, timeout=120, env=turbo_env)
     result.steps.append(step)
     if not step.passed:
         return result
 
-    # Step 5: Typecheck
+    # Step 2: Typecheck
     step = run_step("typecheck", ["pnpm", "typecheck"], project_dir, timeout=60, env=turbo_env)
     result.steps.append(step)
     if not step.passed:
         return result
 
-    # Step 6: Lint
+    # Step 3: Lint
     step = run_step("lint", ["pnpm", "lint"], project_dir, timeout=60, env=turbo_env)
     result.steps.append(step)
     if not step.passed:
         return result
 
-    # Step 7: Test
+    # Step 4: Test
     step = run_step("test", ["pnpm", "test"], project_dir, timeout=120, env=turbo_env)
     result.steps.append(step)
     if not step.passed:
@@ -270,7 +292,7 @@ def verify_node(
     has_web = (project_dir / "apps" / "web").is_dir()
     api_e2e_config = project_dir / "apps" / "api" / "playwright.config.ts"
 
-    # Step 7b: Install Playwright browsers (only needed for browser-based E2E)
+    # Step 5: Install Playwright browsers (only needed for browser-based E2E)
     if has_web:
         playwright_config = project_dir / "apps" / "web" / "playwright.config.ts"
         if playwright_config.exists():
@@ -282,7 +304,35 @@ def verify_node(
             )
             result.steps.append(step)
 
-    # Step 8: Dev server smoke check
+    # Step 5b: Ensure Postgres is running (may have been stopped if setup ran in a
+    # separate process — e.g., the skill calls scaffold --setup then verify separately)
+    compose_file = project_dir / "docker-compose.yml"
+    if compose_file.exists():
+        is_up = subprocess.run(
+            ["docker", "compose", "ps", "--quiet", "postgres"],
+            cwd=project_dir,
+            capture_output=True,
+            timeout=10,
+        ).stdout.strip()
+        if not is_up:
+            subprocess.run(
+                ["docker", "compose", "up", "-d"],
+                cwd=project_dir,
+                capture_output=True,
+                timeout=60,
+            )
+            for _ in range(15):
+                ready = subprocess.run(
+                    ["docker", "compose", "exec", "-T", "postgres", "pg_isready", "-U", "postgres"],
+                    cwd=project_dir,
+                    capture_output=True,
+                    timeout=5,
+                )
+                if ready.returncode == 0:
+                    break
+                time.sleep(2)
+
+    # Step 6: Dev server smoke check
     dev_env = {
         **turbo_env,
         "PORT": str(api_port),
@@ -291,11 +341,14 @@ def verify_node(
         dev_env["WEB_PORT"] = str(web_port)
         dev_env["VITE_API_PORT"] = str(api_port)
 
+    import tempfile
+
+    dev_stderr = tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False)
     dev_proc = subprocess.Popen(
-        ["pnpm", "dev"],
+        ["pnpm", "exec", "turbo", "dev"],
         cwd=project_dir,
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stderr=dev_stderr,
         env=dev_env,
         start_new_session=True,
     )
@@ -332,7 +385,7 @@ def verify_node(
             else:
                 result.steps.append(StepResult("dev server (web)", True, web_elapsed))
 
-        # Step 9: E2E tests (while dev server is running)
+        # Step 7: E2E tests (while dev server is running)
         # Build list of E2E targets — both web and API can have E2E tests
         e2e_targets: list[tuple[str, Path]] = []
         if has_web and web_up and (project_dir / "apps" / "web" / "playwright.config.ts").exists():
@@ -381,6 +434,11 @@ def verify_node(
                             error += f"\nPartial output:\n{partial[:1000]}"
                         step = StepResult(e2e_name, False, e2e_elapsed, error)
                 result.steps.append(step)
+
+        # Step 8: Clean exit check — send SIGINT and verify no error output
+        dev_stderr.close()
+        exit_step = _sigint_and_check(dev_proc, dev_pgid, dev_stderr.name)
+        result.steps.append(exit_step)
     finally:
         try:
             pgid = os.getpgid(dev_proc.pid)
@@ -399,53 +457,26 @@ def verify_node(
 def verify_python(
     project_dir: Path,
     api_port: int = 8000,
-    skip_docker: bool = False,
 ) -> VerifyResult:
-    """Verify a Python (FastAPI/uv) scaffolded project."""
+    """Verify a Python (FastAPI/uv) scaffolded project.
+
+    Assumes setup is already done (deps installed, docker running, db migrated).
+    Reads ports from .env if available.
+    """
     result = VerifyResult()
 
-    # Step 1: Install dependencies
-    # Use Python 3.13 if available — 3.14 lacks prebuilt wheels for many
-    # packages (pydantic-core, etc.), causing slow Rust compilation failures.
-    uv_sync_cmd = ["uv", "sync"]
-    try:
-        import subprocess as _sp
+    # Read ports from .env (written by setup)
+    dotenv = _read_dotenv(project_dir / ".env")
+    if "API_PORT" in dotenv:
+        api_port = int(dotenv["API_PORT"])
 
-        _sp.run(["uv", "python", "find", "3.13"], capture_output=True, check=True)
-        uv_sync_cmd = ["uv", "sync", "--python", "3.13"]
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        pass  # Fall back to default Python
-    step = run_step("uv sync", uv_sync_cmd, project_dir, timeout=120)
-    result.steps.append(step)
-    if not step.passed:
-        return result
-
-    # Step 2: Start Postgres
-    if not _start_postgres(project_dir, result, skip_docker):
-        return result
-
-    # Step 3: Run Alembic migrations (if alembic.ini exists in any app)
-    alembic_dirs = list(project_dir.glob("apps/*/alembic.ini"))
-    for alembic_ini in alembic_dirs:
-        app_dir = alembic_ini.parent
-        app_name = app_dir.name
-        step = run_step(
-            f"alembic upgrade ({app_name})",
-            ["uv", "run", "alembic", "upgrade", "head"],
-            app_dir,
-            timeout=300,  # May compile native deps (e.g., pydantic-core) on newer Python
-        )
-        result.steps.append(step)
-        if not step.passed:
-            return result
-
-    # Step 4: Lint
+    # Step 1: Lint
     step = run_step("ruff check", ["uv", "run", "ruff", "check", "."], project_dir, timeout=60)
     result.steps.append(step)
     if not step.passed:
         return result
 
-    # Step 5: Format check
+    # Step 2: Format check
     step = run_step(
         "ruff format --check",
         ["uv", "run", "ruff", "format", "--check", "."],
@@ -455,24 +486,56 @@ def verify_python(
     result.steps.append(step)
     # Non-fatal — continue even if format check fails
 
-    # Step 6: Test
+    # Step 3: Test
     step = run_step("pytest", ["uv", "run", "pytest"], project_dir, timeout=120)
     result.steps.append(step)
     if not step.passed:
         return result
 
-    # Step 7: Dev server smoke check
+    # Step 3b: Ensure Postgres is running (may have been stopped if setup ran separately)
+    compose_file = project_dir / "docker-compose.yml"
+    if compose_file.exists():
+        is_up = subprocess.run(
+            ["docker", "compose", "ps", "--quiet", "postgres"],
+            cwd=project_dir,
+            capture_output=True,
+            timeout=10,
+        ).stdout.strip()
+        if not is_up:
+            subprocess.run(
+                ["docker", "compose", "up", "-d"],
+                cwd=project_dir,
+                capture_output=True,
+                timeout=60,
+            )
+            for _ in range(15):
+                ready = subprocess.run(
+                    ["docker", "compose", "exec", "-T", "postgres", "pg_isready", "-U", "postgres"],
+                    cwd=project_dir,
+                    capture_output=True,
+                    timeout=5,
+                )
+                if ready.returncode == 0:
+                    break
+                time.sleep(2)
+
+    # Step 4: Dev server smoke check
     api_app_dir = project_dir / "apps" / "api"
     if not api_app_dir.exists():
         # Flat project layout — run from root
         api_app_dir = project_dir
 
     dev_env = {**os.environ, "PORT": str(api_port)}
+    if "DATABASE_URL" in dotenv:
+        dev_env["DATABASE_URL"] = dotenv["DATABASE_URL"]
+    import tempfile
+
+    dev_stderr = tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False)
     dev_proc = subprocess.Popen(
         ["uv", "run", "uvicorn", "src.main:app", "--port", str(api_port)],
         cwd=api_app_dir,
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stderr=dev_stderr,
         env=dev_env,
         start_new_session=True,
     )
@@ -493,6 +556,11 @@ def verify_python(
             result.steps.append(StepResult("dev server", False, elapsed, "Health check failed"))
         else:
             result.steps.append(StepResult("dev server", True, elapsed))
+
+        # Step 5: Clean exit check
+        dev_stderr.close()
+        exit_step = _sigint_and_check(dev_proc, dev_pgid, dev_stderr.name)
+        result.steps.append(exit_step)
     finally:
         try:
             pgid = os.getpgid(dev_proc.pid)
@@ -512,67 +580,33 @@ def verify_fullstack_python(
     project_dir: Path,
     api_port: int = 8000,
     web_port: int = 3000,
-    skip_docker: bool = False,
 ) -> VerifyResult:
-    """Verify a fullstack-python project (React frontend + FastAPI backend)."""
+    """Verify a fullstack-python project (React frontend + FastAPI backend).
+
+    Assumes setup is already done (deps installed, docker running, db migrated).
+    Reads ports from .env if available.
+    """
     result = VerifyResult()
+
+    # Read ports from .env (written by setup)
+    dotenv = _read_dotenv(project_dir / ".env")
+    if "API_PORT" in dotenv:
+        api_port = int(dotenv["API_PORT"])
+    if "WEB_PORT" in dotenv:
+        web_port = int(dotenv["WEB_PORT"])
 
     # Step 0: Verify justfile parses correctly (non-fatal — just may not be installed)
     step = run_step("just --summary", ["just", "--summary"], project_dir, timeout=10)
     result.steps.append(step)
     # Non-fatal — just may not be installed in the verify environment
 
-    # Step 1a: Install Python dependencies
-    uv_sync_cmd = ["uv", "sync"]
-    try:
-        import subprocess as _sp
-
-        _sp.run(["uv", "python", "find", "3.13"], capture_output=True, check=True)
-        uv_sync_cmd = ["uv", "sync", "--python", "3.13"]
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        pass
-    step = run_step("uv sync", uv_sync_cmd, project_dir, timeout=120)
-    result.steps.append(step)
-    if not step.passed:
-        return result
-
-    # Step 1b: Install web dependencies
-    step = run_step(
-        "pnpm install (web)",
-        ["pnpm", "install", "--dir", "apps/web"],
-        project_dir,
-        timeout=120,
-    )
-    result.steps.append(step)
-    if not step.passed:
-        return result
-
-    # Step 2: Start Postgres
-    if not _start_postgres(project_dir, result, skip_docker):
-        return result
-
-    # Step 3: Run Alembic migrations
-    alembic_dirs = list(project_dir.glob("apps/*/alembic.ini"))
-    for alembic_ini in alembic_dirs:
-        app_dir = alembic_ini.parent
-        app_name = app_dir.name
-        step = run_step(
-            f"alembic upgrade ({app_name})",
-            ["uv", "run", "alembic", "upgrade", "head"],
-            app_dir,
-            timeout=300,
-        )
-        result.steps.append(step)
-        if not step.passed:
-            return result
-
-    # Step 4: Python lint
+    # Step 1: Python lint
     step = run_step("ruff check", ["uv", "run", "ruff", "check", "."], project_dir, timeout=60)
     result.steps.append(step)
     if not step.passed:
         return result
 
-    # Step 5: Python format check (non-fatal)
+    # Step 2: Python format check (non-fatal)
     step = run_step(
         "ruff format --check",
         ["uv", "run", "ruff", "format", "--check", "."],
@@ -581,13 +615,13 @@ def verify_fullstack_python(
     )
     result.steps.append(step)
 
-    # Step 6: Python tests
+    # Step 3: Python tests
     step = run_step("pytest", ["uv", "run", "pytest"], project_dir, timeout=120)
     result.steps.append(step)
     if not step.passed:
         return result
 
-    # Step 7: Biome check on web app
+    # Step 4: Biome check on web app
     step = run_step(
         "biome check (web)",
         ["npx", "@biomejs/biome", "check", "apps/web/"],
@@ -597,7 +631,7 @@ def verify_fullstack_python(
     result.steps.append(step)
     # Non-fatal
 
-    # Step 7b: Web unit tests
+    # Step 5: Web unit tests
     step = run_step(
         "vitest (web)",
         ["pnpm", "--dir", "apps/web", "run", "test"],
@@ -608,7 +642,7 @@ def verify_fullstack_python(
     if not step.passed:
         return result
 
-    # Step 7c: Install Playwright browsers
+    # Step 6: Install Playwright browsers
     playwright_config = project_dir / "apps" / "web" / "playwright.config.ts"
     if playwright_config.exists():
         step = run_step(
@@ -619,15 +653,47 @@ def verify_fullstack_python(
         )
         result.steps.append(step)
 
-    # Step 8: Start both dev servers
+    # Step 6b: Ensure Postgres is running (may have been stopped if setup ran separately)
+    compose_file = project_dir / "docker-compose.yml"
+    if compose_file.exists():
+        is_up = subprocess.run(
+            ["docker", "compose", "ps", "--quiet", "postgres"],
+            cwd=project_dir,
+            capture_output=True,
+            timeout=10,
+        ).stdout.strip()
+        if not is_up:
+            subprocess.run(
+                ["docker", "compose", "up", "-d"],
+                cwd=project_dir,
+                capture_output=True,
+                timeout=60,
+            )
+            for _ in range(15):
+                ready = subprocess.run(
+                    ["docker", "compose", "exec", "-T", "postgres", "pg_isready", "-U", "postgres"],
+                    cwd=project_dir,
+                    capture_output=True,
+                    timeout=5,
+                )
+                if ready.returncode == 0:
+                    break
+                time.sleep(2)
+
+    # Step 7: Start both dev servers
     api_app_dir = project_dir / "apps" / "api"
     dev_env = {**os.environ, "PORT": str(api_port)}
+    if "DATABASE_URL" in dotenv:
+        dev_env["DATABASE_URL"] = dotenv["DATABASE_URL"]
 
+    import tempfile
+
+    api_stderr = tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False)
     api_proc = subprocess.Popen(
         ["uv", "run", "uvicorn", "src.main:app", "--port", str(api_port)],
         cwd=api_app_dir,
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stderr=api_stderr,
         env=dev_env,
         start_new_session=True,
     )
@@ -639,11 +705,12 @@ def verify_fullstack_python(
         "WEB_PORT": str(web_port),
         "VITE_API_PORT": str(api_port),
     }
+    web_stderr = tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False)
     web_proc = subprocess.Popen(
         ["pnpm", "dev"],
         cwd=project_dir / "apps" / "web",
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stderr=web_stderr,
         env=web_env,
         start_new_session=True,
     )
@@ -686,7 +753,7 @@ def verify_fullstack_python(
                     )
                 )
 
-        # Step 9: E2E tests (while dev servers are running)
+        # Step 8: E2E tests (while dev servers are running)
         if api_up and web_up and playwright_config.exists():
             e2e_env = {
                 **os.environ,
@@ -726,6 +793,24 @@ def verify_fullstack_python(
                         error += f"\nPartial output:\n{partial[:1000]}"
                     step = StepResult("e2e tests (web)", False, e2e_elapsed, error)
             result.steps.append(step)
+
+        # Step 10: Clean exit check — send SIGINT to both servers
+        api_stderr.close()
+        web_stderr.close()
+        api_exit = _sigint_and_check(api_proc, api_pgid, api_stderr.name)
+        web_exit = _sigint_and_check(web_proc, web_pgid, web_stderr.name)
+        # Report combined result
+        if api_exit.passed and web_exit.passed:
+            result.steps.append(StepResult("clean exit", True, api_exit.duration_s))
+        else:
+            errors = []
+            if not api_exit.passed:
+                errors.append(f"API: {api_exit.error}")
+            if not web_exit.passed:
+                errors.append(f"Web: {web_exit.error}")
+            result.steps.append(
+                StepResult("clean exit", False, api_exit.duration_s, "; ".join(errors))
+            )
     finally:
         for pgid in (api_pgid, web_pgid):
             try:
@@ -744,143 +829,26 @@ def verify_fullstack_python(
 def verify_swift_ts(
     project_dir: Path,
     api_port: int = 3001,
-    skip_docker: bool = False,
 ) -> VerifyResult:
-    """Verify a swift-ts project (Swift multiplatform + TypeScript REST API).
+    """Verify a swift-ts project (TypeScript REST API + Xcode mobile placeholder).
 
-    Runs the standard Node pipeline for the TypeScript API side, then
-    optionally runs xcodebuild for the Swift side (macOS only).
-    On non-macOS platforms, Swift verification is skipped with a message.
+    The Swift/Xcode side is not scaffolded — the user creates their Xcode project
+    in apps/ios/ after scaffolding. Only the TypeScript API is verified here.
     """
     result = verify_node(
         project_dir,
         api_port=api_port,
         web_port=3000,  # unused — no web app
-        skip_docker=skip_docker,
     )
-
-    # Swift-side verification (macOS only)
-    if sys.platform != "darwin":
-        result.steps.append(StepResult(
-            "swift: skipped", True, 0, "(not macOS)",
-        ))
-        return result
-
-    mobile_dir = project_dir / "apps" / "mobile"
-    if not mobile_dir.exists():
-        result.steps.append(StepResult(
-            "swift: skipped", True, 0, "apps/mobile/ not found",
-        ))
-        return result
-
-    # Check if full Xcode (not just CLT) is available.
-    # xcodebuild exists in Command Line Tools but can't build iOS apps.
-    has_full_xcode = False
-    if shutil.which("xcodebuild"):
-        try:
-            out = subprocess.run(
-                ["xcode-select", "-p"],
-                capture_output=True, text=True, timeout=5,
-            )
-            # Full Xcode: /Applications/Xcode.app/Contents/Developer
-            # CLT only:   /Library/Developer/CommandLineTools
-            has_full_xcode = out.returncode == 0 and "Xcode.app" in out.stdout
-        except Exception:
-            pass
-
-    if not has_full_xcode:
-        result.steps.append(StepResult(
-            "swift: skipped", True, 0,
-            "Full Xcode not found (Command Line Tools alone can't build iOS apps).",
-        ))
-        return result
-
-    scheme = _detect_scheme(mobile_dir)
-
-    # xcodebuild build (generic iOS Simulator — no specific device needed)
-    step = run_step(
-        "xcodebuild build",
-        [
-            "xcodebuild", "build",
-            "-scheme", scheme,
-            "-destination", "generic/platform=iOS Simulator",
-            "-skipPackagePluginValidation",
-            "CODE_SIGNING_ALLOWED=NO",
-        ],
-        mobile_dir,
-        timeout=300,
-    )
-    result.steps.append(step)
-    if not step.passed:
-        return result
-
-    # xcodebuild test — needs a concrete simulator.
-    # Find the first available iPhone simulator.
-    sim_dest = _find_ios_simulator()
-    if not sim_dest:
-        result.steps.append(StepResult(
-            "xcodebuild test: skipped",
-            "No iOS Simulator found. Install an iOS Simulator runtime in Xcode.",
+    result.steps.append(
+        StepResult(
+            "swift: skipped",
             True,
             0,
-        ))
-        return result
-
-    step = run_step(
-        "xcodebuild test",
-        [
-            "xcodebuild", "test",
-            "-scheme", scheme,
-            "-destination", sim_dest,
-            "-skipPackagePluginValidation",
-            "CODE_SIGNING_ALLOWED=NO",
-        ],
-        mobile_dir,
-        timeout=300,
-    )
-    result.steps.append(step)
-
-    return result
-
-
-def _find_ios_simulator() -> str | None:
-    """Find an available iOS Simulator destination string for xcodebuild."""
-    import json
-
-    try:
-        out = subprocess.run(
-            ["xcrun", "simctl", "list", "devices", "available", "-j"],
-            capture_output=True, text=True, timeout=10,
+            "Create your Xcode project in apps/ios/ — see apps/ios/README.md",
         )
-        if out.returncode != 0:
-            return None
-        data = json.loads(out.stdout)
-        for runtime, devices in data.get("devices", {}).items():
-            if "iOS" not in runtime:
-                continue
-            for dev in devices:
-                if "iPhone" in dev.get("name", ""):
-                    return f"platform=iOS Simulator,id={dev['udid']}"
-    except Exception:
-        pass
-    return None
-
-
-def _detect_scheme(mobile_dir: Path) -> str:
-    """Detect the Xcode scheme name from Package.swift or .xcodeproj."""
-    import re
-
-    package_swift = mobile_dir / "Package.swift"
-    if package_swift.exists():
-        # Extract package name from: name: "MyApp"
-        match = re.search(r'name:\s*"([^"]+)"', package_swift.read_text())
-        if match:
-            return match.group(1).strip()
-    # Fallback: look for .xcodeproj
-    for p in mobile_dir.iterdir():
-        if p.suffix == ".xcodeproj":
-            return p.stem
-    return "App"
+    )
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -892,17 +860,20 @@ def verify(
     project_dir: Path,
     api_port: int | None = None,
     web_port: int = 3000,
-    skip_docker: bool = False,
 ) -> VerifyResult:
-    """Run the full verification suite against a scaffolded project.
+    """Run quality checks against a scaffolded project.
+
+    Assumes the project is already set up (deps installed, docker running,
+    db pushed/migrated). Use ``setup_project()`` from ``scaffold.py`` for
+    the setup phase.
 
     Detects the platform and dispatches to the appropriate verifier.
 
     Args:
         api_port: API server port. Defaults to 3001 for Node, 8000 for Python.
+            Overridden by values in .env.ports / .env if present.
         web_port: Web server port (Node/fullstack-python, default 3000).
-        skip_docker: Skip docker compose up and pg_isready steps. Use when
-            Postgres is already available (e.g., CI service container).
+            Overridden by values in .env.ports / .env if present.
     """
     project_dir = Path(project_dir).resolve()
     platform = detect_platform(project_dir)
@@ -911,27 +882,23 @@ def verify(
         return verify_swift_ts(
             project_dir,
             api_port=api_port or 3001,
-            skip_docker=skip_docker,
         )
     elif platform == "fullstack-python":
         return verify_fullstack_python(
             project_dir,
             api_port=api_port or 8000,
             web_port=web_port,
-            skip_docker=skip_docker,
         )
     elif platform == "python":
         return verify_python(
             project_dir,
             api_port=api_port or 8000,
-            skip_docker=skip_docker,
         )
     else:
         return verify_node(
             project_dir,
             api_port=api_port or 3001,
             web_port=web_port,
-            skip_docker=skip_docker,
         )
 
 
@@ -959,7 +926,9 @@ def print_results(result: VerifyResult) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Verify a scaffolded project")
+    parser = argparse.ArgumentParser(
+        description="Verify a scaffolded project (quality checks only)"
+    )
     parser.add_argument("project_dir", help="Path to the scaffolded project")
     parser.add_argument(
         "--api-port", type=int, default=None, help="API server port (default: auto-detect)"
@@ -967,18 +936,12 @@ def main() -> None:
     parser.add_argument(
         "--web-port", type=int, default=3000, help="Web server port (default: 3000)"
     )
-    parser.add_argument(
-        "--skip-docker",
-        action="store_true",
-        help="Skip docker compose (Postgres already available)",
-    )
     args = parser.parse_args()
 
     result = verify(
         Path(args.project_dir),
         api_port=args.api_port,
         web_port=args.web_port,
-        skip_docker=args.skip_docker,
     )
     print_results(result)
 

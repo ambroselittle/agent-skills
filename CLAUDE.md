@@ -115,9 +115,17 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on push to PR branches and main
 - **Unit tests** — hook engine + create-repo unit/structural (~30s)
 - **Scaffold E2E** — scaffolds all templates, runs full verify pipeline with Postgres service container (~3min)
 
+## Getting started
+
+```bash
+make init
+```
+
+This installs `uv` if missing, syncs Python environments (hooks + create-repo), runs `setup.sh` to link skills and hooks, and copies `.work/` for worktrees. Run it once after cloning, or after switching to a new worktree.
+
 ## setup.sh
 
-Idempotent installer that:
+Called by `make init`. Idempotent installer that:
 1. Links skills to `~/.claude/skills/` (worktree-aware — only changed skills in worktrees)
 2. Installs PreToolUse hook engine to `~/.claude/hooks/`
 3. Merges permissions from `built-in-rules.json` into `~/.claude/settings.json`

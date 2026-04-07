@@ -58,7 +58,7 @@ COMMON_CHECKS: list[dict] = [
         "command": ["pnpm", "--version"],
         "pattern": r"(\d+\.\d+(?:\.\d+)?)",
         "min": (10, 0),
-        "install": "brew install pnpm",
+        "install": "corepack enable && corepack install",
     },
     {
         "tool": "docker",
@@ -88,26 +88,17 @@ TEMPLATE_CHECKS: dict[str, list[dict]] = {
             "install": "brew install uv",
         },
     ],
-    "swift-ts": [
-        {
-            "tool": "xcodebuild",
-            "command": ["xcodebuild", "-version"],
-            "pattern": r"Xcode (\d+\.\d+(?:\.\d+)?)",
-            "min": (15, 0),
-            "install": "Install Xcode from the App Store or https://developer.apple.com/xcode/",
-        },
-        {
-            "tool": "swift",
-            "command": ["swift", "--version"],
-            "pattern": r"Swift version (\d+\.\d+(?:\.\d+)?)",
-            "min": (5, 9),
-            "install": "Install Xcode (includes Swift) or https://swift.org/install",
-        },
-    ],
+    "swift-ts": [],
 }
 
 # Runtime checks (not version-based — just pass/fail)
 RUNTIME_CHECKS: list[dict] = [
+    {
+        "tool": "corepack (enabled)",
+        "command": ["corepack", "--version"],
+        "success_means": "enabled",
+        "install": "corepack enable",
+    },
     {
         "tool": "gh (authenticated)",
         "command": ["gh", "auth", "status"],

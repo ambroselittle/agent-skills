@@ -80,13 +80,10 @@ def test_verify_result_one_fail():
 
 def test_verify_node_stops_on_first_failure():
     """Verify should stop at the first failing step and not run subsequent steps."""
-    call_count = 0
 
     def fake_run(cmd, **kwargs):
-        nonlocal call_count
-        call_count += 1
-        if "install" in cmd:
-            return _mock_run(returncode=1, stderr="install failed")
+        if "build" in cmd:
+            return _mock_run(returncode=1, stderr="build failed")
         return _mock_run()
 
     with (
@@ -96,14 +93,14 @@ def test_verify_node_stops_on_first_failure():
         result = verify(Path("/tmp/test-project"))
 
     assert not result.passed
-    assert result.steps[0].name == "pnpm install"
+    assert result.steps[0].name == "build"
     assert not result.steps[0].passed
     # Should only have one step since it stops on failure
     assert len(result.steps) == 1
 
 
 def test_verify_node_runs_correct_command_sequence():
-    """Verify that commands are called in the expected order."""
+    """Verify runs quality checks: build, typecheck, lint, test, dev server."""
     commands_run = []
 
     def fake_run(cmd, **kwargs):
@@ -127,10 +124,10 @@ def test_verify_node_runs_correct_command_sequence():
 
         verify(Path("/tmp/test-project"))
 
-    # Should have run: install, docker up, pg_isready, db:push, build, typecheck, lint, test, e2e
-    assert len(commands_run) >= 9
+    # Should have run: build, typecheck, lint, test (no install/docker — that's setup)
+    assert len(commands_run) >= 4
     assert "pnpm" in commands_run
-    assert "docker" in commands_run
+    assert "docker" not in commands_run
 
 
 def test_verify_node_runs_e2e_when_servers_are_up(tmp_path):
@@ -286,8 +283,8 @@ def test_verify_python_stops_on_first_failure():
     """Python verify should stop at the first failing step."""
 
     def fake_run(cmd, **kwargs):
-        if "sync" in cmd:
-            return _mock_run(returncode=1, stderr="sync failed")
+        if "check" in cmd:
+            return _mock_run(returncode=1, stderr="lint failed")
         return _mock_run()
 
     with (
@@ -297,12 +294,12 @@ def test_verify_python_stops_on_first_failure():
         result = verify(Path("/tmp/test-project"))
 
     assert not result.passed
-    assert result.steps[0].name == "uv sync"
+    assert result.steps[0].name == "ruff check"
     assert len(result.steps) == 1
 
 
 def test_verify_python_runs_correct_sequence():
-    """Python verify should run uv sync, docker, ruff, pytest, dev server."""
+    """Python verify should run ruff, pytest, dev server (no install/docker — that's setup)."""
     commands_run = []
 
     def fake_run(cmd, **kwargs):
@@ -326,8 +323,8 @@ def test_verify_python_runs_correct_sequence():
 
     assert result.passed
     step_names = [s.name for s in result.steps]
-    assert "uv sync" in step_names
-    assert "docker compose up" in step_names
+    assert "uv sync" not in step_names
+    assert "docker compose up" not in step_names
     assert "ruff check" in step_names
     assert "pytest" in step_names
     assert "dev server" in step_names
@@ -337,11 +334,10 @@ def test_verify_python_runs_correct_sequence():
 
 
 def test_detect_platform_swift_ts(tmp_path):
-    """Returns 'swift-ts' when package.json and apps/mobile/Package.swift both exist."""
+    """Returns 'swift-ts' when package.json and apps/ios/ directory both exist."""
     (tmp_path / "package.json").write_text("{}")
-    mobile = tmp_path / "apps" / "mobile"
+    mobile = tmp_path / "apps" / "ios"
     mobile.mkdir(parents=True)
-    (mobile / "Package.swift").write_text('// swift-tools-version: 6.0\nimport PackageDescription\nlet package = Package(name: "MyApp")')
     assert detect_platform(tmp_path) == "swift-ts"
 
 
@@ -362,9 +358,8 @@ def test_detect_platform_swift_ts_beats_fullstack_python(tmp_path):
     """swift-ts detection comes before fullstack-python."""
     (tmp_path / "package.json").write_text("{}")
     (tmp_path / "pyproject.toml").write_text("[project]")
-    mobile = tmp_path / "apps" / "mobile"
+    mobile = tmp_path / "apps" / "ios"
     mobile.mkdir(parents=True)
-    (mobile / "Package.swift").write_text('// swift-tools-version: 6.0\nimport PackageDescription\nlet package = Package(name: "MyApp")')
     # swift-ts check comes first
     assert detect_platform(tmp_path) == "swift-ts"
 
@@ -379,9 +374,7 @@ def test_verify_swift_ts_skips_on_linux():
         patch("scripts.verify.subprocess.run", return_value=_mock_run()),
         patch("scripts.verify.verify_swift_ts") as mock_swift,
     ):
-        mock_swift.return_value = VerifyResult(
-            steps=[StepResult("swift: skipped", True, 0)]
-        )
+        mock_swift.return_value = VerifyResult(steps=[StepResult("swift: skipped", True, 0)])
         result = verify(Path("/tmp/test-project"))
 
     assert result.passed

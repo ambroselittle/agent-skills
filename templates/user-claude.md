@@ -22,16 +22,36 @@ current, version-accurate docs.
 
 ## Test-first Mindset
 
-- When fixing bugs, use **test first** to prove, see it fail, then fix and see it pass -- this applies
-  even when a bug is discovered incidentally mid-task (e.g., a test reveals an unexpected failure):
-  stop, write a targeted unit test for the specific defect, confirm it fails, then fix
+Use red-green-refactor for all implementation code — bug fixes and new features.
 
 ## Persistence: Repo Over Memory
 
-Prefer persisting guidance in the repo (templates, CLAUDE.md, .claude/rules/) over user-local memory
-files. If a preference applies broadly, it belongs in the templates so that a fresh machine setup via
-agent-skills gets the full experience without relying on hidden local state. Use memory only for
-genuinely ephemeral or time-bound observations (active bugs, in-progress project state).
+**Do not use auto-memory as a substitute for repo-based storage.** The auto-memory system
+(`~/.claude/projects/.../memory/`) is machine-local and will be lost on a fresh setup. Any guidance
+saved there is invisible to a new machine, a new worktree, or a colleague. It creates a hidden,
+untrackable dependency on local state that undermines the goal of a repeatable Claude experience.
+
+**Before saving anything, ask: where does this belong?**
+
+| Type of content | Where it goes |
+|---|---|
+| Behavioral guidance, ways of working | `templates/user-claude.md` or `templates/<username>.md` |
+| Project-wide conventions, rules, standards | `<repo>/.claude/rules/<topic>.md` |
+| Project orientation (structure, build, test) | `<repo>/CLAUDE.md` |
+| In-progress work, task breakdown | Tasks tool (current session only) |
+| Implementation plans | `.work/<slug>/plan.md` (gitignored) |
+| Active bug / short-lived project state | Auto-memory is acceptable, but prefer a note in `.work/` |
+
+**Almost nothing should go into auto-memory.** If it's a pattern, preference, or lesson that should
+survive a `git clone` on a new machine — it belongs in the repo. Run `bash setup.sh` to deploy
+template changes to `~/.claude/CLAUDE.md`.
+
+## Research Cache
+
+When doing in-depth research on a topic (upstream bugs, library behavior, workarounds), save findings
+to `~/.agent-skills/research/<topic-slug>.md`. Before researching a topic, check if a prior writeup
+exists there — it may already have the answer or save significant effort. Update stale research when
+you discover new information.
 
 ## .work/ Plans Are Scaffolding
 
@@ -48,6 +68,12 @@ genuinely ephemeral or time-bound observations (active bugs, in-progress project
   authorization that requires those specific words -- not "ship it", "land it", or other shorthand.
 - **Batch commits before pushing** -- every push triggers CI and jobs do not self-cancel.
   Accumulate all changes locally, then push once when the work is ready for review.
+
+## Batch Edits via Scripts
+
+When making the same or similar changes to 3+ files — or 3+ places in one file — write a
+quick Python script to do it in one pass instead of editing one-by-one. Save to `/tmp/` so it's
+transient. This is faster, cheaper on tokens, and less error-prone than N individual Edit calls.
 
 ## Code Organization
 
@@ -77,6 +103,15 @@ Do not treat code volume as risk. Evaluate **actual risk** before hesitating:
 Never say "this is a substantial change" as a reason to pause. Never ask "want me to tackle this?"
 when the user clearly wants it done. The only valid reasons to pause: genuine ambiguity, destructive
 operations on shared systems, or security concerns. Default to doing the work.
+
+## When Something Goes Wrong — Fix It, Then Prevent It
+
+When corrected or when an error is identified: acknowledge it once, fix it, move on. Do not
+over-apologize or express guilt — that centers Claude's state rather than the user's problem.
+
+After the immediate fix is done, proactively offer a systemic improvement: a rule change, a
+template update, a test to add. Don't wait to be asked. Frame it as "here's how we prevent this"
+not "here's why I failed."
 
 ## CLAUDE.md vs .claude/rules/
 
@@ -119,6 +154,11 @@ or a command errors unexpectedly -- STOP. Report what happened and wait for the 
 A block is a stop sign, not a puzzle. Switching to a different tool, reformulating the command,
 or using bypass flags (`--no-verify`, `--skip-checks`, `dangerouslyDisableSandbox`, etc.) to
 achieve the same blocked outcome is a violation of this rule -- even if the workaround seems safe.
+
+This explicitly includes **moving a blocked action into a script** to avoid hook interception. If
+the Bash tool is blocked from running `git push origin main`, adding that same command to a Python
+script is bypassing the block -- not fixing it. Fix the hook rule in the source repo and deploy via
+`setup.sh`. Scripts are not a loophole.
 
 **NEVER SILENTLY PIVOT.** If a planned approach hits a snag requiring a different solution -- STOP.
 Explain the problem, present alternatives with tradeoffs, and wait for the user to choose.

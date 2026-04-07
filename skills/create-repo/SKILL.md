@@ -14,7 +14,7 @@ You are a project scaffolding assistant. Your job is to create a well-structured
 
 ## CRITICAL: Do Not Install Global Dependencies
 
-**NEVER install, upgrade, or modify globally-installed tools** (e.g., `npm install -g`, `corepack enable`, `corepack install`, `brew install`, `pip install`, etc.) without explicit user approval. This includes package managers, runtimes, CLI tools, and anything that modifies the system outside the project directory.
+**NEVER install, upgrade, or modify globally-installed tools** (e.g., `npm install -g`, `brew install`, `pip install`, etc.) without explicit user approval. This includes package managers, runtimes, CLI tools, and anything that modifies the system outside the project directory.
 
 If a required tool is missing or outdated:
 1. Run the preflight check (Step 3)
@@ -28,6 +28,12 @@ This is a hard stop — do not proceed, do not attempt to install it yourself, d
 
 ## Step 1: Interview (skip answered questions if arguments provided)
 
+The repo home finder results are pre-loaded below. Use them for the Location question.
+
+- Repo home: !`~/.claude/skills/create-repo/scripts/context.sh repo-home`
+
+If the result is empty or `{}`, fall back to `./<project-name>` and `~/Code/<project-name>` as location options.
+
 Use the `AskUserQuestion` tool for every choice. This gives the user a proper selection UI with defaults they can accept by pressing Enter.
 
 **AskUserQuestion constraints** — the tool requires:
@@ -35,7 +41,7 @@ Use the `AskUserQuestion` tool for every choice. This gives the user a proper se
 - Each question: `question` (string), `header` (max 12 chars), `options` (2-4 items), `multiSelect` (boolean)
 - Each option: `label` (1-5 words), `description` (explains the choice)
 - The tool auto-adds an "Other" option for free-text input — don't add one yourself
-- Put the recommended/default option first in the list and add "(Recommended)" to its label
+- Put the most common/default option first in the list (it becomes the default when the user presses Enter)
 
 You can batch up to 4 independent questions in a single `AskUserQuestion` call. Use this to ask multiple things at once when they don't depend on each other.
 
@@ -49,7 +55,7 @@ If no template was provided, first ask the **category**:
 - header: `"Stack"`
 - question: `"What kind of project?"`
 - options:
-  - label: `"Fullstack (Recommended)"`, description: `"Frontend + API + database — web or mobile app with a backend"`
+  - label: `"Fullstack"`, description: `"Frontend + API + database — web or mobile app with a backend"`
   - label: `"API only"`, description: `"Backend API + database, no frontend"`
   - label: `"Mobile + API"`, description: `"Swift iOS/iPadOS/Mac/visionOS app with a TypeScript API"`
 
@@ -59,7 +65,7 @@ Then based on the category, ask the **variant** (skip if the category only has o
 - header: `"Variant"`
 - question: `"Which fullstack flavor?"`
 - options:
-  - label: `"TypeScript + tRPC (Recommended)"`, description: `"React + Hono + tRPC + Prisma/Postgres + Tailwind/shadcn"`
+  - label: `"TypeScript + tRPC"`, description: `"React + Hono + tRPC + Prisma/Postgres + Tailwind/shadcn"`
   - label: `"TypeScript + GraphQL"`, description: `"React + Hono + Yoga/Pothos + Apollo Client + Prisma/Postgres + Tailwind/shadcn"`
   - label: `"Python API"`, description: `"React frontend + FastAPI backend + Postgres + Tailwind/shadcn"`
 - Maps to: `fullstack-ts`, `fullstack-graphql`, `fullstack-python`
@@ -68,56 +74,71 @@ Then based on the category, ask the **variant** (skip if the category only has o
 - header: `"Variant"`
 - question: `"TypeScript or Python?"`
 - options:
-  - label: `"TypeScript (Recommended)"`, description: `"Hono + tRPC + Prisma/Postgres"`
+  - label: `"TypeScript"`, description: `"Hono + tRPC + Prisma/Postgres"`
   - label: `"Python"`, description: `"FastAPI + SQLModel/Postgres"`
 - Maps to: `api-ts`, `api-python`
 
-**If Mobile + API:** No variant question needed — maps directly to `swift-ts`.
+**If Mobile + API:**
+- header: `"Confirm"`
+- question: `"The mobile template is Swift + TypeScript API (Hono/Prisma/Postgres). Sound good?"`
+- options:
+  - label: `"Yes, let's go"`, description: `"Swift iOS/iPadOS/Mac/visionOS + Hono REST API + Prisma/Postgres"`
+  - label: `"No, go back"`, description: `"Pick a different category"`
+- If "Yes" → maps to `swift-ts`. If "No" or "Other" → re-ask the category question.
 
 ### Project name, output directory, customizations, and GitHub
 
 After template is resolved, ask the project description first (needed to generate name suggestions), then batch the remaining questions:
 
-**Round 1 — single question:**
+**Round 1 — free text (no AskUserQuestion):**
 
-**Question 1 — What it does:**
-- header: `"About"`
-- question: `"What will this project do? (one sentence — helps generate a good name, or skip for a random one)"`
-- options:
-  - label: `"Skip"`, description: `"Just give me a creative name"`
+Just ask conversationally: **"What's this project about? (one sentence, or say 'skip' to move on)"**
 
-**Round 2 — batch the rest (up to 4 questions):**
+Read their response as plain text. If they skip, or give a generic/vague answer (e.g., "just testing", "playing around", "trying out the stack", "prototype"), treat it the same as no description — go the creative name route, not literal.
 
-**Question 2 — Name:**
+**Round 2 — Name (MUST be a separate AskUserQuestion call — do NOT batch with other questions):**
 
-Generate 3–4 name suggestions as the options. Names should be lowercase-hyphenated, memorable, and short (1–2 words).
+The name question must be its own `AskUserQuestion` call so you can evaluate the response and potentially loop. If you batch it with Location/Customizations/GitHub, you lose the ability to re-generate names.
+
+Generate 3 name suggestions. Names should be lowercase-hyphenated, memorable, and short (1–2 words).
 
 **Channel your inner naming consultant.** The best project names are like the best band names — they stick, they spark curiosity, and they sound good when you say them out loud. Draw from mythology, science, obscure words, culinary terms, nautical language, music, architecture, nature — whatever resonates with the project's soul. Puns and wordplay welcome. Boring is the only wrong answer.
 
-- **If the user described the project:** generate names that rhyme with the domain — not literally but emotionally. A recipe app could be `mise`, `saffron`, `mortar`; a task tracker could be `cadence`, `slate`, `trellis`; a chat app could be `murmur`, `signal-fire`, `parlor`. Never suggest literal descriptions (`recipe-app`, `task-tracker`) — that's what boring tools do.
-- **If the user skipped:** go wild. Generate names with personality — the kind that make you want to build something just because the name is that good. `zephyr`, `anvil`, `foxglove`, `parallax`. Vary the vibe: one playful, one elegant, one punchy, one weird.
+- **If the user described the project:** generate names that rhyme with the domain — not literally but emotionally. Evoke the feeling, not the function. Never suggest literal descriptions (`recipe-app`, `task-tracker`) — that's what boring tools do.
+- **If the user skipped:** go wild. Generate names with personality — the kind that make you want to build something just because the name is that good. Vary the vibe: one playful, one elegant, one punchy, one weird. **NEVER reuse names from these instructions or from prior conversations.** Every set of suggestions must be freshly invented — pull from different domains each time (astronomy, gemstones, cocktails, typography, cartography, martial arts, textiles, philosophy, weather phenomena, musical instruments, architectural elements, etc.).
 
 Present as options:
 - header: `"Name"`
-- question: `"Pick a name or type your own (lowercase-hyphenated)"`
-- options: your 3–4 generated names, each with a one-line description explaining the inspiration (e.g., `label: "saffron"`, `description: "A rare spice — for a project with flavor"`)
-- The user can always pick "Other" and type their own. That's expected and fine.
-- Validate: no spaces, no uppercase, no special chars beyond hyphens.
+- question: `"Let's give it a name. Use \"Type something\" to specify your own or give guidance to generate more options."`
+- options: your 3 generated names, each with a one-line description explaining the inspiration (e.g., `label: "saffron"`, `description: "A rare spice — for a project with flavor"`)
+- When the user picks "Other" and types something, evaluate what they entered:
+  - If it looks like a name (lowercase-hyphenated, no spaces): accept it as the project name.
+  - If it looks like guidance (e.g., "something more nautical", "shorter", "try Greek mythology"): generate 3 new names following their direction and re-ask this question.
+- Validate final name: no spaces, no uppercase, no special chars beyond hyphens.
+
+**Round 3 — batch the rest (up to 3 questions):**
 
 **Question 3 — Output directory:**
 - header: `"Location"`
 - question: `"Where should the project be created?"`
-- options:
-  - label: `"./<project-name> (Recommended)"`, description: `"Create in a subdirectory of the current working directory"`
-  - label: `"~/Code/<project-name>"`, description: `"Create in your Code directory"`
-- The user will likely choose "Other" and type their own path. That's expected.
+- Build options using the **Repo home finder** agent's results. Always include `./<project-name>` as one option. Pick up to 2 more from the cache (deduplicate — if any paths resolve to the same directory, show only one, preferring last_picked > discovered > CWD):
+  - `last_picked` (if set): label `"<last_picked>/<project-name>"`, description `"Next to the last one we made"`
+  - `discovered` (if set): label `"<discovered>/<project-name>"`, description `"Near other repos we found"`
+  - Always: label `"./<project-name>"`, description `"Under current directory"`
+  - Fallback (if no last_picked or discovered): label `"~/Code/<project-name>"`, description `"Under Code in home folder"`
+- Aim for 2-3 options. The auto-added "Other" lets them type any path.
 - Resolve `~` and relative paths. The scaffold `--output` flag receives this value.
+
+**After the user picks a location**, update the cache:
+```bash
+cd ${CLAUDE_SKILL_DIR} && uv run python -m scripts.find_repo_home --update-last-picked <parent-dir>
+```
 
 **Question 4 — Customizations:**
 - header: `"Stack"`
 - question: `"Any changes to the default stack?"`
 - options:
-  - label: `"Defaults are fine (Recommended)"`, description: `"Use the standard template as-is"`
+  - label: `"Defaults are fine"`, description: `"Use the standard template as-is"`
   - label: `"Let me specify"`, description: `"I want to swap out or add specific technologies"`
 - If they pick "Let me specify", ask a follow-up for details.
 
@@ -125,7 +146,7 @@ Present as options:
 - header: `"GitHub"`
 - question: `"Create a private GitHub repo and push?"`
 - options:
-  - label: `"Yes (Recommended)"`, description: `"Create a private repo under your account and push the initial commit"`
+  - label: `"Yes"`, description: `"Create a private repo under your account and push the initial commit"`
   - label: `"No"`, description: `"Local only — you can push later with gh repo create"`
 
 ---
@@ -163,7 +184,12 @@ cd ${CLAUDE_SKILL_DIR} && uv run python -m scripts.preflight --template <templat
    ```
    bash install-deps.sh
    ```
-3. **STOP COMPLETELY.** Use `AskUserQuestion` to ask: "Some required tools are missing. Run `bash install-deps.sh` to install them, then let me know when you're ready to continue."
+3. **STOP COMPLETELY.** Use `AskUserQuestion` to confirm:
+   - header: `"Preflight"`
+   - question: `"Some required tools are missing. Run 'bash install-deps.sh' to install them, then continue."`
+   - options:
+     - label: `"Done — re-check"`, description: `"I've installed the dependencies, run preflight again"`
+     - label: `"Skip for now"`, description: `"I'll handle it manually — continue anyway"`
 4. When the user confirms, re-run preflight to verify. If it still fails, repeat this cycle.
 5. Do NOT attempt to install anything yourself. Do NOT skip ahead. Do NOT try to work around missing tools.
 
@@ -177,43 +203,17 @@ cd ${CLAUDE_SKILL_DIR} && uv run python -m scripts.preflight --template <templat
 
 **Mark task in_progress.**
 
-Before scaffolding, resolve the latest stable versions of all dependencies in the chosen template. This ensures the project starts on current, compatible versions rather than whatever was hardcoded when this skill was written.
+Run the version resolution script. It automatically discovers which packages the template needs by scanning `.j2` files, resolves latest stable versions via npm/PyPI, and handles caching (24h TTL):
 
-**Spawn parallel sub-agents** to resolve versions concurrently. Each agent handles one category and reports back a JSON object of `{ "package": "version" }` pairs. This keeps the main context clean and runs lookups in parallel:
-
-- **Agent 1 — Frontend core:** react, react-dom, @types/react, @types/react-dom, vite, @vitejs/plugin-react
-- **Agent 2 — Styling:** tailwindcss, @tailwindcss/vite
-- **Agent 3 — API & RPC:** hono, @hono/node-server, @hono/trpc-server, @trpc/server, @trpc/client, @trpc/react-query, @tanstack/react-query
-- **Agent 4 — Database:** @prisma/client, prisma, @prisma/adapter-pg, dotenv
-- **Agent 5 — Dev tools:** typescript, @biomejs/biome, vitest, playwright, @playwright/test
-
-Each agent should run `npm view <package> version` for each package and return the results. On failure (network error, package not found), the agent should report the error clearly.
-
-After all agents return, merge the results and run **compatibility checks**:
-- React version must be compatible with the React types version
-- Prisma client and CLI must match
-- Tailwind v4 requires compatible PostCSS
-- tRPC client and server versions must match
-
-If any incompatibility is detected, resolve it before proceeding (typically by pinning to the last compatible version).
-
-Write the merged results to a `versions.json` file for the scaffold step.
-
-**Version caching:** After resolving, save the versions to `~/.agent-skills/.version-cache/<template>.json` using the format:
-```json
-{
-  "cached_at": <unix-timestamp>,
-  "cached_at_human": "<ISO-8601>",
-  "template": "<template>",
-  "versions": { ... }
-}
+```bash
+cd ${CLAUDE_SKILL_DIR} && uv run python -m scripts.resolve_versions \
+  --template <template> \
+  --output /tmp/create-repo-versions.json
 ```
 
-Before spawning agents, check if a cache file exists and is less than 24 hours old. If so, skip resolution and use the cached versions — just inform the user: "Using cached versions from [time]. Pass `--fresh` or say 'resolve fresh versions' to re-check."
+Add `--fresh` if the user asks to re-resolve (e.g., "resolve fresh versions").
 
-**For Python packages** (fullstack-python, api-python templates): add an agent for Python deps using `uv pip compile` or PyPI checks.
-
-**For Swift** (swift-ts template): check `xcodebuild -version` for the installed Xcode toolchain version.
+If the script fails, it reports which packages couldn't be resolved. Fix by checking network connectivity or adding missing packages to `PACKAGE_REGISTRY` in `scripts/resolve_versions.py`.
 
 **Mark task completed.**
 
@@ -223,15 +223,17 @@ Before spawning agents, check if a cache file exists and is less than 24 hours o
 
 **Mark task in_progress.**
 
-Run the scaffold script to create all project files from Jinja2 templates:
+Run the scaffold script:
 
 ```bash
 cd ${CLAUDE_SKILL_DIR} && uv run python -m scripts.scaffold \
   --project-name <name> \
   --template <template> \
-  --versions <path-to-versions.json> \
+  --versions /tmp/create-repo-versions.json \
   --output <output-dir>
 ```
+
+If the output directory already exists, ask the user if they want to overwrite it. If yes, re-run with `--force` which cleans the directory first. **Never rm -rf the directory yourself.**
 
 The script renders `templates/common/` (shared across all templates) and `templates/<template>/` (template-specific files), substituting project name, scope, and dependency versions.
 
@@ -241,19 +243,25 @@ The script renders `templates/common/` (shared across all templates) and `templa
 
 ---
 
-## Step 5b: Setup Environment
+## Step 5b: Setup Project Environment
 
-After scaffolding and before verification, run the setup script to initialize ports and environment:
+After scaffolding and before verification, initialize git (so setup scripts can detect the repo), then run the setup script which installs dependencies, runs port discovery, starts docker/postgres, and pushes database schemas:
 
 ```bash
-cd <output-dir> && pnpm project:setup
+cd <output-dir> && git init -q
 ```
 
-This discovers free ports, writes `.env.ports`, generates root `.env` and per-package `.env` files, and sets `COMPOSE_PROJECT_NAME` for Docker isolation. This makes verification deterministic — no missing `.env` failures.
+```bash
+cd ${CLAUDE_SKILL_DIR} && uv run python -m scripts.scaffold --setup <output-dir>
+```
+
+Add `--skip-docker` if `DATABASE_URL` is already set in the environment (e.g., CI with a service container).
+
+This handles: `pnpm install` / `uv sync` → project setup (port discovery, `.env` generation) → `prisma generate` → `biome format` → `docker compose up` → `db push` → `db seed`. It reports per-step pass/fail with timing.
 
 ---
 
-## Step 6: Install & Verify
+## Step 6: Verify (Quality Checks)
 
 **Mark task in_progress.**
 
@@ -263,7 +271,7 @@ Run the verification script:
 cd ${CLAUDE_SKILL_DIR} && uv run python -m scripts.verify <output-dir>
 ```
 
-This runs the full pipeline in sequence: `pnpm install` → `prisma generate` → `biome format` → `docker compose up` → `db push` → `build` → `typecheck` → `lint` → `test` → dev server smoke check → E2E tests. It reports per-step pass/fail with timing.
+This runs quality checks only (assumes setup is already done): `build` → `typecheck` → `lint` → `test` → dev server smoke check → E2E tests. It reports per-step pass/fail with timing.
 
 **If verification passes:** Mark task completed and continue.
 
@@ -272,6 +280,7 @@ This runs the full pipeline in sequence: `pnpm install` → `prisma generate` �
 - Missing `.env` → run `pnpm project:setup` to generate from `.env.example`
 - Type errors → fix the generated code
 - Test failures → fix the test or the code it tests
+- **Version incompatibility** → if the error mentions breaking API changes, deprecated methods, or type mismatches between packages, check `versions.json` for recently bumped major versions. The version resolver grabs latest-of-everything, which can break when a package ships a new major before its ecosystem catches up. Fix by pinning the offending package to the previous major (e.g., `npm view <package> versions` to find the last stable). Check the resolve script's compatibility warnings output for hints.
 
 Do not proceed to git until verification passes cleanly.
 
@@ -304,16 +313,17 @@ The script handles: `git init`, staging, initial commit with stack description, 
 
 Mark all tasks completed.
 
-Report results, then suggest what to do next:
+Report results, then give the user a quick-start command. On macOS, pipe it to `pbcopy` so it's ready to paste:
+
+Copy the start command to clipboard (adapts by template):
+- TS templates: `echo "cd <output-dir> && pnpm start" | pbcopy`
+- Python templates: `echo "cd <output-dir> && just start" | pbcopy`
+
+Then report:
 
 > "Your `<project-name>` is ready. Everything builds, tests pass, and the first commit is pushed.
 >
-> To start developing:
-> ```bash
-> cd <project-name>
-> docker compose up -d   # if not already running
-> pnpm dev
-> ```
+> Quick start copied to clipboard — paste in a terminal to jump in. (Starts Postgres + dev servers in one command.)
 >
 > Next steps:
 > - Run `/start-work` to plan your first feature

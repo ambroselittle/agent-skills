@@ -1,8 +1,38 @@
 # {{ project_name }}
 {% raw %}
-# Start the API dev server
-dev:
-    cd apps/api && uv run uvicorn src.main:app --reload --port ${PORT:-8000}
+set dotenv-load := true
+
+# Discover free ports and write .env files (run once before starting, or to resolve port conflicts)
+setup:
+    uv run python scripts/setup.py
+
+# Start everything (Postgres + API dev server). Tears down Docker on exit.
+# Re-runs setup automatically if .env is missing or DB port is already taken.
+start:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Auto-discover ports on first run
+    if [ ! -f .env ]; then
+        echo "No .env found — running setup to discover ports..."
+        just setup
+    fi
+    # Load .env so we can read the ports in this script
+    set -a; source .env; set +a
+    db_port="${DB_PORT:-5432}"
+    # If DB_PORT is already taken by something other than our container, rediscover
+    if ! python3 -c "import socket; s=socket.socket(socket.AF_INET,socket.SOCK_STREAM); s.bind(('', ${db_port})); s.close()" 2>/dev/null; then
+        if ! docker compose ps --quiet postgres 2>/dev/null | grep -q .; then
+            echo "Port ${db_port} is already taken. Re-running setup to find free ports..."
+            just setup
+            set -a; source .env; set +a
+        fi
+    fi
+    docker compose up -d
+    trap '' INT
+    set +e
+    trap 'echo ""; echo "Shutting down..."; docker compose down 2>/dev/null' EXIT
+    cd apps/api && uv run uvicorn src.main:app --reload --port "${API_PORT:-8000}" 2> >(grep -v "Interrupted by SIGINT" >&2)
+
 
 # Run all tests
 test:

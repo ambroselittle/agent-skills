@@ -5,6 +5,8 @@
 
 set -euo pipefail
 
+clear
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="$HOME/.claude"
 CLAUDE_SKILLS_DIR="$CLAUDE_DIR/skills"
@@ -420,4 +422,5 @@ fi
 # Done                                                                        #
 # --------------------------------------------------------------------------- #
 
-printf "\n${_bold}${_green}✓ Setup complete${_reset}\n\n"
+printf "\n${_bold}${_green}✓ Setup complete${_reset}\n"
+printf "  Rerun this at any time to update your CLAUDE.md, skills, and hooks.\n\n"

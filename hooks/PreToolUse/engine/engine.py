@@ -4,6 +4,8 @@ Evaluates all hook rules against a tool call payload.
 Priority: deny > ask > allow > proceed (no match).
 """
 
+from __future__ import annotations
+
 import json
 import os
 import re

@@ -7,11 +7,22 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Engine lives in a sibling directory named after the hook (pre-tool-use/)
 INTERPRETER="$SCRIPT_DIR/pre-tool-use/engine/interpreter.py"
 
 if [ ! -f "$INTERPRETER" ]; then
     echo "Pre-tool-use rules engine not found." >&2
     exit 0
+fi
+
+# Check python3 3.9+ availability (once per boot, cached via temp file)
+PYTHON_CHECK="/tmp/.agent-skills-python-ok"
+if [ ! -f "$PYTHON_CHECK" ]; then
+    if ! python3 -c 'import sys; exit(0 if sys.version_info >= (3, 9) else 1)' 2>/dev/null; then
+        echo "Hook engine requires python3 3.9+. Install via: xcode-select --install" >&2
+        exit 0
+    fi
+    touch "$PYTHON_CHECK"
 fi
 
 INPUT="$(cat)"

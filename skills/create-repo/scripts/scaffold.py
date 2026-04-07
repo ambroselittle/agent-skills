@@ -1,4 +1,4 @@
-"""Scaffold a project from Jinja2 templates.
+"""Scaffold a project from Jinja2 templates, and set up scaffolded projects.
 
 Renders template files using a layered hierarchy, each overriding the previous:
   1. templates/__common/           — universal files (all templates)
@@ -12,6 +12,10 @@ Files matching any ``"exclude"`` glob patterns are skipped from the base layer.
 
 The platform is determined by template.json in the template directory (or inherited
 from the base template if the child doesn't declare one).
+
+The ``setup_project()`` function handles everything needed to get a working project
+AFTER templates are rendered: installing dependencies, running setup scripts,
+starting docker/postgres, pushing database schemas, etc.
 """
 
 from __future__ import annotations
@@ -19,10 +23,13 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import json
+import os
 import re
 import shutil
 import stat
+import subprocess
 import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -330,13 +337,400 @@ def scaffold(
     return created
 
 
+# ---------------------------------------------------------------------------
+# Setup: install deps, docker, db for a scaffolded project
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class SetupStepResult:
+    name: str
+    passed: bool
+    duration_s: float
+    error: str | None = None
+
+
+@dataclass
+class SetupResult:
+    steps: list[SetupStepResult] = field(default_factory=list)
+    api_port: int = 3001
+    web_port: int = 3000
+
+    @property
+    def passed(self) -> bool:
+        return all(s.passed for s in self.steps)
+
+
+def _run_setup_step(
+    name: str, cmd: list[str], cwd: Path, timeout: int = 300, env: dict | None = None
+) -> SetupStepResult:
+    """Run a single setup step and return the result."""
+    start = time.monotonic()
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            env=env,
+        )
+        elapsed = time.monotonic() - start
+        if proc.returncode != 0:
+            parts = [s for s in (proc.stderr.strip(), proc.stdout.strip()) if s]
+            error = "\n".join(parts) if parts else f"Exit code {proc.returncode}"
+            if len(error) > 2000:
+                error = error[:2000] + "\n... (truncated)"
+            return SetupStepResult(name=name, passed=False, duration_s=elapsed, error=error)
+        return SetupStepResult(name=name, passed=True, duration_s=elapsed)
+    except subprocess.TimeoutExpired:
+        elapsed = time.monotonic() - start
+        return SetupStepResult(
+            name=name, passed=False, duration_s=elapsed, error=f"Timed out after {timeout}s"
+        )
+    except FileNotFoundError:
+        elapsed = time.monotonic() - start
+        return SetupStepResult(
+            name=name, passed=False, duration_s=elapsed, error=f"Command not found: {cmd[0]}"
+        )
+
+
+def _read_dotenv(dotenv_file: Path) -> dict[str, str]:
+    """Parse a .env file and return key-value pairs (ignores comments and blanks)."""
+    if not dotenv_file.exists():
+        return {}
+    result: dict[str, str] = {}
+    for line in dotenv_file.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, _, value = line.partition("=")
+            result[key.strip()] = value.strip()
+    return result
+
+
+def _start_postgres_setup(project_dir: Path, result: SetupResult, skip_docker: bool) -> bool:
+    """Start Postgres via docker compose if needed. Returns True if ready."""
+    if skip_docker:
+        return True
+
+    step = _run_setup_step(
+        "docker compose up", ["docker", "compose", "up", "-d"], project_dir, timeout=60
+    )
+    result.steps.append(step)
+    if not step.passed:
+        return False
+
+    # Wait for Postgres health check
+    step = _run_setup_step(
+        "postgres health",
+        ["docker", "compose", "exec", "-T", "postgres", "pg_isready", "-U", "postgres"],
+        project_dir,
+        timeout=30,
+    )
+    for _ in range(5):
+        if step.passed:
+            break
+        time.sleep(2)
+        step = _run_setup_step(
+            "postgres health",
+            ["docker", "compose", "exec", "-T", "postgres", "pg_isready", "-U", "postgres"],
+            project_dir,
+            timeout=10,
+        )
+    result.steps.append(step)
+    return step.passed
+
+
+def _setup_node(project_dir: Path, skip_docker: bool) -> SetupResult:
+    """Set up a Node/TypeScript project after scaffolding."""
+    result = SetupResult()
+
+    # Step 1: Install dependencies
+    step = _run_setup_step("pnpm install", ["pnpm", "install"], project_dir, timeout=120)
+    result.steps.append(step)
+    if not step.passed:
+        return result
+
+    # Step 2: Run project setup (port discovery + .env generation)
+    setup_script = project_dir / "scripts" / "setup.ts"
+    if setup_script.exists() and not skip_docker:
+        step = _run_setup_step("setup", ["pnpm", "project:setup"], project_dir, timeout=30)
+        result.steps.append(step)
+        if not step.passed:
+            return result
+
+    # Read discovered ports
+    ports_file = project_dir / ".env.ports"
+    if ports_file.exists():
+        for line in ports_file.read_text().splitlines():
+            if "=" in line:
+                key, val = line.split("=", 1)
+                if key == "API_PORT":
+                    result.api_port = int(val)
+                elif key == "WEB_PORT":
+                    result.web_port = int(val)
+
+    # Step 3: Generate Prisma client + barrel exports
+    step = _run_setup_step(
+        "prisma generate",
+        ["pnpm", "--filter", "**/db", "run", "generate"],
+        project_dir,
+        timeout=60,
+    )
+    result.steps.append(step)
+    if not step.passed:
+        return result
+
+    # Step 4: Auto-format with Biome (fix formatting drift from generation)
+    step = _run_setup_step("biome format", ["pnpm", "lint:fix"], project_dir, timeout=60)
+    result.steps.append(step)
+    # Non-fatal — continue even if format step fails
+
+    # Step 5: Start Postgres
+    if not _start_postgres_setup(project_dir, result, skip_docker):
+        return result
+
+    # Step 6: Push database schema
+    step = _run_setup_step("db push", ["pnpm", "db:push"], project_dir, timeout=60)
+    result.steps.append(step)
+    if not step.passed:
+        return result
+
+    # Step 7: Seed database (non-fatal)
+    step = _run_setup_step("db seed", ["pnpm", "db:seed"], project_dir, timeout=60)
+    result.steps.append(step)
+
+    return result
+
+
+def _setup_python(project_dir: Path, skip_docker: bool) -> SetupResult:
+    """Set up a Python (FastAPI/uv) project after scaffolding."""
+    result = SetupResult(api_port=8000)
+
+    # Step 1: Install dependencies (prefer Python 3.13)
+    uv_sync_cmd = ["uv", "sync"]
+    try:
+        subprocess.run(["uv", "python", "find", "3.13"], capture_output=True, check=True)
+        uv_sync_cmd = ["uv", "sync", "--python", "3.13"]
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+    step = _run_setup_step("uv sync", uv_sync_cmd, project_dir, timeout=120)
+    result.steps.append(step)
+    if not step.passed:
+        return result
+
+    # Step 2: Run project setup (port discovery + .env generation)
+    setup_script = project_dir / "scripts" / "setup.py"
+    dotenv: dict[str, str] = {}
+    if setup_script.exists() and not skip_docker:
+        step = _run_setup_step(
+            "setup", ["uv", "run", "python", "scripts/setup.py"], project_dir, timeout=30
+        )
+        result.steps.append(step)
+        if not step.passed:
+            return result
+
+    # Read discovered ports
+    dotenv = _read_dotenv(project_dir / ".env")
+    if "API_PORT" in dotenv:
+        result.api_port = int(dotenv["API_PORT"])
+
+    # Step 3: Start Postgres
+    if not _start_postgres_setup(project_dir, result, skip_docker):
+        return result
+
+    # Step 4: Run Alembic migrations
+    alembic_dirs = list(project_dir.glob("apps/*/alembic.ini"))
+    alembic_env = {**os.environ}
+    if "DATABASE_URL" in dotenv:
+        alembic_env["DATABASE_URL"] = dotenv["DATABASE_URL"]
+    for alembic_ini in alembic_dirs:
+        app_dir = alembic_ini.parent
+        app_name = app_dir.name
+        step = _run_setup_step(
+            f"alembic upgrade ({app_name})",
+            ["uv", "run", "alembic", "upgrade", "head"],
+            app_dir,
+            timeout=300,
+            env=alembic_env,
+        )
+        result.steps.append(step)
+        if not step.passed:
+            return result
+
+    return result
+
+
+def _setup_fullstack_python(project_dir: Path, skip_docker: bool) -> SetupResult:
+    """Set up a fullstack-python project (React frontend + FastAPI backend)."""
+    result = SetupResult(api_port=8000)
+
+    # Step 1a: Install Python dependencies (prefer Python 3.13)
+    uv_sync_cmd = ["uv", "sync"]
+    try:
+        subprocess.run(["uv", "python", "find", "3.13"], capture_output=True, check=True)
+        uv_sync_cmd = ["uv", "sync", "--python", "3.13"]
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+    step = _run_setup_step("uv sync", uv_sync_cmd, project_dir, timeout=120)
+    result.steps.append(step)
+    if not step.passed:
+        return result
+
+    # Step 1b: Install web dependencies
+    step = _run_setup_step(
+        "pnpm install (web)",
+        ["pnpm", "install", "--dir", "apps/web"],
+        project_dir,
+        timeout=120,
+    )
+    result.steps.append(step)
+    if not step.passed:
+        return result
+
+    # Step 2: Run project setup (port discovery + .env generation)
+    setup_script = project_dir / "scripts" / "setup.py"
+    dotenv: dict[str, str] = {}
+    if setup_script.exists() and not skip_docker:
+        step = _run_setup_step(
+            "setup", ["uv", "run", "python", "scripts/setup.py"], project_dir, timeout=30
+        )
+        result.steps.append(step)
+        if not step.passed:
+            return result
+
+    # Read discovered ports
+    dotenv = _read_dotenv(project_dir / ".env")
+    if "API_PORT" in dotenv:
+        result.api_port = int(dotenv["API_PORT"])
+    if "WEB_PORT" in dotenv:
+        result.web_port = int(dotenv["WEB_PORT"])
+
+    # Step 3: Start Postgres
+    if not _start_postgres_setup(project_dir, result, skip_docker):
+        return result
+
+    # Step 4: Run Alembic migrations
+    alembic_dirs = list(project_dir.glob("apps/*/alembic.ini"))
+    alembic_env = {**os.environ}
+    if "DATABASE_URL" in dotenv:
+        alembic_env["DATABASE_URL"] = dotenv["DATABASE_URL"]
+    for alembic_ini in alembic_dirs:
+        app_dir = alembic_ini.parent
+        app_name = app_dir.name
+        step = _run_setup_step(
+            f"alembic upgrade ({app_name})",
+            ["uv", "run", "alembic", "upgrade", "head"],
+            app_dir,
+            timeout=300,
+            env=alembic_env,
+        )
+        result.steps.append(step)
+        if not step.passed:
+            return result
+
+    return result
+
+
+def setup_project(project_dir: Path, skip_docker: bool = False) -> SetupResult:
+    """Set up a scaffolded project: install deps, docker, db.
+
+    Detects the platform and runs the appropriate setup steps.
+    This should be called AFTER scaffolding and BEFORE verification.
+
+    Args:
+        project_dir: Path to the scaffolded project.
+        skip_docker: Skip docker compose (Postgres already available, e.g., CI).
+
+    Returns:
+        SetupResult with step-by-step pass/fail and discovered ports.
+    """
+    from scripts.verify import detect_platform
+
+    project_dir = Path(project_dir).resolve()
+    platform = detect_platform(project_dir)
+
+    if platform in ("node", "swift-ts"):
+        return _setup_node(project_dir, skip_docker)
+    elif platform == "fullstack-python":
+        return _setup_fullstack_python(project_dir, skip_docker)
+    elif platform == "python":
+        return _setup_python(project_dir, skip_docker)
+    else:
+        return _setup_node(project_dir, skip_docker)
+
+
+def print_setup_results(result: SetupResult) -> None:
+    """Print setup results as a formatted table."""
+    if not result.steps:
+        print("\nNo setup steps were run.")
+        return
+
+    name_width = max(len(s.name) for s in result.steps)
+
+    print(f"\n{'Step':<{name_width}}  {'Time':>7}  Result")
+    print(f"{'-' * name_width}  {'-' * 7}  {'-' * 10}")
+
+    for s in result.steps:
+        symbol = "\u2705" if s.passed else "\u274c"
+        time_str = f"{s.duration_s:.1f}s"
+        print(f"{s.name:<{name_width}}  {time_str:>7}  {symbol} {'pass' if s.passed else 'FAIL'}")
+        if s.error:
+            for line in s.error.split("\n")[:5]:
+                print(f"  {line}")
+
+    if result.passed:
+        print("\nSetup completed successfully!")
+    else:
+        failed = [s.name for s in result.steps if not s.passed]
+        print(f"\nSetup failed: {', '.join(failed)}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Scaffold a project from templates")
-    parser.add_argument("--project-name", required=True, help="Project name (lowercase-hyphenated)")
-    parser.add_argument("--template", required=True, help="Template name (e.g. fullstack-ts)")
-    parser.add_argument("--versions", required=True, help="Path to versions.json")
-    parser.add_argument("--output", required=True, help="Output directory")
+
+    # Setup mode: set up an already-scaffolded project
+    parser.add_argument(
+        "--setup",
+        metavar="DIR",
+        help="Set up an already-scaffolded project (install deps, docker, db)",
+    )
+    parser.add_argument(
+        "--skip-docker",
+        action="store_true",
+        help="Skip docker compose (Postgres already available)",
+    )
+
+    # Scaffold mode: render templates
+    parser.add_argument("--project-name", help="Project name (lowercase-hyphenated)")
+    parser.add_argument("--template", help="Template name (e.g. fullstack-ts)")
+    parser.add_argument("--versions", help="Path to versions.json")
+    parser.add_argument("--output", help="Output directory")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Remove existing output directory before scaffolding",
+    )
+
     args = parser.parse_args()
+
+    # Handle --setup mode
+    if args.setup:
+        result = setup_project(Path(args.setup), skip_docker=args.skip_docker)
+        print_setup_results(result)
+        if not result.passed:
+            sys.exit(1)
+        return
+
+    # Scaffold mode requires all rendering arguments
+    if not args.project_name or not args.template or not args.versions or not args.output:
+        parser.error("Scaffold mode requires: --project-name, --template, --versions, --output")
+
+    if args.force:
+        output = Path(args.output)
+        if output.exists():
+            shutil.rmtree(output)
+            print(f"Removed existing {args.output}")
 
     with open(args.versions) as f:
         versions = json.load(f)

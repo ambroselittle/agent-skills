@@ -12,7 +12,6 @@ const targets = [
   "packages/db/prisma/schema.prisma",
   "apps/api/src/routes/users.ts",
   "packages/db/prisma/seed.ts",
-  ...globSync("apps/mobile/Sources/*/Services/APIClient.swift", { cwd: root }),
 ]
 
 let removedCount = 0

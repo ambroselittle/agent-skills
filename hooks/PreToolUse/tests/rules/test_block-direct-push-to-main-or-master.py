@@ -1,5 +1,7 @@
 """Tests for rule: Block direct push to main or master."""
 
+from unittest.mock import patch
+
 from engine import evaluate
 
 RULE_DESCRIPTION = "Block direct push to main or master — these require a PR"
@@ -41,4 +43,18 @@ def test_boundary_force_push_not_matched(rule):
 def test_boundary_push_with_set_upstream(rule):
     """git push -u origin main is a direct push — denied."""
     result = evaluate(_payload("git push -u origin main"), [rule])
+    assert result["decision"] == "deny"
+
+
+def test_boundary_initial_push_to_empty_remote_allowed(rule):
+    """Initial push to an empty remote (new repo) is allowed — nothing to protect."""
+    with patch("operations.git._remote_is_empty", return_value=True):
+        result = evaluate(_payload("git push -u origin main"), [rule])
+    assert result["decision"] == "proceed"
+
+
+def test_boundary_non_empty_remote_still_denied(rule):
+    """Push to main on a non-empty remote is still denied."""
+    with patch("operations.git._remote_is_empty", return_value=False):
+        result = evaluate(_payload("git push origin main"), [rule])
     assert result["decision"] == "deny"

@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 from scripts.scaffold import (
-    TEMPLATES_DIR,
     _substitute_dir_vars,
     build_context,
     normalize_version_key,
@@ -29,6 +28,7 @@ def versions() -> dict:
         "vitest": "3.1.1",
         "hono": "4.7.6",
         "hono_node_server": "1.19.12",
+        "hono_zod_openapi": "1.2.4",
         "tailwindcss": "4.1.3",
         "tailwindcss_vite": "4.1.3",
         "prisma": "7.5.0",
@@ -464,6 +464,9 @@ def test_scaffold_api_python_creates_expected_structure(tmp_path, python_version
     assert (output / "apps" / "api" / "alembic" / "env.py").exists()
     assert (output / "apps" / "api" / "alembic" / "script.py.mako").exists()
     assert (output / "apps" / "api" / "alembic" / "versions" / "001_create_user_table.py").exists()
+
+    # Setup script
+    assert (output / "scripts" / "setup.py").exists()
 
     # Should NOT have TS-specific files
     assert not (output / "package.json").exists()
@@ -1217,9 +1220,7 @@ def test_existing_templates_unaffected_by_dir_var_feature(tmp_path, versions):
 
     for path in created:
         rel = str(path.relative_to(output))
-        assert "__" not in rel or "__tests__" in rel, (
-            f"Unexpected double-underscore in path: {rel}"
-        )
+        assert "__" not in rel or "__tests__" in rel, f"Unexpected double-underscore in path: {rel}"
 
 
 # ---------------------------------------------------------------------------
@@ -1279,15 +1280,8 @@ def test_scaffold_swift_ts_creates_expected_structure(tmp_path, versions):
     assert (output / "scripts" / "discover-ports.ts").exists()
     assert (output / "scripts" / "cleanup-samples.ts").exists()
 
-    # Swift multiplatform app (directory name substituted from __swift_project_name__)
-    assert (output / "apps" / "mobile" / "Package.swift").exists()
-    assert (output / "apps" / "mobile" / "Sources" / "MyApp" / "App.swift").exists()
-    assert (output / "apps" / "mobile" / "Sources" / "MyApp" / "ContentView.swift").exists()
-    assert (output / "apps" / "mobile" / "Sources" / "MyApp" / "Models" / "User.swift").exists()
-    assert (output / "apps" / "mobile" / "Sources" / "MyApp" / "Services" / "APIClient.swift").exists()
-    assert (output / "apps" / "mobile" / "Sources" / "MyApp" / "Views" / "UsersView.swift").exists()
-    assert (output / "apps" / "mobile" / "Tests" / "MyAppTests" / "APIClientTests.swift").exists()
-    assert (output / "apps" / "mobile" / "Sources" / "MyApp" / "Resources" / "Assets.xcassets" / "Contents.json").exists()
+    # Mobile placeholder (Xcode project created by user)
+    assert (output / "apps" / "ios" / "README.md").exists()
 
     # NO apps/web
     assert not (output / "apps" / "web").exists()
@@ -1327,25 +1321,21 @@ def test_scaffold_swift_ts_renders_jinja2_variables(tmp_path, versions):
     claude_md = (output / "CLAUDE.md").read_text()
     assert "cool-app" in claude_md
     assert "Swift" in claude_md  # swift-ts specific CLAUDE.md
+    assert "openapi" in claude_md.lower()  # OpenAPI section present
 
     # docker-compose has project-specific db name
     dc = (output / "docker-compose.yml").read_text()
     assert "cool-app_dev" in dc
 
-    # Swift Package.swift has PascalCase project name
-    package_swift = (output / "apps" / "mobile" / "Package.swift").read_text()
-    assert "CoolApp" in package_swift
+    # Mobile README has scope variable substituted
+    mobile_readme = (output / "apps" / "ios" / "README.md").read_text()
+    assert "@cool-app" in mobile_readme  # scope substituted
 
-    # Swift source directories use PascalCase
-    assert (output / "apps" / "mobile" / "Sources" / "CoolApp" / "App.swift").exists()
-    assert (output / "apps" / "mobile" / "Tests" / "CoolAppTests" / "APIClientTests.swift").exists()
+    # API package.json has @hono/zod-openapi
+    api_pkg = json.loads((output / "apps" / "api" / "package.json").read_text())
+    assert "@hono/zod-openapi" in api_pkg["dependencies"]
 
-    # APIClient.swift has project name
-    api_client = (output / "apps" / "mobile" / "Sources" / "CoolApp" / "Services" / "APIClient.swift").read_text()
-    assert "cool-app" in api_client
-
-    # CI template has both ubuntu and macos jobs
+    # CI has only ubuntu job (no macos Swift job)
     ci = (output / ".github" / "workflows" / "ci.yml").read_text()
     assert "ubuntu-latest" in ci
-    assert "macos-15" in ci
-    assert "CoolApp" in ci
+    assert "macos-15" not in ci

@@ -31,6 +31,7 @@ def init_git(
     stack_description: str,
     *,
     no_github: bool = False,
+    github_org: str | None = None,
 ) -> str | None:
     """Initialize git repo, create initial commit, optionally push to GitHub.
 
@@ -61,34 +62,42 @@ def init_git(
     if auth_check.returncode != 0:
         raise RuntimeError("GitHub CLI is not authenticated. Run `gh auth login` first.")
 
+    # Determine the repo slug (org/name or just name)
+    repo_slug = f"{github_org}/{project_name}" if github_org else project_name
+
     # Check if repo already exists
     repo_check = run_cmd(
-        ["gh", "repo", "view", project_name, "--json", "url"],
+        ["gh", "repo", "view", repo_slug, "--json", "url,isEmpty"],
         project_dir,
         check=False,
     )
+
     if repo_check.returncode == 0:
-        raise RuntimeError(
-            f"GitHub repo '{project_name}' already exists. "
-            f"Choose a different name or use --no-github."
+        import json as _json
+
+        repo_info = _json.loads(repo_check.stdout)
+        if not repo_info.get("isEmpty"):
+            msg = f"GitHub repo '{repo_slug}' already exists."
+            raise RuntimeError(f"{msg} Choose a different name or use --no-github.")
+        # Repo exists but is empty (e.g. partial prior run) — remote is already set, just push
+        url = repo_info.get("url") or f"https://github.com/{repo_slug}"
+    else:
+        # Create repo (gh handles the push internally via --push flag)
+        result = run_cmd(
+            ["gh", "repo", "create", repo_slug, "--private", "--source=.", "--push"],
+            project_dir,
         )
+        url = result.stdout.strip()
+        if not url:
+            view = run_cmd(
+                ["gh", "repo", "view", "--json", "url", "-q", ".url"], project_dir, check=False
+            )
+            url = view.stdout.strip()
+        return url or f"https://github.com/{repo_slug}"
 
-    # Create repo and push
-    result = run_cmd(
-        ["gh", "repo", "create", project_name, "--private", "--source=.", "--push"],
-        project_dir,
-    )
-
-    # Extract URL from output
-    url = result.stdout.strip()
-    if not url:
-        # Try to get it from gh repo view
-        view = run_cmd(
-            ["gh", "repo", "view", "--json", "url", "-q", ".url"], project_dir, check=False
-        )
-        url = view.stdout.strip()
-
-    return url or f"https://github.com/{project_name}"
+    # Push to existing empty remote (remote already configured by prior gh repo create)
+    run_cmd(["git", "push", "-u", "origin", "main"], project_dir)
+    return url
 
 
 def main() -> None:
@@ -98,6 +107,9 @@ def main() -> None:
     parser.add_argument("--template", required=True, help="Template name used")
     parser.add_argument("--stack", required=True, help="Stack description for commit message")
     parser.add_argument("--no-github", action="store_true", help="Skip GitHub repo creation")
+    parser.add_argument(
+        "--github-org", help="GitHub org to create the repo under (defaults to authenticated user)"
+    )
     args = parser.parse_args()
 
     try:
@@ -107,6 +119,7 @@ def main() -> None:
             args.template,
             args.stack,
             no_github=args.no_github,
+            github_org=args.github_org,
         )
         if url:
             print(f"GitHub repo created: {url}")

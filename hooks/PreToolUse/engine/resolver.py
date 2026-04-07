@@ -1,5 +1,7 @@
 """Path normalization, repo-root detection, and glob matching for the hook rules engine."""
 
+from __future__ import annotations
+
 import os
 import re
 import subprocess

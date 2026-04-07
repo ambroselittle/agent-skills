@@ -9,7 +9,7 @@ This is a pnpm monorepo managed with Turborepo.
 
 ## Commands
 
-- `pnpm dev` — Start all apps in development mode
+- `pnpm start` — Start Postgres + all dev servers (clean exit on Ctrl+C)
 - `pnpm build` — Build all packages
 - `pnpm test` — Run all tests
 - `pnpm lint` — Lint with Biome
@@ -19,10 +19,9 @@ This is a pnpm monorepo managed with Turborepo.
 
 ## Development
 
-1. `docker compose up -d` — Start Postgres
-2. `pnpm install` — Install dependencies
-3. `pnpm db:push` — Push database schema
-4. `pnpm dev` — Start development servers
+1. `pnpm install` — Install dependencies
+2. `pnpm db:push` — Push database schema
+3. `pnpm start` — Start Postgres + dev servers
 
 ## Conventions
 
