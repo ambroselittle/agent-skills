@@ -227,35 +227,28 @@ def run_eval(
 
 
 def _reset_database() -> None:
-    """Drop and recreate the eval database so each template starts clean.
+    """Wipe all tables so each template starts with a clean schema.
 
-    Parses DATABASE_URL to extract the database name, connects to the
-    default 'postgres' database, and runs DROP/CREATE. Only used in CI
+    Drops and recreates the public schema in the eval database. This
+    avoids DROP DATABASE issues with active connections. Only used in CI
     where all templates share a single Postgres service container.
     """
     import os
-    from urllib.parse import urlparse
 
     db_url = os.environ.get(
         "DATABASE_URL",
         "postgresql://postgres:postgres@localhost:5432/eval_project_dev",
     )
-    parsed = urlparse(db_url)
-    db_name = parsed.path.lstrip("/")
-    # Connect to the default 'postgres' database to drop/create the target
-    maintenance_url = db_url.rsplit("/", 1)[0] + "/postgres"
 
-    try:
-        subprocess.run(
-            [
-                "psql", maintenance_url, "-c",
-                f'DROP DATABASE IF EXISTS "{db_name}";'
-                f'CREATE DATABASE "{db_name}";',
-            ],
-            capture_output=True, text=True, timeout=10,
-        )
-    except Exception:
-        pass  # Best-effort; if psql isn't available, db push will fail with a clear error
+    result = subprocess.run(
+        [
+            "psql", db_url, "-c",
+            "DROP SCHEMA public CASCADE; CREATE SCHEMA public;",
+        ],
+        capture_output=True, text=True, timeout=10,
+    )
+    if result.returncode != 0:
+        print(f"  [warn] database reset failed: {result.stderr.strip()}")
 
 
 def _write_ci_env_files(project_dir: Path) -> None:
