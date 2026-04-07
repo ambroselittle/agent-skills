@@ -21,6 +21,11 @@ apps/*/.env
 # IDE
 .idea/
 .vscode/
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+DerivedData/
 *.swp
 *.swo
 *~

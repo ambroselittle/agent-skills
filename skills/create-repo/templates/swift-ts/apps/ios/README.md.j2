@@ -1,18 +1,27 @@
 # Mobile App
 
-This directory is ready for your Xcode project. Create it here so the monorepo keeps
-everything together.
+This directory is ready for your Xcode project. A workspace has been pre-created at the repo
+root (`{{ swift_project_name }}.xcworkspace`) that ties the Xcode project to the full monorepo —
+so you see all repo files alongside your Swift code in Xcode's file navigator.
 
-## Create Your Xcode Project
+## Set Up the Xcode Project
 
-1. Open Xcode → **File → New → Project**
-2. Choose your template (e.g. **App** under iOS)
-3. When prompted for a save location, navigate to this directory (`apps/ios/`) and save here
-4. Xcode creates the project with your Apple ID and code signing pre-configured
+**Always open Xcode via the workspace, not the `.xcodeproj` directly.**
+
+1. Open `{{ swift_project_name }}.xcworkspace` (at the repo root) in Xcode
+2. In Xcode: **File → New → Project**
+3. Choose your template (e.g. **App** under iOS / Multiplatform)
+4. Set the product name to **`{{ swift_project_name }}`**
+5. When prompted for a save location, navigate into **this directory** (`apps/ios/`) and save
+6. Xcode creates `apps/ios/{{ swift_project_name }}.xcodeproj` — the workspace already points there
+
+The workspace file (`{{ swift_project_name }}.xcworkspace/contents.xcworkspacedata`) references
+both `apps/ios/{{ swift_project_name }}.xcodeproj` and the repo root, so once you save the project
+in the right place everything is connected.
 
 ## Connect to the API
 
-The Hono REST API runs at `http://localhost:3001/api`.
+The Hono REST API runs at `http://localhost:3001/api` (start it with `pnpm start`).
 
 An **OpenAPI 3.0 spec** is served at:
 ```
@@ -28,17 +37,11 @@ type-safe Swift client automatically from this spec:
    - `https://github.com/apple/swift-openapi-urlsession` — URLSession transport
 2. Export the spec while the API is running:
    ```bash
-   curl http://localhost:3001/api/openapi.json -o openapi.json
+   pnpm --filter {{ scope }}/api openapi:export > apps/ios/openapi.json
    # or
-   pnpm --filter {{ scope }}/api openapi:export > openapi.json
+   curl http://localhost:3001/api/openapi.json -o apps/ios/openapi.json
    ```
-3. Add `openapi.json` + an `openapi-generator-config.yaml` to your app target:
-   ```yaml
-   # openapi-generator-config.yaml
-   generate:
-     - types
-     - client
-   ```
+3. Add `openapi.json` + the pre-staged `openapi-generator-config.yaml` to your app target
 4. The generator runs at build time — Xcode produces a type-safe `Client` you use directly
 
 See the [Swift OpenAPI Generator docs](https://swiftpackageindex.com/apple/swift-openapi-generator/documentation)

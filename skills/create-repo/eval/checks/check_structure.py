@@ -648,6 +648,20 @@ def _check_swift_ts(project_dir: Path, checks: list[CheckResult]) -> None:
         )
     )
 
+    # Xcode workspace pre-created at repo root — name derived from project name
+    # Find any *.xcworkspace directory (project name varies per scaffold)
+    xcworkspaces = list(project_dir.glob("*.xcworkspace"))
+    has_workspace = len(xcworkspaces) == 1
+    workspace_data = (xcworkspaces[0] / "contents.xcworkspacedata") if xcworkspaces else None
+    checks.append(
+        CheckResult(
+            "file: *.xcworkspace/contents.xcworkspacedata",
+            has_workspace and workspace_data is not None and workspace_data.exists(),
+            None if (has_workspace and workspace_data and workspace_data.exists())
+            else "Missing pre-created Xcode workspace at repo root",
+        )
+    )
+
     # apps/web should NOT exist
     web_dir = project_dir / "apps" / "web"
     checks.append(
