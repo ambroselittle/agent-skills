@@ -187,10 +187,13 @@ def run_eval(
             )
             return result
 
-        # In CI (skip_docker=True), write .env files before verify since
-        # pnpm setup won't discover ports (Postgres is a service container).
-        # Locally, verify.py runs pnpm setup which handles .env generation.
+        # In CI (skip_docker=True), reset the shared database and write
+        # .env files before verify. The database reset ensures each template
+        # starts with a clean slate (previous templates may have created
+        # tables with different schemas). Locally, `docker compose down -v`
+        # handles cleanup after each template.
         if skip_docker:
+            _reset_database()
             _write_ci_env_files(project_dir)
 
         try:
@@ -221,6 +224,38 @@ def run_eval(
                 shutil.rmtree(project_dir.parent, ignore_errors=True)
 
     return result
+
+
+def _reset_database() -> None:
+    """Drop and recreate the eval database so each template starts clean.
+
+    Parses DATABASE_URL to extract the database name, connects to the
+    default 'postgres' database, and runs DROP/CREATE. Only used in CI
+    where all templates share a single Postgres service container.
+    """
+    import os
+    from urllib.parse import urlparse
+
+    db_url = os.environ.get(
+        "DATABASE_URL",
+        "postgresql://postgres:postgres@localhost:5432/eval_project_dev",
+    )
+    parsed = urlparse(db_url)
+    db_name = parsed.path.lstrip("/")
+    # Connect to the default 'postgres' database to drop/create the target
+    maintenance_url = db_url.rsplit("/", 1)[0] + "/postgres"
+
+    try:
+        subprocess.run(
+            [
+                "psql", maintenance_url, "-c",
+                f'DROP DATABASE IF EXISTS "{db_name}";'
+                f'CREATE DATABASE "{db_name}";',
+            ],
+            capture_output=True, text=True, timeout=10,
+        )
+    except Exception:
+        pass  # Best-effort; if psql isn't available, db push will fail with a clear error
 
 
 def _write_ci_env_files(project_dir: Path) -> None:
