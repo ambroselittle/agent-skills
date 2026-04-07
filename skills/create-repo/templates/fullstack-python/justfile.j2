@@ -28,11 +28,26 @@ start:
         fi
     fi
     docker compose up -d
-    trap '' INT
     set +e
-    trap 'echo ""; echo "Shutting down..."; kill 0 2>/dev/null; wait 2>/dev/null; docker compose down 2>/dev/null' EXIT
+    api_pid="" web_pid=""
+    cleanup() {
+        echo ""; echo "Shutting down..."
+        [ -n "$api_pid" ] && kill "$api_pid" 2>/dev/null
+        [ -n "$web_pid" ] && kill "$web_pid" 2>/dev/null
+        wait 2>/dev/null
+        docker compose down 2>/dev/null
+    }
+    trap cleanup EXIT
+    trap 'exit 0' INT TERM
+    echo ""
+    echo "  Web:      http://localhost:${WEB_PORT:-3000}"
+    echo "  API:      http://localhost:${API_PORT:-8000}"
+    echo "  API docs: http://localhost:${API_PORT:-8000}/docs"
+    echo ""
     (cd apps/api && uv run uvicorn src.main:app --reload --port "${API_PORT:-8000}" 2> >(grep -v "Interrupted by SIGINT" >&2) | sed 's/^/[api] /') &
+    api_pid=$!
     (cd apps/web && bash scripts/dev.sh 2>&1 | sed 's/^/[web] /') &
+    web_pid=$!
     wait 2>/dev/null
 
 # Run all tests
