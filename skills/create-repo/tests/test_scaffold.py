@@ -7,9 +7,11 @@ from pathlib import Path
 
 import pytest
 from scripts.scaffold import (
+    _substitute_dir_vars,
     build_context,
     normalize_version_key,
     scaffold,
+    to_pascal_case,
 )
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -26,11 +28,12 @@ def versions() -> dict:
         "vitest": "3.1.1",
         "hono": "4.7.6",
         "hono_node_server": "1.19.12",
+        "hono_zod_openapi": "1.2.4",
         "tailwindcss": "4.1.3",
         "tailwindcss_vite": "4.1.3",
         "prisma": "7.5.0",
         "prisma_client": "7.5.0",
-        "biomejs_biome": "2.0.0",
+        "biomejs_biome": "2.4.10",
         "trpc_server": "11.1.0",
         "trpc_client": "11.1.0",
         "trpc_react_query": "11.1.0",
@@ -94,6 +97,62 @@ def test_build_context():
     assert ctx["project_name"] == "my-app"
     assert ctx["scope"] == "@my-app"
     assert ctx["versions"]["react"] == "19.0.0"
+
+
+def test_build_context_swift_project_name():
+    ctx = build_context("my-app", {})
+    assert ctx["swift_project_name"] == "MyApp"
+
+
+# --- to_pascal_case ---
+
+
+def test_to_pascal_case_kebab():
+    assert to_pascal_case("my-app") == "MyApp"
+
+
+def test_to_pascal_case_multi_word():
+    assert to_pascal_case("cool-project") == "CoolProject"
+
+
+def test_to_pascal_case_single_char():
+    assert to_pascal_case("a") == "A"
+
+
+def test_to_pascal_case_single_word():
+    assert to_pascal_case("single") == "Single"
+
+
+def test_to_pascal_case_three_words():
+    assert to_pascal_case("my-cool-app") == "MyCoolApp"
+
+
+# --- _substitute_dir_vars ---
+
+
+def test_substitute_dir_vars_replaces_known():
+    path = Path("Sources/__swift_project_name__/App.swift")
+    result = _substitute_dir_vars(path, {"swift_project_name": "MyApp"})
+    assert result == Path("Sources/MyApp/App.swift")
+
+
+def test_substitute_dir_vars_leaves_unknown():
+    """__pycache__ should not be substituted."""
+    path = Path("some/__pycache__/module.pyc")
+    result = _substitute_dir_vars(path, {"swift_project_name": "MyApp"})
+    assert result == Path("some/__pycache__/module.pyc")
+
+
+def test_substitute_dir_vars_nested():
+    path = Path("a/__swift_project_name__/b/__swift_project_name__Tests")
+    result = _substitute_dir_vars(path, {"swift_project_name": "MyApp"})
+    assert result == Path("a/MyApp/b/MyAppTests")
+
+
+def test_substitute_dir_vars_no_markers():
+    path = Path("Sources/App/main.swift")
+    result = _substitute_dir_vars(path, {"swift_project_name": "MyApp"})
+    assert result == Path("Sources/App/main.swift")
 
 
 # --- scaffold ---
@@ -405,6 +464,9 @@ def test_scaffold_api_python_creates_expected_structure(tmp_path, python_version
     assert (output / "apps" / "api" / "alembic" / "env.py").exists()
     assert (output / "apps" / "api" / "alembic" / "script.py.mako").exists()
     assert (output / "apps" / "api" / "alembic" / "versions" / "001_create_user_table.py").exists()
+
+    # Setup script
+    assert (output / "scripts" / "setup.py").exists()
 
     # Should NOT have TS-specific files
     assert not (output / "package.json").exists()
@@ -1089,3 +1151,191 @@ def test_multi_platform_unknown_platform_ignored(tmp_path, monkeypatch):
     # The known platform layer should be applied
     assert (output / "biome.json").exists()
     assert (output / "biome.json").read_text() == "{}"
+
+
+# ---------------------------------------------------------------------------
+# Directory name templating (__variable_name__)
+# ---------------------------------------------------------------------------
+
+
+def test_dir_var_substitution_in_scaffold(tmp_path, monkeypatch):
+    """__var__ markers in directory names are substituted from context."""
+    templates = tmp_path / "templates"
+    templates.mkdir()
+    common = templates / "__common"
+    common.mkdir()
+
+    tpl = templates / "test-tpl"
+    tpl.mkdir()
+    (tpl / "template.json").write_text(json.dumps({}))
+
+    # Create a file under a __var__ directory
+    var_dir = tpl / "Sources" / "__swift_project_name__"
+    var_dir.mkdir(parents=True)
+    (var_dir / "App.swift").write_text("hello")
+
+    monkeypatch.setattr("scripts.scaffold.TEMPLATES_DIR", templates)
+    monkeypatch.setattr("scripts.scaffold.COMMON_DIR_NAME", "__common")
+
+    output = tmp_path / "out"
+    scaffold("my-app", "test-tpl", {}, output)
+
+    # Directory should be resolved to PascalCase
+    assert (output / "Sources" / "MyApp" / "App.swift").exists()
+    assert (output / "Sources" / "MyApp" / "App.swift").read_text() == "hello"
+    # Original marker should NOT exist
+    assert not (output / "Sources" / "__swift_project_name__").exists()
+
+
+def test_dir_var_pycache_not_substituted(tmp_path, monkeypatch):
+    """__pycache__ directories are left unchanged (not a variable)."""
+    templates = tmp_path / "templates"
+    templates.mkdir()
+    common = templates / "__common"
+    common.mkdir()
+
+    tpl = templates / "test-tpl"
+    tpl.mkdir()
+    (tpl / "template.json").write_text(json.dumps({}))
+
+    pycache = tpl / "__pycache__"
+    pycache.mkdir()
+    (pycache / "module.pyc").write_text("bytecode")
+
+    monkeypatch.setattr("scripts.scaffold.TEMPLATES_DIR", templates)
+    monkeypatch.setattr("scripts.scaffold.COMMON_DIR_NAME", "__common")
+
+    output = tmp_path / "out"
+    scaffold("my-app", "test-tpl", {}, output)
+
+    # __pycache__ should remain as-is (pycache is not in context)
+    assert (output / "__pycache__" / "module.pyc").exists()
+
+
+def test_existing_templates_unaffected_by_dir_var_feature(tmp_path, versions):
+    """Existing templates should produce identical output with the dir var feature."""
+    # Scaffold fullstack-ts and verify no __var__ markers appear in output paths
+    output = tmp_path / "my-app"
+    created = scaffold("my-app", "fullstack-ts", versions, output)
+
+    for path in created:
+        rel = str(path.relative_to(output))
+        assert "__" not in rel or "__tests__" in rel, f"Unexpected double-underscore in path: {rel}"
+
+
+# ---------------------------------------------------------------------------
+# swift-ts scaffold tests
+# ---------------------------------------------------------------------------
+
+
+def test_scaffold_swift_ts_creates_expected_structure(tmp_path, versions):
+    output = tmp_path / "my-app"
+    created = scaffold("my-app", "swift-ts", versions, output)
+
+    assert len(created) > 0
+
+    # Common files (from __common/ and __common/ts/)
+    assert (output / "docker-compose.yml").exists()
+    assert (output / ".gitignore").exists()
+    assert (output / ".env.example").exists()
+    assert (output / "CLAUDE.md").exists()
+    assert (output / "biome.json").exists()
+    assert (output / ".claude" / "rules" / "testing.md").exists()
+    assert (output / ".github" / "workflows" / "ci.yml").exists()
+    assert (output / ".github" / "pull_request_template.md").exists()
+
+    # Root monorepo files (inherited from fullstack-ts)
+    assert (output / "package.json").exists()
+    assert (output / "pnpm-workspace.yaml").exists()
+    assert (output / "turbo.json").exists()
+    assert (output / "tsconfig.json").exists()
+
+    # REST API (swift-ts specific, NOT tRPC)
+    assert (output / "apps" / "api" / "package.json").exists()
+    assert (output / "apps" / "api" / "src" / "index.ts").exists()
+    assert (output / "apps" / "api" / "src" / "routes" / "index.ts").exists()
+    assert (output / "apps" / "api" / "src" / "routes" / "health.ts").exists()
+    assert (output / "apps" / "api" / "src" / "routes" / "users.ts").exists()
+    assert (output / "apps" / "api" / "__tests__" / "routes.test.ts").exists()
+
+    # API E2E tests
+    assert (output / "apps" / "api" / "playwright.config.ts").exists()
+    assert (output / "apps" / "api" / "e2e" / "smoke.test.ts").exists()
+    assert (output / "apps" / "api" / "e2e" / "users.test.ts").exists()
+    assert (output / "apps" / "api" / "vitest.config.ts").exists()
+
+    # API tsconfig inherited from base (NOT duplicated)
+    assert (output / "apps" / "api" / "tsconfig.json").exists()
+
+    # Packages (inherited from fullstack-ts)
+    assert (output / "packages" / "db" / "package.json").exists()
+    assert (output / "packages" / "db" / "prisma" / "schema.prisma").exists()
+    assert (output / "packages" / "db" / "prisma" / "seed.ts").exists()
+    assert (output / "packages" / "db" / "src" / "index.ts").exists()
+    assert (output / "packages" / "types" / "package.json").exists()
+    assert (output / "packages" / "config" / "tsconfig.base.json").exists()
+
+    # Scripts
+    assert (output / "scripts" / "setup.ts").exists()
+    assert (output / "scripts" / "discover-ports.ts").exists()
+    assert (output / "scripts" / "cleanup-samples.ts").exists()
+
+    # Mobile placeholder (Xcode project created by user)
+    assert (output / "apps" / "ios" / "README.md").exists()
+
+    # NO apps/web
+    assert not (output / "apps" / "web").exists()
+
+    # NO tRPC files
+    assert not (output / "apps" / "api" / "src" / "router.ts").exists()
+    assert not (output / "apps" / "api" / "src" / "trpc.ts").exists()
+    assert not (output / "apps" / "api" / "__tests__" / "router.test.ts").exists()
+
+    # NO __swift_project_name__ marker dirs in output
+    for path in created:
+        rel = str(path.relative_to(output))
+        assert "__swift_project_name__" not in rel, (
+            f"Unsubstituted __swift_project_name__ in: {rel}"
+        )
+
+
+def test_scaffold_swift_ts_renders_jinja2_variables(tmp_path, versions):
+    output = tmp_path / "cool-app"
+    scaffold("cool-app", "swift-ts", versions, output)
+
+    # Root package.json
+    root_pkg = json.loads((output / "package.json").read_text())
+    assert root_pkg["name"] == "cool-app"
+
+    # API package.json scope and deps — no tRPC
+    api_pkg = json.loads((output / "apps" / "api" / "package.json").read_text())
+    assert api_pkg["name"] == "@cool-app/api"
+    assert "hono" in api_pkg["dependencies"]
+    assert "@trpc/server" not in api_pkg.get("dependencies", {})
+    assert "@hono/trpc-server" not in api_pkg.get("dependencies", {})
+
+    # Versions substituted in API
+    assert versions["hono"] in api_pkg["dependencies"]["hono"]
+
+    # CLAUDE.md has project name (the swift-ts override, not the __common one)
+    claude_md = (output / "CLAUDE.md").read_text()
+    assert "cool-app" in claude_md
+    assert "Swift" in claude_md  # swift-ts specific CLAUDE.md
+    assert "openapi" in claude_md.lower()  # OpenAPI section present
+
+    # docker-compose has project-specific db name
+    dc = (output / "docker-compose.yml").read_text()
+    assert "cool-app_dev" in dc
+
+    # Mobile README has scope variable substituted
+    mobile_readme = (output / "apps" / "ios" / "README.md").read_text()
+    assert "@cool-app" in mobile_readme  # scope substituted
+
+    # API package.json has @hono/zod-openapi
+    api_pkg = json.loads((output / "apps" / "api" / "package.json").read_text())
+    assert "@hono/zod-openapi" in api_pkg["dependencies"]
+
+    # CI has only ubuntu job (no macos Swift job)
+    ci = (output / ".github" / "workflows" / "ci.yml").read_text()
+    assert "ubuntu-latest" in ci
+    assert "macos-15" not in ci

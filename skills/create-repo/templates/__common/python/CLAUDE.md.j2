@@ -11,7 +11,7 @@ This is a uv workspace monorepo.
 
 All commands are run via `just` from the project root:
 
-- `just dev` — Start the API dev server
+- `just start` — Start Postgres + API dev server (clean exit on Ctrl+C)
 - `just test` — Run all tests
 - `just lint` — Lint with Ruff
 - `just format` — Format with Ruff
@@ -20,10 +20,9 @@ All commands are run via `just` from the project root:
 
 ## Development
 
-1. `docker compose up -d` — Start Postgres
-2. `uv sync` — Install dependencies
-3. `just db-migrate` — Apply migrations
-4. `just dev` — Start dev server
+1. `uv sync` — Install dependencies
+2. `just db-migrate` — Apply migrations
+3. `just start` — Start Postgres + dev server
 
 ## Conventions
 

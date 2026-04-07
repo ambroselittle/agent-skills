@@ -1,0 +1,63 @@
+import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi"
+import { db } from "{{ scope }}/db"
+
+// --- sample routes start ---
+const UserSchema = z
+  .object({
+    id: z.string(),
+    email: z.string().email(),
+    name: z.string().nullable(),
+    createdAt: z.string().datetime(),
+    updatedAt: z.string().datetime(),
+  })
+  .openapi("User")
+
+const CreateUserSchema = z
+  .object({
+    email: z.string().email(),
+    name: z.string().min(1).optional(),
+  })
+  .openapi("CreateUser")
+
+const listUsersRoute = createRoute({
+  method: "get",
+  path: "/",
+  responses: {
+    200: {
+      content: { "application/json": { schema: z.array(UserSchema) } },
+      description: "List all users",
+    },
+  },
+})
+
+const createUserRoute = createRoute({
+  method: "post",
+  path: "/",
+  request: {
+    body: {
+      content: { "application/json": { schema: CreateUserSchema } },
+    },
+  },
+  responses: {
+    201: {
+      content: { "application/json": { schema: UserSchema } },
+      description: "User created",
+    },
+  },
+})
+
+const users = new OpenAPIHono()
+
+users.openapi(listUsersRoute, async (c) => {
+  const allUsers = await db.user.findMany()
+  return c.json(allUsers)
+})
+
+users.openapi(createUserRoute, async (c) => {
+  const body = c.req.valid("json")
+  const user = await db.user.create({ data: body })
+  return c.json(user, 201)
+})
+// --- sample routes end ---
+
+export { users }

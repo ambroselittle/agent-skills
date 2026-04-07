@@ -112,13 +112,22 @@ Read `~/.claude/skills/shared/references/finding-format.md` for the status lifec
 
 **Do not run verification until all edit agents have reported back.**
 
-1. **Read CLAUDE.md** to find the repo's verification commands.
+**CRITICAL: Verification is mandatory before any commit or push. No exceptions, no shortcuts.**
+
+1. **Read CLAUDE.md and `.claude/rules/`** to find the repo's verification commands and policies.
+   If a `verification.md` rule exists, follow it exactly — it may require running the full test
+   suite, not just targeted tests.
 2. **Format** changed files only (runs first — it modifies files):
    - Get changed files: `git diff $(git merge-base HEAD main)...HEAD --name-only`
    - Use repo-appropriate formatter from CLAUDE.md
-3. **Typecheck + Tests** in parallel:
-   - Use the typecheck command from CLAUDE.md
-   - Tests: only test files related to changes (use filename patterns as filters, not full suite)
+3. **Run the repo's verification suite.** Follow whatever CLAUDE.md or `.claude/rules/verification.md`
+   specifies. If neither prescribes a scope, default to:
+   - Typecheck (full — types are global)
+   - Tests related to changes (filename pattern filters)
+   If the repo's rules say to run the full suite, run the full suite.
+4. **All checks must pass.** If verification fails, fix the issue and re-verify. Do not commit
+   or push with failing checks. If you cannot fix a failure after 2 attempts, stop and report
+   to the user.
 
 If verification fails, fix issues (spawn new agents if needed), then re-verify.
 
@@ -133,6 +142,10 @@ If any checked findings are still `[x]`: update them now — mark `[skipped]` wi
 ---
 
 ## Phase 2: Finalize
+
+**The full sequence is: verify -> commit -> push -> post PR comment. All four steps are mandatory
+and must happen in order. Do not skip any step. Do not push without verifying. Do not end the
+session without posting the PR comment.**
 
 **Auto-proceed:** Once fixes are complete and verification passes, immediately continue through
 all of Phase 2 — commit, push, then post the PR comment — without stopping to ask. The user
@@ -233,4 +246,11 @@ When an agent hits budget: (1) accept partial work if close enough, (2) spawn fr
 - **Speed is not the goal.** Correctness and verifiability are.
 - **When stuck, STOP and ask.** If you or any agent is spinning, escalate to the user immediately.
 - **Session continuity:** Before ending, ensure the review document is saved with current `phase:` and findings state.
-- **PR comment is an invariant, not a step.** After any push during a fix session, a PR comment for this review round must exist and reflect the current outcome. Each review round gets its own comment (keyed by `<!-- code-review: <review-sha> -->` marker, where `<review-sha>` is the 7-char SHA from the review doc filename). Phase 2 Step 9 handles this in the formal fix flow. Phase 3 is the catch-all. The comment must exist and be current before the session ends.
+
+### Non-Negotiable Invariants
+
+These are hard requirements. Violating any of them is a bug in execution, not a judgment call.
+
+1. **Verify before pushing.** Run the repo's full verification suite (from CLAUDE.md / `.claude/rules/verification.md`) and confirm all checks pass before any `git push`. A push without green checks wastes CI and the reviewer's time.
+2. **PR comment after pushing.** Every push that includes review fixes MUST be followed by a PR summary comment (Phase 2 Step 9). The PR comment is the only artifact that surfaces the review outcome to the team. If the session ends without it, the review is invisible.
+3. **PR comment is keyed by review SHA.** Each review round gets its own comment, keyed by a `<!-- code-review: <review-sha> -->` marker (the SHA from the review doc filename). Phase 2 Step 9 handles this in the formal fix flow. Phase 3 is the catch-all. The comment must exist and be current before the session ends.

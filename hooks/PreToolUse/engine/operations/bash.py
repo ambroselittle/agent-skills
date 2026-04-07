@@ -4,6 +4,8 @@ Parses compound shell commands to extract individual command names, then checks
 them against _UNSAFE (denylist): allow unless any command is in _UNSAFE.
 """
 
+from __future__ import annotations
+
 import re
 
 _CONTROL_FLOW = frozenset(

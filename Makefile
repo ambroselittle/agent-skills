@@ -1,37 +1,72 @@
-.PHONY: init test test-hooks test-create-repo test-scaffolds lint format
+.PHONY: init test test-hooks test-create-repo test-scaffolds scaffold lint format format-check check help
 
-# Copy .work/ from the main repo into this worktree.
-# Safe to run in the main repo too — it no-ops when source == destination.
-init:
+## Setup & daily use
+help: ## Show available commands
+	@printf "\n\033[1mAvailable commands:\033[0m\n\n"
+	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | \
+		awk -F ':.*## ' '{ printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 }'
+	@printf "\n"
+
+init: ## Install deps, link skills & hooks, sync envs
+	@printf "\033[36mChecking uv...\033[0m\n"
+	@command -v uv >/dev/null 2>&1 || { echo "Installing uv..."; curl -LsSf https://astral.sh/uv/install.sh | sh; }
+	@printf "\033[36mSyncing Python deps...\033[0m\n"
+	@cd skills/create-repo && uv sync --group dev --quiet
+	@printf "\033[36mRunning setup...\033[0m\n"
+	@./setup.sh
 	@main_repo=$$(git rev-parse --git-common-dir | sed 's|/\.git$$||'); \
 	if [ "$$main_repo" = "$$(pwd)" ]; then \
-		echo ".work/ already local — nothing to copy."; \
+		true; \
 	elif [ -d "$$main_repo/.work" ]; then \
 		rsync -a --delete "$$main_repo/.work/" .work/; \
 		echo "Copied .work/ from $$main_repo"; \
-	else \
-		echo "No .work/ found in $$main_repo — skipping."; \
 	fi
+	@$(MAKE) --no-print-directory help
 
-# Run all fast tests (hook engine + create-repo unit/structural)
-test: test-hooks test-create-repo
+## Testing
+test: test-hooks test-create-repo ## Run all fast tests (~30s)
 
-test-hooks:
-	cd hooks/PreToolUse && uvx pytest tests/ -v
+test-hooks: ## Run hook engine tests (~415 tests)
+	@printf "\033[36mTesting hook engine...\033[0m\n"
+	@cd hooks/PreToolUse && uvx pytest tests/ -q
 
-test-create-repo:
-	cd skills/create-repo && uv run pytest tests/ -v -m "not e2e"
+test-create-repo: ## Run create-repo unit/structural tests
+	@printf "\033[36mTesting create-repo...\033[0m\n"
+	@cd skills/create-repo && uv run pytest tests/ -q -m "not e2e"
+	@printf "\033[2m  (1 deselected test is e2e — run 'make test-scaffolds' for that)\033[0m\n"
 
-# Full scaffold E2E — interactive picker, needs pnpm, node, Docker (or DATABASE_URL)
-# Usage: make test-scaffolds [TEMPLATE=fullstack-ts]
-test-scaffolds:
-	cd skills/create-repo && uv run python ../../scripts/test-scaffolds.py $(TEMPLATE)
+test-scaffolds: ## Scaffold E2E (needs pnpm, node, Docker) [TEMPLATE=name|all] [KEEP=path]
+	@printf "\033[36mRunning scaffold E2E...\033[0m\n"
+	@cd skills/create-repo && uv run python ../../scripts/test-scaffolds.py $(TEMPLATE) $(if $(KEEP),--keep $(KEEP))
 
-# Lint all Python code
-lint:
-	uvx ruff check .
+scaffold: ## Scaffold + setup a project without the AI interview [TEMPLATE=swift-ts NAME=my-app OUTPUT=~/Repos/my-app]
+	@[ -n "$(TEMPLATE)" ] || { echo "Usage: make scaffold TEMPLATE=swift-ts NAME=my-app OUTPUT=~/Repos/my-app"; exit 1; }
+	@[ -n "$(NAME)" ] || { echo "Usage: make scaffold TEMPLATE=swift-ts NAME=my-app OUTPUT=~/Repos/my-app"; exit 1; }
+	@[ -n "$(OUTPUT)" ] || { echo "Usage: make scaffold TEMPLATE=swift-ts NAME=my-app OUTPUT=~/Repos/my-app"; exit 1; }
+	@printf "\033[36mResolving versions...\033[0m\n"
+	@cd skills/create-repo && uv run python -m scripts.resolve_versions --template $(TEMPLATE) --output /tmp/create-repo-versions.json
+	@printf "\033[36mScaffolding $(NAME)...\033[0m\n"
+	cd skills/create-repo && uv run python -m scripts.scaffold \
+		--project-name $(NAME) \
+		--template $(TEMPLATE) \
+		--versions /tmp/create-repo-versions.json \
+		--output $(OUTPUT) \
+		$(if $(FORCE),--force,)
+	@printf "\033[36mSetting up...\033[0m\n"
+	cd skills/create-repo && uv run python -m scripts.scaffold --setup $(OUTPUT) $(if $(SKIP_DOCKER),--skip-docker,)
 
-# Format all Python code
-format:
-	uvx ruff format .
-	uvx ruff check --fix .
+## Code quality
+check: format lint ## Auto-fix formatting and lint
+
+lint: ## Lint all Python code
+	@printf "\033[36mLinting...\033[0m\n"
+	@uvx ruff check .
+
+format-check: ## Check formatting without modifying files
+	@printf "\033[36mChecking formatting...\033[0m\n"
+	@uvx ruff format --check .
+
+format: ## Format all Python code
+	@printf "\033[36mFormatting...\033[0m\n"
+	@uvx ruff format .
+	@uvx ruff check --fix .

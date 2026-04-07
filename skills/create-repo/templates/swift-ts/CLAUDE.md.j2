@@ -1,0 +1,58 @@
+# {{ project_name }}
+
+## Project Structure
+
+This is a Swift + TypeScript monorepo: SwiftUI mobile app + Hono REST API.
+
+- `apps/ios/` — your Xcode project lives here (see README for first-time setup)
+- `apps/api/` — Hono REST API with OpenAPI spec (TypeScript, pnpm)
+- `packages/db/` — Prisma database schema and client
+- `packages/types/` — Shared TypeScript types
+- `packages/config/` — Shared TypeScript configuration
+
+## Commands
+
+### TypeScript (API)
+- `pnpm start` — Start Postgres + API dev server (clean exit on Ctrl+C)
+- `pnpm build` — Build all TS packages
+- `pnpm test` — Run all TS tests (Vitest)
+- `pnpm lint` — Lint with Biome
+- `pnpm typecheck` — TypeScript type checking
+- `pnpm db:push` — Push Prisma schema to database
+- `pnpm db:studio` — Open Prisma Studio
+
+### OpenAPI
+- `pnpm --filter {{ scope }}/api openapi:export` — Export OpenAPI spec to stdout
+- OpenAPI spec served live at `http://localhost:3001/api/openapi.json`
+
+### Swift (Mobile)
+- Open `apps/ios/` in Xcode (see `apps/ios/README.md` for first-time setup)
+- Build and run from Xcode (Cmd+R) — code signing handled by Xcode with your Apple ID
+
+## Development
+
+1. `pnpm install` — Install TS dependencies
+2. `pnpm db:push` — Push database schema
+3. `pnpm start` — Start Postgres + API server
+4. Open `apps/ios/` in Xcode and run on simulator or device
+
+## API
+
+- REST API serves all routes under `/api` prefix
+- OpenAPI spec: `GET /api/openapi.json` (use with Swift OpenAPI Generator)
+- Health check: `GET /api/health`
+- User CRUD: `GET /api/users`, `POST /api/users`
+
+## Conventions
+
+### TypeScript (apps/api/, packages/)
+- Strict TypeScript (`strict: true`)
+- Biome for linting and formatting
+- All packages use workspace protocol (`workspace:*`)
+- Routes defined with `@hono/zod-openapi` (`createRoute` + `app.openapi()`)
+- Every app and package has at least one test
+
+### Swift (apps/ios/)
+- SwiftUI for all views
+- Use Swift OpenAPI Generator for the API client (see `apps/ios/README.md`)
+- All API models conform to `Codable`; use `keyDecodingStrategy = .convertFromSnakeCase`

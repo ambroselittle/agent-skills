@@ -24,8 +24,19 @@ const example = existsSync(join(root, ".env.example"))
   : ""
 
 // 4. Build root .env (ports override example values)
+// Strip any keys from .env.example that are provided by port discovery to prevent duplicates
+const portKeys = new Set(Object.keys(ports))
+const filteredExample = example
+  .split("\n")
+  .filter((line) => {
+    const key = line.split("=")[0].trim()
+    return !portKeys.has(key)
+  })
+  .join("\n")
+  .trim()
+
 const rootEnv = [
-  example.trim(),
+  filteredExample,
   "",
   "# Discovered ports (regenerate with: pnpm update-ports)",
   portsEnv.trim(),
@@ -66,7 +77,7 @@ function projectSlug(): string {
 
 function worktreeSlug(): string {
   try {
-    const gitDir = execSync("git rev-parse --git-dir", { cwd: root, encoding: "utf-8" }).trim()
+    const gitDir = execSync("git rev-parse --git-dir 2>/dev/null", { cwd: root, encoding: "utf-8" }).trim()
     if (gitDir.includes("worktrees/")) {
       return gitDir.split("worktrees/").pop()?.split("/")[0] || "main"
     }
@@ -76,4 +87,4 @@ function worktreeSlug(): string {
   }
 }
 
-console.log("\nSetup complete. Run `pnpm dev` to start.")
+console.log("\nSetup complete. Run `pnpm start` to start.")

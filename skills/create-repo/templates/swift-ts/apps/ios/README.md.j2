@@ -1,0 +1,74 @@
+# Mobile App
+
+This directory is the home for your iOS app. A workspace has been pre-created at the repo
+root — open **`{{ swift_project_name }}.xcworkspace`** in Xcode to get started.
+
+## Create the Xcode Project
+
+> **Open the workspace first.** The "Add to" dropdown in the save dialog only appears when a
+> workspace is already open. If you start from File → New → Project without opening the workspace
+> first, you'll get a standalone project instead.
+
+1. Open **`{{ swift_project_name }}.xcworkspace`** (at the repo root) in Xcode
+2. **File → New → Project**, choose **App** under **iOS** (see note below on iOS vs Multiplatform)
+3. Set the product name to **`{{ swift_project_name }}`**, then click Next
+4. In the save dialog, before clicking Create:
+   - Navigate the file picker into **`apps/ios/`** — Xcode defaults to the workspace directory, so you must manually navigate one level deeper
+   - Set **Add to:** `{{ swift_project_name }}` — pick the workspace entry (the one with the workspace icon, not the `{{ project_name }}` folder)
+   - Set **Group:** `{{ swift_project_name }}` — same workspace entry, same icon. **Do not pick the `{{ project_name }}` folder** — using the folder here breaks the workspace integration
+   - Uncheck **Create Git repository** ← one already exists
+5. Click **Create**
+
+When done, the Project Navigator will show `{{ swift_project_name }}` as a collapsible item with
+your source files, targets, and build settings underneath it — not just a flat file tree.
+
+Always open Xcode via the workspace going forward, not the `.xcodeproj` directly.
+
+> **iOS vs Multiplatform:** Choose **iOS**. It supports iPhone, iPad, Mac (Designed for iPad),
+> and visionOS from a single target — just add destinations in project settings. The Multiplatform
+> template creates separate Mac and iOS targets with divergent code paths, which is only needed
+> for a fully native Mac app experience.
+
+> **Already created the project?** Drag `apps/ios/{{ swift_project_name }}.xcodeproj` from
+> Finder into the Project Navigator pane (look for the blue insertion indicator), or right-click
+> in the Project Navigator and choose **Add Files to "{{ swift_project_name }}"**.
+
+## Connect to the API
+
+The Hono REST API runs at `http://localhost:3001/api` (start it with `pnpm start`).
+
+An **OpenAPI 3.0 spec** is served at:
+```
+http://localhost:3001/api/openapi.json
+```
+
+Use [Swift OpenAPI Generator](https://github.com/apple/swift-openapi-generator) to generate a
+type-safe Swift client automatically from this spec:
+
+1. In Xcode, add via **File → Add Package Dependencies**:
+   - `https://github.com/apple/swift-openapi-generator` — build plugin
+   - `https://github.com/apple/swift-openapi-runtime` — runtime
+   - `https://github.com/apple/swift-openapi-urlsession` — URLSession transport
+2. Export the spec while the API is running:
+   ```bash
+   pnpm --filter {{ scope }}/api openapi:export > apps/ios/openapi.json
+   # or
+   curl http://localhost:3001/api/openapi.json -o apps/ios/openapi.json
+   ```
+3. Add `openapi.json` + the pre-staged `openapi-generator-config.yaml` to your app target
+4. The generator runs at build time — Xcode produces a type-safe `Client` you use directly
+
+See the [Swift OpenAPI Generator docs](https://swiftpackageindex.com/apple/swift-openapi-generator/documentation)
+for the complete setup guide.
+
+## API Reference
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/health` | Health check |
+| `GET` | `/api/users` | List users |
+| `POST` | `/api/users` | Create user (`{ email, name? }`) |
+| `GET` | `/api/openapi.json` | OpenAPI 3.0 spec |
+
+All JSON responses use `snake_case` keys. Use `JSONDecoder.keyDecodingStrategy = .convertFromSnakeCase`
+in your Swift client.

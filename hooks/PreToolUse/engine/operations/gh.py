@@ -1,5 +1,7 @@
 """GitHub CLI operation handlers: gh-pr-merge, gh-api."""
 
+from __future__ import annotations
+
 import re
 from fnmatch import fnmatch
 

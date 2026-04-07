@@ -1,0 +1,32 @@
+{
+  "name": "{{ scope }}/api",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./routes": "./src/routes/index.ts"
+  },
+  "scripts": {
+    "dev": "bash scripts/dev.sh",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit",
+    "openapi:export": "VITEST=1 tsx -e \"import('./src/index.js').then(m => m.app.request('/api/openapi.json')).then(r => r.text()).then(t => process.stdout.write(t))\""
+  },
+  "dependencies": {
+    "{{ scope }}/db": "workspace:*",
+    "{{ scope }}/types": "workspace:*",
+    "@hono/node-server": "{{ versions.hono_node_server }}",
+    "@hono/zod-openapi": "{{ versions.hono_zod_openapi }}",
+    "hono": "{{ versions.hono }}",
+    "dotenv": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@playwright/test": "{{ versions.playwright_test }}",
+    "tsx": "latest",
+    "typescript": "{{ versions.typescript }}",
+    "vitest": "{{ versions.vitest }}"
+  }
+}

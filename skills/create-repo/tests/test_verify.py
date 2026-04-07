@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from scripts.verify import StepResult, VerifyResult, run_step, verify
+from scripts.verify import StepResult, VerifyResult, detect_platform, run_step, verify
 
 
 def _mock_run(returncode: int = 0, stdout: str = "", stderr: str = ""):
@@ -80,13 +80,10 @@ def test_verify_result_one_fail():
 
 def test_verify_node_stops_on_first_failure():
     """Verify should stop at the first failing step and not run subsequent steps."""
-    call_count = 0
 
     def fake_run(cmd, **kwargs):
-        nonlocal call_count
-        call_count += 1
-        if "install" in cmd:
-            return _mock_run(returncode=1, stderr="install failed")
+        if "build" in cmd:
+            return _mock_run(returncode=1, stderr="build failed")
         return _mock_run()
 
     with (
@@ -96,14 +93,14 @@ def test_verify_node_stops_on_first_failure():
         result = verify(Path("/tmp/test-project"))
 
     assert not result.passed
-    assert result.steps[0].name == "pnpm install"
+    assert result.steps[0].name == "build"
     assert not result.steps[0].passed
     # Should only have one step since it stops on failure
     assert len(result.steps) == 1
 
 
 def test_verify_node_runs_correct_command_sequence():
-    """Verify that commands are called in the expected order."""
+    """Verify runs quality checks: build, typecheck, lint, test, dev server."""
     commands_run = []
 
     def fake_run(cmd, **kwargs):
@@ -127,10 +124,10 @@ def test_verify_node_runs_correct_command_sequence():
 
         verify(Path("/tmp/test-project"))
 
-    # Should have run: install, docker up, pg_isready, db:push, build, typecheck, lint, test, e2e
-    assert len(commands_run) >= 9
+    # Should have run: build, typecheck, lint, test (no install/docker — that's setup)
+    assert len(commands_run) >= 4
     assert "pnpm" in commands_run
-    assert "docker" in commands_run
+    assert "docker" not in commands_run
 
 
 def test_verify_node_runs_e2e_when_servers_are_up(tmp_path):
@@ -283,11 +280,11 @@ def test_verify_node_fullstack_runs_both_e2e(tmp_path):
 
 
 def test_verify_python_stops_on_first_failure():
-    """Python verify should stop at the first failing step."""
+    """Python verify should stop at the first failing step (lint)."""
 
     def fake_run(cmd, **kwargs):
-        if "sync" in cmd:
-            return _mock_run(returncode=1, stderr="sync failed")
+        if isinstance(cmd, list) and cmd[:2] == ["just", "lint"]:
+            return _mock_run(returncode=1, stderr="lint failed")
         return _mock_run()
 
     with (
@@ -297,12 +294,13 @@ def test_verify_python_stops_on_first_failure():
         result = verify(Path("/tmp/test-project"))
 
     assert not result.passed
-    assert result.steps[0].name == "uv sync"
-    assert len(result.steps) == 1
+    failed = [s for s in result.steps if not s.passed]
+    assert len(failed) == 1
+    assert failed[0].name == "lint"
 
 
 def test_verify_python_runs_correct_sequence():
-    """Python verify should run uv sync, docker, ruff, pytest, dev server."""
+    """Python verify should run just lint/format-check/test/start (no install/docker — that's setup)."""
     commands_run = []
 
     def fake_run(cmd, **kwargs):
@@ -326,8 +324,59 @@ def test_verify_python_runs_correct_sequence():
 
     assert result.passed
     step_names = [s.name for s in result.steps]
-    assert "uv sync" in step_names
-    assert "docker compose up" in step_names
-    assert "ruff check" in step_names
-    assert "pytest" in step_names
+    assert "uv sync" not in step_names
+    assert "docker compose up" not in step_names
+    assert "lint" in step_names
+    assert "format-check" in step_names
+    assert "test" in step_names
     assert "dev server" in step_names
+
+
+# --- detect_platform ---
+
+
+def test_detect_platform_swift_ts(tmp_path):
+    """Returns 'swift-ts' when package.json and apps/ios/ directory both exist."""
+    (tmp_path / "package.json").write_text("{}")
+    mobile = tmp_path / "apps" / "ios"
+    mobile.mkdir(parents=True)
+    assert detect_platform(tmp_path) == "swift-ts"
+
+
+def test_detect_platform_node_without_mobile(tmp_path):
+    """Returns 'node' when only package.json exists (no mobile project)."""
+    (tmp_path / "package.json").write_text("{}")
+    assert detect_platform(tmp_path) == "node"
+
+
+def test_detect_platform_fullstack_python_takes_precedence(tmp_path):
+    """Returns 'fullstack-python' when both pyproject.toml and package.json exist."""
+    (tmp_path / "package.json").write_text("{}")
+    (tmp_path / "pyproject.toml").write_text("[project]")
+    assert detect_platform(tmp_path) == "fullstack-python"
+
+
+def test_detect_platform_swift_ts_beats_fullstack_python(tmp_path):
+    """swift-ts detection comes before fullstack-python."""
+    (tmp_path / "package.json").write_text("{}")
+    (tmp_path / "pyproject.toml").write_text("[project]")
+    mobile = tmp_path / "apps" / "ios"
+    mobile.mkdir(parents=True)
+    # swift-ts check comes first
+    assert detect_platform(tmp_path) == "swift-ts"
+
+
+# --- verify_swift_ts (skip on non-macOS) ---
+
+
+def test_verify_swift_ts_skips_on_linux():
+    """On non-macOS, swift-ts verify should skip Swift steps."""
+    with (
+        patch("scripts.verify.detect_platform", return_value="swift-ts"),
+        patch("scripts.verify.subprocess.run", return_value=_mock_run()),
+        patch("scripts.verify.verify_swift_ts") as mock_swift,
+    ):
+        mock_swift.return_value = VerifyResult(steps=[StepResult("swift: skipped", True, 0)])
+        result = verify(Path("/tmp/test-project"))
+
+    assert result.passed

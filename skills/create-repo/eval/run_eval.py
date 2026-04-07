@@ -19,7 +19,8 @@ from pathlib import Path
 # Add parent to path so we can import scripts
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from scripts.scaffold import scaffold
+from scripts.scaffold import scaffold, setup_project
+from scripts.verify import _teardown_docker
 from scripts.verify import verify as run_verify
 
 from eval.checks.check_structure import check_structure
@@ -41,12 +42,13 @@ FALLBACK_VERSIONS = {
     "vitest": "3.1.1",
     "hono": "4.7.6",
     "hono_node_server": "1.19.12",
+    "hono_zod_openapi": "1.2.4",
     "tailwindcss": "4.1.3",
     "tailwindcss_vite": "4.1.3",
     "prisma": "7.5.0",
     "prisma_client": "7.5.0",
     "prisma_adapter_pg": "7.5.0",
-    "biomejs_biome": "2.0.0",
+    "biomejs_biome": "2.4.10",
     "trpc_server": "11.1.0",
     "trpc_client": "11.1.0",
     "trpc_react_query": "11.1.0",
@@ -123,12 +125,23 @@ def save_version_cache(template: str, versions: dict) -> None:
 def get_versions(template: str) -> dict:
     """Get versions for a template, using cache if fresh.
 
-    Returns cached versions if available and within TTL,
-    otherwise returns fallback versions.
+    Returns cached versions if available and within TTL. If the cache is
+    missing keys that exist in FALLBACK_VERSIONS (e.g. a new package was
+    added to the template after the cache was written), the cache is treated
+    as stale and FALLBACK_VERSIONS is used instead with a warning.
     """
     cached = get_cached_versions(template)
     if cached:
-        return cached
+        missing = [k for k in FALLBACK_VERSIONS if k not in cached]
+        if missing:
+            print(
+                f"[versions] cache for '{template}' is missing keys: {missing} — "
+                f"falling back to hardcoded versions. Delete "
+                f"~/.agent-skills/.version-cache/{template}.json to re-resolve.",
+                file=sys.stderr,
+            )
+        else:
+            return cached
     return FALLBACK_VERSIONS
 
 
@@ -175,7 +188,7 @@ def run_eval(
     structure_checks = check_structure(project_dir, template)
     result.checks.extend(structure_checks)
 
-    # Step 3: Full verification (optional — install, build, test, etc.)
+    # Step 3: Full verification (optional — setup + quality checks)
     if full:
         if not result.passed:
             result.checks.append(
@@ -187,17 +200,39 @@ def run_eval(
             )
             return result
 
-        # In CI (skip_docker=True), write .env files before verify since
-        # pnpm setup won't discover ports (Postgres is a service container).
-        # Locally, verify.py runs pnpm setup which handles .env generation.
+        # In CI (skip_docker=True), reset the shared database and write
+        # .env files before setup. The database reset ensures each template
+        # starts with a clean slate (previous templates may have created
+        # tables with different schemas). Locally, `docker compose down -v`
+        # handles cleanup after each template.
         if skip_docker:
+            _reset_database()
             _write_ci_env_files(project_dir)
 
         try:
-            verify_result = run_verify(
-                project_dir,
-                skip_docker=skip_docker,
-            )
+            # Step 3a: Setup — install deps, docker, db
+            setup_result = setup_project(project_dir, skip_docker=skip_docker)
+            for step in setup_result.steps:
+                result.checks.append(
+                    CheckResult(
+                        f"setup: {step.name}",
+                        step.passed,
+                        step.error,
+                    )
+                )
+
+            if not setup_result.passed:
+                result.checks.append(
+                    CheckResult(
+                        "verify (skipped)",
+                        False,
+                        "Setup failed — skipping quality checks",
+                    )
+                )
+                return result
+
+            # Step 3b: Verify — quality checks only (build, lint, test, etc.)
+            verify_result = run_verify(project_dir)
             for step in verify_result.steps:
                 result.checks.append(
                     CheckResult(
@@ -209,18 +244,42 @@ def run_eval(
         finally:
             # Clean up Docker resources if we started them
             if not skip_docker:
-                subprocess.run(
-                    ["docker", "compose", "down", "-v", "--remove-orphans"],
-                    cwd=project_dir,
-                    capture_output=True,
-                    timeout=30,
-                )
+                _teardown_docker(project_dir)
 
             # Clean up the eval run directory to avoid accumulating node_modules
             if output_dir is None and project_dir.exists():
                 shutil.rmtree(project_dir.parent, ignore_errors=True)
 
     return result
+
+
+def _reset_database() -> None:
+    """Wipe all tables so each template starts with a clean schema.
+
+    Drops and recreates the public schema in the eval database. This
+    avoids DROP DATABASE issues with active connections. Only used in CI
+    where all templates share a single Postgres service container.
+    """
+    import os
+
+    db_url = os.environ.get(
+        "DATABASE_URL",
+        "postgresql://postgres:postgres@localhost:5432/eval_project_dev",
+    )
+
+    result = subprocess.run(
+        [
+            "psql",
+            db_url,
+            "-c",
+            "DROP SCHEMA public CASCADE; CREATE SCHEMA public;",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    if result.returncode != 0:
+        print(f"  [warn] database reset failed: {result.stderr.strip()}")
 
 
 def _write_ci_env_files(project_dir: Path) -> None:
@@ -274,21 +333,24 @@ def _write_ci_env_files(project_dir: Path) -> None:
             (web_dir / ".env").write_text("WEB_PORT=3000\nVITE_API_PORT=3001\n")
 
 
-def print_results(result: EvalResult) -> None:
-    """Print eval results as a formatted table."""
-    name_width = max(len(c.name) for c in result.checks)
+def print_results(result: EvalResult, verbose: bool = False) -> None:
+    """Print eval results. Default: only failures + summary. Use verbose=True for full list."""
+    failed = [c for c in result.checks if not c.passed]
 
-    print(f"\nEval: {result.template}")
-    print(f"{'Check':<{name_width}}  Result")
-    print(f"{'-' * name_width}  {'-' * 10}")
+    if verbose:
+        name_width = max(len(c.name) for c in result.checks)
+        print(f"\n{'Check':<{name_width}}  Result")
+        print(f"{'-' * name_width}  {'-' * 10}")
+        for c in result.checks:
+            symbol = "\u2705" if c.passed else "\u274c"
+            print(f"{c.name:<{name_width}}  {symbol} {'pass' if c.passed else 'FAIL'}")
+            if c.detail:
+                print(f"  {c.detail}")
+    elif failed:
+        for c in failed:
+            print(f"  \u274c {c.name}: {c.detail or 'FAIL'}")
 
-    for c in result.checks:
-        symbol = "\u2705" if c.passed else "\u274c"
-        print(f"{c.name:<{name_width}}  {symbol} {'pass' if c.passed else 'FAIL'}")
-        if c.detail:
-            print(f"  {c.detail}")
-
-    print(f"\n{result.pass_count}/{len(result.checks)} checks passed")
+    print(f"  {result.pass_count}/{len(result.checks)} checks passed")
 
 
 AVAILABLE_TEMPLATES = [
@@ -297,6 +359,7 @@ AVAILABLE_TEMPLATES = [
     "api-ts",
     "api-python",
     "fullstack-python",
+    "swift-ts",
 ]
 
 
@@ -321,6 +384,12 @@ def main() -> None:
         action="store_true",
         help="Skip docker compose (Postgres already available, e.g., CI)",
     )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Show all checks, not just failures",
+    )
     args = parser.parse_args()
 
     templates = AVAILABLE_TEMPLATES if args.template == "all" else [args.template]
@@ -329,7 +398,7 @@ def main() -> None:
     for template in templates:
         output = Path(args.output) if args.output else None
         result = run_eval(template, output, full=args.full, skip_docker=args.skip_docker)
-        print_results(result)
+        print_results(result, verbose=args.verbose)
         if not result.passed:
             all_passed = False
 

@@ -1,24 +1,32 @@
 import { z } from "zod"
 import { publicProcedure, router } from "./trpc"
 
+// --- sample routes start ---
+const userRouter = router({
+  list: publicProcedure.query(async ({ ctx }) => {
+    return ctx.db.user.findMany()
+  }),
+
+  create: publicProcedure
+    .input(
+      z.object({
+        email: z.string().email(),
+        name: z.string().min(1).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.user.create({ data: input })
+    }),
+})
+// --- sample routes end ---
+
 export const appRouter = router({
   health: publicProcedure.query(() => {
     return { status: "ok" }
   }),
 
   // --- sample routes start ---
-  "user.list": publicProcedure.query(async ({ ctx }) => {
-    return ctx.db.user.findMany()
-  }),
-
-  "user.create": publicProcedure
-    .input(z.object({
-      email: z.string().email(),
-      name: z.string().min(1).optional(),
-    }))
-    .mutation(async ({ ctx, input }) => {
-      return ctx.db.user.create({ data: input })
-    }),
+  user: userRouter,
   // --- sample routes end ---
 })
 

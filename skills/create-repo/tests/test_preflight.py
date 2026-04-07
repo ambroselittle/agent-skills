@@ -133,14 +133,15 @@ def test_run_check_timeout():
 def test_run_check_no_min_version():
     """Tools with min=None are OK as long as they're found."""
     check = {
-        "tool": "xcodegen",
-        "command": ["xcodegen", "--version"],
-        "pattern": r"Version:?\s*(\d+\.\d+(?:\.\d+)?)",
+        "tool": "swift",
+        "command": ["swift", "--version"],
+        "pattern": r"Swift version (\d+\.\d+(?:\.\d+)?)",
         "min": None,
-        "install": "brew install xcodegen",
+        "install": "Install Xcode from the App Store",
     }
     with patch(
-        "scripts.preflight.subprocess.run", return_value=_mock_run(stdout="Version: 2.42.0")
+        "scripts.preflight.subprocess.run",
+        return_value=_mock_run(stdout="Swift version 6.0 (swift-6.0-RELEASE)"),
     ):
         result = run_check(check)
     assert result.status == Status.OK
@@ -222,6 +223,7 @@ def test_preflight_fullstack_ts_all_present():
         "node": "v22.22.2",
         "pnpm": "10.33.0",
         "docker": "Docker version 29.3.1, build afdd53b",
+        "corepack": "0.31.0",
         "gh auth status": "Logged in",
         "docker info": "Server Version: 29.3.1",
     }
@@ -242,6 +244,7 @@ def test_preflight_template_specific_checks_python():
         "pnpm": "10.33.0",
         "docker": "Docker version 29.3.1",
         "uv": None,  # uv not installed
+        "corepack": "0.31.0",
         "gh auth status": "Logged in",
         "docker info": "ok",
     }
@@ -255,13 +258,14 @@ def test_preflight_template_specific_checks_python():
 
 
 def test_preflight_template_specific_not_included_for_other_templates():
-    """fullstack-ts should NOT include uv or xcodegen checks."""
+    """fullstack-ts should NOT include uv or swift checks."""
     responses = {
         "git": "git version 2.53.0",
         "gh": "gh version 2.89.0",
         "node": "v22.22.2",
         "pnpm": "10.33.0",
         "docker": "Docker version 29.3.1",
+        "corepack": "0.31.0",
         "gh auth status": "Logged in",
         "docker info": "ok",
     }
@@ -270,7 +274,28 @@ def test_preflight_template_specific_not_included_for_other_templates():
 
     tool_names = [r.tool for r in results]
     assert "uv" not in tool_names
-    assert "xcodegen" not in tool_names
+    assert "xcodebuild" not in tool_names
+    assert "swift" not in tool_names
+
+
+def test_preflight_swift_ts_has_no_xcode_checks():
+    """swift-ts should not require xcodebuild or swift — Xcode project created manually."""
+    responses = {
+        "git": "git version 2.53.0",
+        "gh": "gh version 2.89.0",
+        "node": "v22.22.2",
+        "pnpm": "10.33.0",
+        "docker": "Docker version 29.3.1",
+        "corepack": "0.31.0",
+        "gh auth status": "Logged in",
+        "docker info": "ok",
+    }
+    with patch("scripts.preflight.subprocess.run", side_effect=_make_version_responses(responses)):
+        results = preflight("swift-ts")
+
+    tool_names = [r.tool for r in results]
+    assert "xcodebuild" not in tool_names
+    assert "swift" not in tool_names
 
 
 # --- generate_install_script ---

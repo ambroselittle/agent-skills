@@ -11,8 +11,8 @@ create-repo/
 ├── pyproject.toml        # Python project config (uv-managed)
 ├── scripts/              # Python modules called by the skill
 │   ├── preflight.py      # Environment checker (tools, versions)
-│   ├── scaffold.py       # Jinja2 template renderer (layered, with extends)
-│   ├── verify.py         # Build/test/lint verification (platform-aware)
+│   ├── scaffold.py       # Jinja2 template renderer + setup_project() (install, docker, db)
+│   ├── verify.py         # Quality checks only: build/typecheck/lint/test/e2e (platform-aware)
 │   └── init_git.py       # Git init + GitHub repo creation
 ├── templates/            # Jinja2 template files
 │   ├── __common/         # Universal files (all templates)
@@ -22,14 +22,23 @@ create-repo/
 │   ├── fullstack-graphql/ # React + Hono + Yoga/Pothos + Apollo + Prisma (extends fullstack-ts)
 │   ├── api-ts/           # Hono + tRPC + Prisma, no frontend (extends fullstack-ts)
 │   ├── api-python/       # FastAPI + SQLModel + Postgres
-│   └── fullstack-python/ # React + FastAPI + Postgres (extends fullstack-ts, multi-platform)
+│   ├── fullstack-python/ # React + FastAPI + Postgres (extends fullstack-ts, multi-platform)
+│   └── swift-ts/         # Swift multiplatform + Hono REST API (extends fullstack-ts)
 ├── tests/                # pytest tests for all scripts
 └── eval/                 # Eval framework
 ```
 
 ## How it works
 
-The SKILL.md orchestrates the flow: interview → preflight → version resolution → scaffold → verify → git init. The Python scripts handle deterministic work (rendering templates, running verification commands). The AI handles intelligence work (version resolution via parallel agents, applying customizations, diagnosing failures).
+The SKILL.md orchestrates the flow: interview → preflight → version resolution → scaffold → setup → verify → git init. The Python scripts handle deterministic work (rendering templates, installing deps, running verification commands). The AI handles intelligence work (version resolution via parallel agents, applying customizations, diagnosing failures).
+
+### Post-scaffold pipeline (setup vs verify)
+
+After templates are rendered, the pipeline splits into two phases:
+- **Setup** (`scaffold.py: setup_project()`) — deterministic steps to get a working project: install deps, run setup scripts (port discovery, .env generation), prisma generate, biome format, docker compose up, db push, db seed / alembic migrate.
+- **Verify** (`verify.py: verify()`) — quality checks that assume setup is done: build, typecheck, lint, test, dev server smoke check, E2E tests.
+
+Both the skill (SKILL.md) and E2E tests (run_eval.py) use the exact same `setup_project()` → `verify()` code path.
 
 ## Template layers
 
@@ -55,12 +64,16 @@ cd create-repo && uv sync --group dev && uv run pytest tests/ -v
    - Use `"exclude": ["pattern/**"]` to skip base template files (fnmatch globs)
 3. Add shared platform files to `__common/<platform>/` if they don't exist yet
 4. Use `.j2` extension for files needing Jinja2 substitution
-5. Available variables: `{{ project_name }}`, `{{ scope }}`, `{{ versions.<pkg> }}`
+5. Available variables: `{{ project_name }}`, `{{ scope }}`, `{{ swift_project_name }}` (PascalCase), `{{ versions.<pkg> }}`
 6. Add template-specific preflight checks to `TEMPLATE_CHECKS` in `preflight.py`
 7. Add template to `AVAILABLE_TEMPLATES` and version fallbacks in `eval/run_eval.py`
 8. Add structural checks to `eval/checks/check_structure.py`
 9. Add the template to the SKILL.md interview options
 10. Write scaffold tests in `tests/test_scaffold.py`
+
+## Directory name templating
+
+Use `__variable_name__` in template directory names to substitute context variables at scaffold time. For example, `Sources/__swift_project_name__/` becomes `Sources/MyApp/` when the project name is `my-app`. Unknown variables (like `__pycache__`) are left unchanged.
 
 ## Template variable naming
 
@@ -72,6 +85,7 @@ For `versions.*` in Jinja2 templates, convert package names:
 ## Platform detection
 
 `verify.py` and `check_structure.py` detect the platform from the scaffolded output:
+- `package.json` + `apps/ios/` directory → swift-ts (Node pipeline for API; Swift side is not auto-verified — user creates Xcode project in apps/ios/)
 - Both `pyproject.toml` and `package.json` present → fullstack-python (combined: uv + pnpm, ruff + biome, pytest + vitest, both dev servers)
 - `pyproject.toml` only → Python (uv sync, ruff, pytest, uvicorn)
 - `package.json` only → Node (pnpm install, biome, turbo, vitest)

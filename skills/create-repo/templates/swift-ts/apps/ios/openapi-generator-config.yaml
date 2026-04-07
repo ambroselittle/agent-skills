@@ -1,0 +1,5 @@
+# Swift OpenAPI Generator configuration
+# https://swiftpackageindex.com/apple/swift-openapi-generator/documentation/swift-openapi-generator/configuring-the-generator
+generate:
+  - types
+  - client

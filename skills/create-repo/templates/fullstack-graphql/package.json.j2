@@ -2,10 +2,10 @@
   "name": "{{ project_name }}",
   "private": true,
   "scripts": {
-    "dev": "turbo dev",
+    "start": "bash scripts/start.sh",
     "build": "turbo build",
     "test": "turbo test",
-    "lint": "biome check .",
+    "lint": "biome check --error-on-warnings .",
     "lint:fix": "biome check --write .",
     "typecheck": "turbo typecheck",
     "db:push": "turbo db:push --filter={{ scope }}/db",

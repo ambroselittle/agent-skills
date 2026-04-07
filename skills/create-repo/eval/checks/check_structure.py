@@ -15,6 +15,8 @@ from eval.models import CheckResult
 
 def _detect_platform(project_dir: Path) -> str:
     """Detect platform from scaffolded output."""
+    if (project_dir / "package.json").exists() and (project_dir / "apps" / "ios").is_dir():
+        return "swift-ts"
     # Mixed platform: both Python and Node files present
     if (project_dir / "pyproject.toml").exists() and (project_dir / "package.json").exists():
         return "fullstack-python"
@@ -131,6 +133,8 @@ def check_structure(project_dir: Path, template: str) -> list[CheckResult]:
         _check_api_python(project_dir, checks)
     elif template == "fullstack-python":
         _check_fullstack_python(project_dir, checks)
+    elif template == "swift-ts":
+        _check_swift_ts(project_dir, checks)
 
     # --- Content checks (universal) ---
 
@@ -208,7 +212,7 @@ def _check_node_ts_common(project_dir: Path, checks: list[CheckResult]) -> None:
                 )
             )
 
-    # biome.json noExplicitAny
+    # biome.json lint rules
     biome_path = project_dir / "biome.json"
     if biome_path.exists():
         biome = json.loads(biome_path.read_text())
@@ -218,6 +222,16 @@ def _check_node_ts_common(project_dir: Path, checks: list[CheckResult]) -> None:
                 "biome noExplicitAny is error",
                 no_any == "error",
                 None if no_any == "error" else f"noExplicitAny is '{no_any}', expected 'error'",
+            )
+        )
+        no_unused = (
+            biome.get("linter", {}).get("rules", {}).get("correctness", {}).get("noUnusedImports")
+        )
+        checks.append(
+            CheckResult(
+                "biome noUnusedImports is error",
+                no_unused == "error",
+                None if no_unused == "error" else f"noUnusedImports is '{no_unused}', expected 'error'",
             )
         )
 
@@ -587,3 +601,91 @@ def _check_fullstack_python(project_dir: Path, checks: list[CheckResult]) -> Non
                 None if has_8000 else "vite.config.ts should default API_PORT to 8000",
             )
         )
+
+
+def _check_swift_ts(project_dir: Path, checks: list[CheckResult]) -> None:
+    """Template-specific checks for swift-ts."""
+    # REST API files
+    api_files = [
+        "tsconfig.json",
+        "apps/api/package.json",
+        "apps/api/src/index.ts",
+        "apps/api/src/routes/index.ts",
+        "apps/api/src/routes/health.ts",
+        "apps/api/src/routes/users.ts",
+        "apps/api/__tests__/routes.test.ts",
+        "apps/api/playwright.config.ts",
+        "apps/api/e2e/smoke.test.ts",
+        "apps/api/e2e/users.test.ts",
+        "packages/db/package.json",
+        "packages/db/prisma/schema.prisma",
+        "packages/db/prisma/seed.ts",
+        "packages/db/src/index.ts",
+        "packages/types/package.json",
+        "packages/types/src/index.ts",
+        "packages/config/tsconfig.base.json",
+        "scripts/setup.ts",
+        "scripts/discover-ports.ts",
+        "scripts/cleanup-samples.ts",
+    ]
+    for f in api_files:
+        path = project_dir / f
+        checks.append(
+            CheckResult(
+                f"file: {f}",
+                path.exists(),
+                None if path.exists() else f"Missing: {f}",
+            )
+        )
+
+    # Mobile directory should exist with README for Xcode project setup
+    mobile_readme = project_dir / "apps" / "ios" / "README.md"
+    checks.append(
+        CheckResult(
+            "file: apps/ios/README.md",
+            mobile_readme.exists(),
+            None if mobile_readme.exists() else "Missing: apps/ios/README.md",
+        )
+    )
+
+    # Xcode workspace pre-created at repo root — name derived from project name
+    # Find any *.xcworkspace directory (project name varies per scaffold)
+    xcworkspaces = list(project_dir.glob("*.xcworkspace"))
+    has_workspace = len(xcworkspaces) == 1
+    workspace_data = (xcworkspaces[0] / "contents.xcworkspacedata") if xcworkspaces else None
+    checks.append(
+        CheckResult(
+            "file: *.xcworkspace/contents.xcworkspacedata",
+            has_workspace and workspace_data is not None and workspace_data.exists(),
+            None if (has_workspace and workspace_data and workspace_data.exists())
+            else "Missing pre-created Xcode workspace at repo root",
+        )
+    )
+
+    # apps/web should NOT exist
+    web_dir = project_dir / "apps" / "web"
+    checks.append(
+        CheckResult(
+            "no apps/web directory",
+            not web_dir.exists(),
+            "apps/web/ exists but should not for swift-ts template" if web_dir.exists() else None,
+        )
+    )
+
+    # tRPC files should NOT exist
+    trpc_files = [
+        "apps/api/src/router.ts",
+        "apps/api/src/trpc.ts",
+        "apps/api/__tests__/router.test.ts",
+    ]
+    for f in trpc_files:
+        path = project_dir / f
+        checks.append(
+            CheckResult(
+                f"no tRPC file: {f}",
+                not path.exists(),
+                f"{f} should not exist in swift-ts template" if path.exists() else None,
+            )
+        )
+
+    _check_node_ts_common(project_dir, checks)
