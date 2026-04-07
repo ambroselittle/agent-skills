@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import json
+import re
 import shutil
 import stat
 import sys
@@ -53,6 +54,18 @@ def normalize_versions(versions: dict) -> dict:
     return normalized
 
 
+def to_pascal_case(kebab_name: str) -> str:
+    """Convert a kebab-case name to PascalCase.
+
+    Examples:
+        my-app -> MyApp
+        cool-project -> CoolProject
+        single -> Single
+        a -> A
+    """
+    return "".join(word.capitalize() for word in kebab_name.split("-"))
+
+
 def build_context(project_name: str, versions: dict) -> dict:
     """Build the Jinja2 template context from project config."""
     # Derive the npm scope from the project name (e.g., my-app -> @my-app)
@@ -60,8 +73,39 @@ def build_context(project_name: str, versions: dict) -> dict:
     return {
         "project_name": project_name,
         "scope": scope,
+        "swift_project_name": to_pascal_case(project_name),
         "versions": normalize_versions(versions),
     }
+
+
+_DIR_VAR_RE = re.compile(r"__([a-zA-Z_][a-zA-Z0-9_]*)__")
+
+
+def _substitute_dir_vars(path: Path, context: dict) -> Path:
+    """Substitute ``__variable_name__`` markers in path segments.
+
+    For each segment containing ``__var__``, look up ``var`` in context.
+    If found, replace the marker with the value. If not found, leave
+    the segment unchanged (handles names like ``__pycache__``).
+    """
+    parts = list(path.parts)
+    changed = False
+    for i, part in enumerate(parts):
+        if "__" not in part:
+            continue
+
+        def _replace(m: re.Match) -> str:
+            var_name = m.group(1)
+            if var_name in context:
+                return str(context[var_name])
+            return m.group(0)  # leave unchanged
+
+        new_part = _DIR_VAR_RE.sub(_replace, part)
+        if new_part != part:
+            parts[i] = new_part
+            changed = True
+
+    return Path(*parts) if changed else path
 
 
 def render_template_dir(
@@ -79,6 +123,12 @@ def render_template_dir(
     Directories in exclude_dirs are skipped entirely.
     Files matching exclude_patterns (fnmatch globs against the relative path
     from base_dir) are skipped.
+
+    Directory names containing ``__variable_name__`` markers are substituted
+    from the context dict (e.g., ``Sources/__swift_project_name__/`` becomes
+    ``Sources/MyApp/`` when ``context["swift_project_name"] == "MyApp"``).
+    Unknown variables are left as-is (handles ``__pycache__`` etc.).
+
     Returns list of created file paths.
     """
     created: list[Path] = []
@@ -100,6 +150,9 @@ def render_template_dir(
         # Skip files matching exclude patterns
         if exclude_patterns and _matches_exclude(str(rel_path), exclude_patterns):
             continue
+
+        # Substitute __variable_name__ markers in directory path segments
+        rel_path = _substitute_dir_vars(rel_path, context)
 
         # Render the path itself (strip .j2 extension)
         if source_path.suffix == J2_EXTENSION:
