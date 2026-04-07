@@ -71,7 +71,7 @@ Python scripts handle deterministic work; the AI handles intelligence (interview
 3. `templates/<base>/` — base template files (when child declares `"extends"` in `template.json`)
 4. `templates/<template>/` — template-specific files
 
-Each template has a `template.json` declaring its platform. Templates can inherit from a base via `"extends"` and skip specific base files via `"exclude"` globs. Files with `.j2` extension get Jinja2 rendering; others are copied as-is.
+Each template has a `template.json` declaring its platform (a string like `"python"` or a list like `["ts", "python"]` for multi-platform templates). When a list is given, each platform's `__common/<platform>/` layer is applied in order. Templates can inherit from a base via `"extends"` and skip specific base files via `"exclude"` globs. Files with `.j2` extension get Jinja2 rendering; others are copied as-is.
 
 **Template variables:**
 - `{{ project_name }}` — e.g., `my-app`
