@@ -96,6 +96,20 @@ TEMPLATE_CHECKS: dict[str, list[dict]] = {
             "min": None,
             "install": "brew install xcodegen",
         },
+        {
+            "tool": "xcodebuild",
+            "command": ["xcodebuild", "-version"],
+            "pattern": r"Xcode (\d+\.\d+(?:\.\d+)?)",
+            "min": (15, 0),
+            "install": "Install Xcode from the App Store or https://developer.apple.com/xcode/",
+        },
+        {
+            "tool": "swift",
+            "command": ["swift", "--version"],
+            "pattern": r"Swift version (\d+\.\d+(?:\.\d+)?)",
+            "min": (5, 9),
+            "install": "Install Xcode (includes Swift) or https://swift.org/install",
+        },
     ],
 }
 

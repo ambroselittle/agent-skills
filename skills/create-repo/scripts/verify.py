@@ -112,12 +112,16 @@ def _kill_process_group(pgid: int) -> None:
 def detect_platform(project_dir: Path) -> str:
     """Detect the project platform from its files.
 
-    Returns 'fullstack-python' if both pyproject.toml and package.json exist,
+    Returns 'swift-ts' if package.json and apps/mobile/project.yml both exist,
+    'fullstack-python' if both pyproject.toml and package.json exist,
     'python' if only pyproject.toml, 'node' if only package.json.
     Raises ValueError if neither is found.
     """
     has_pyproject = (project_dir / "pyproject.toml").exists()
     has_package_json = (project_dir / "package.json").exists()
+    has_mobile_project = (project_dir / "apps" / "mobile" / "project.yml").exists()
+    if has_package_json and has_mobile_project:
+        return "swift-ts"
     if has_pyproject and has_package_json:
         return "fullstack-python"
     if has_pyproject:
@@ -732,6 +736,114 @@ def verify_fullstack_python(
 
 
 # ---------------------------------------------------------------------------
+# Swift + TypeScript (swift-ts)
+# ---------------------------------------------------------------------------
+
+
+def verify_swift_ts(
+    project_dir: Path,
+    api_port: int = 3001,
+    skip_docker: bool = False,
+) -> VerifyResult:
+    """Verify a swift-ts project (Swift multiplatform + TypeScript REST API).
+
+    Runs the standard Node pipeline for the TypeScript API side, then
+    optionally runs xcodegen + xcodebuild for the Swift side (macOS only).
+    On non-macOS platforms, Swift verification is skipped with a message.
+    """
+    result = verify_node(
+        project_dir,
+        api_port=api_port,
+        web_port=3000,  # unused — no web app
+        skip_docker=skip_docker,
+    )
+
+    # Swift-side verification (macOS only)
+    import sys
+
+    if sys.platform != "darwin":
+        result.steps.append(VerifyStep(
+            "swift: skipped",
+            "(not macOS)",
+            True,
+            0,
+        ))
+        return result
+
+    mobile_dir = project_dir / "apps" / "mobile"
+    if not mobile_dir.exists():
+        result.steps.append(VerifyStep(
+            "swift: skipped",
+            "apps/mobile/ not found",
+            True,
+            0,
+        ))
+        return result
+
+    # xcodegen generate
+    step = run_step(
+        "xcodegen generate",
+        ["xcodegen", "generate"],
+        mobile_dir,
+        timeout=60,
+    )
+    result.steps.append(step)
+    if not step.passed:
+        return result
+
+    # xcodebuild build (iOS Simulator)
+    step = run_step(
+        "xcodebuild build",
+        [
+            "xcodebuild", "build",
+            "-scheme", _detect_scheme(mobile_dir),
+            "-destination", "platform=iOS Simulator,name=iPhone 16,OS=latest",
+            "-skipPackagePluginValidation",
+            "CODE_SIGNING_ALLOWED=NO",
+        ],
+        mobile_dir,
+        timeout=300,
+    )
+    result.steps.append(step)
+    if not step.passed:
+        return result
+
+    # xcodebuild test (iOS Simulator)
+    step = run_step(
+        "xcodebuild test",
+        [
+            "xcodebuild", "test",
+            "-scheme", _detect_scheme(mobile_dir),
+            "-destination", "platform=iOS Simulator,name=iPhone 16,OS=latest",
+            "-skipPackagePluginValidation",
+            "CODE_SIGNING_ALLOWED=NO",
+        ],
+        mobile_dir,
+        timeout=300,
+    )
+    result.steps.append(step)
+
+    return result
+
+
+def _detect_scheme(mobile_dir: Path) -> str:
+    """Detect the Xcode scheme name from project.yml or .xcodeproj."""
+    import re
+
+    project_yml = mobile_dir / "project.yml"
+    if project_yml.exists():
+        # Simple regex to find 'name: <value>' at the top level of project.yml
+        match = re.search(r"^name:\s*(.+)$", project_yml.read_text(), re.MULTILINE)
+        if match:
+            return match.group(1).strip()
+    # Fallback: look for .xcodeproj
+    for p in mobile_dir.iterdir():
+        if p.suffix == ".xcodeproj":
+            return p.stem
+    return "App"
+
+
+# ---------------------------------------------------------------------------
 # Main dispatch
 # ---------------------------------------------------------------------------
 
@@ -755,7 +867,13 @@ def verify(
     project_dir = Path(project_dir).resolve()
     platform = detect_platform(project_dir)
 
-    if platform == "fullstack-python":
+    if platform == "swift-ts":
+        return verify_swift_ts(
+            project_dir,
+            api_port=api_port or 3001,
+            skip_docker=skip_docker,
+        )
+    elif platform == "fullstack-python":
         return verify_fullstack_python(
             project_dir,
             api_port=api_port or 8000,

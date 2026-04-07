@@ -15,6 +15,10 @@ from eval.models import CheckResult
 
 def _detect_platform(project_dir: Path) -> str:
     """Detect platform from scaffolded output."""
+    if (project_dir / "package.json").exists() and (
+        project_dir / "apps" / "mobile" / "project.yml"
+    ).exists():
+        return "swift-ts"
     # Mixed platform: both Python and Node files present
     if (project_dir / "pyproject.toml").exists() and (project_dir / "package.json").exists():
         return "fullstack-python"
@@ -131,6 +135,8 @@ def check_structure(project_dir: Path, template: str) -> list[CheckResult]:
         _check_api_python(project_dir, checks)
     elif template == "fullstack-python":
         _check_fullstack_python(project_dir, checks)
+    elif template == "swift-ts":
+        _check_swift_ts(project_dir, checks)
 
     # --- Content checks (universal) ---
 
@@ -587,3 +593,130 @@ def _check_fullstack_python(project_dir: Path, checks: list[CheckResult]) -> Non
                 None if has_8000 else "vite.config.ts should default API_PORT to 8000",
             )
         )
+
+
+def _check_swift_ts(project_dir: Path, checks: list[CheckResult]) -> None:
+    """Template-specific checks for swift-ts."""
+    # REST API files
+    api_files = [
+        "tsconfig.json",
+        "apps/api/package.json",
+        "apps/api/src/index.ts",
+        "apps/api/src/routes/index.ts",
+        "apps/api/src/routes/health.ts",
+        "apps/api/src/routes/users.ts",
+        "apps/api/__tests__/routes.test.ts",
+        "apps/api/playwright.config.ts",
+        "apps/api/e2e/smoke.test.ts",
+        "apps/api/e2e/users.test.ts",
+        "packages/db/package.json",
+        "packages/db/prisma/schema.prisma",
+        "packages/db/prisma/seed.ts",
+        "packages/db/src/index.ts",
+        "packages/types/package.json",
+        "packages/types/src/index.ts",
+        "packages/config/tsconfig.base.json",
+        "scripts/setup.ts",
+        "scripts/discover-ports.ts",
+        "scripts/cleanup-samples.ts",
+    ]
+    for f in api_files:
+        path = project_dir / f
+        checks.append(
+            CheckResult(
+                f"file: {f}",
+                path.exists(),
+                None if path.exists() else f"Missing: {f}",
+            )
+        )
+
+    # Swift app files (project.yml + at least one source dir with App.swift pattern)
+    swift_files = [
+        "apps/mobile/project.yml",
+    ]
+    for f in swift_files:
+        path = project_dir / f
+        checks.append(
+            CheckResult(
+                f"file: {f}",
+                path.exists(),
+                None if path.exists() else f"Missing: {f}",
+            )
+        )
+
+    # Check for Swift source files (PascalCase dir from __swift_project_name__)
+    sources_dir = project_dir / "apps" / "mobile" / "Sources"
+    has_swift_sources = False
+    if sources_dir.exists():
+        for child in sources_dir.iterdir():
+            if child.is_dir() and (child / "App.swift").exists():
+                has_swift_sources = True
+                break
+    checks.append(
+        CheckResult(
+            "swift: Sources/*/App.swift exists",
+            has_swift_sources,
+            None if has_swift_sources else "No App.swift found in apps/mobile/Sources/*/",
+        )
+    )
+
+    # Check for Swift APIClient
+    has_api_client = False
+    if sources_dir.exists():
+        for child in sources_dir.iterdir():
+            if child.is_dir() and (child / "Services" / "APIClient.swift").exists():
+                has_api_client = True
+                break
+    checks.append(
+        CheckResult(
+            "swift: Services/APIClient.swift exists",
+            has_api_client,
+            None if has_api_client else "No APIClient.swift found in apps/mobile/Sources/*/Services/",
+        )
+    )
+
+    # Check for Swift tests
+    tests_dir = project_dir / "apps" / "mobile" / "Tests"
+    has_swift_tests = False
+    if tests_dir.exists():
+        for child in tests_dir.iterdir():
+            if child.is_dir() and any(child.glob("*.swift")):
+                has_swift_tests = True
+                break
+    checks.append(
+        CheckResult(
+            "swift: Tests/*/swift test files exist",
+            has_swift_tests,
+            None if has_swift_tests else "No Swift test files found in apps/mobile/Tests/*/",
+        )
+    )
+
+    # apps/web should NOT exist
+    web_dir = project_dir / "apps" / "web"
+    checks.append(
+        CheckResult(
+            "no apps/web directory",
+            not web_dir.exists(),
+            "apps/web/ exists but should not for swift-ts template"
+            if web_dir.exists()
+            else None,
+        )
+    )
+
+    # tRPC files should NOT exist
+    trpc_files = [
+        "apps/api/src/router.ts",
+        "apps/api/src/trpc.ts",
+        "apps/api/__tests__/router.test.ts",
+    ]
+    for f in trpc_files:
+        path = project_dir / f
+        checks.append(
+            CheckResult(
+                f"no tRPC file: {f}",
+                not path.exists(),
+                f"{f} should not exist in swift-ts template" if path.exists() else None,
+            )
+        )
+
+    _check_node_ts_common(project_dir, checks)
