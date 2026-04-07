@@ -1,5 +1,14 @@
 # Agent Skills — Core Guidelines
 
+## Slash Commands Are Skill Invocations
+
+When a user message starts with `/skill-name` (e.g., `/apply-review-fixes`, `/code-review`,
+`/hack`), **always invoke it via the Skill tool** — even if the harness didn't expand it into a
+`<command-name>` tag. The harness may not recognize newly added skills until `setup.sh` is re-run,
+or the command may arrive unexpanded in remote/dispatch sessions. Treat any message starting with
+`/<word>` that matches a known skill name as a skill invocation. If the Skill tool rejects it
+(skill not found), tell the user and suggest running `setup.sh` to re-link skills.
+
 ## Use Agents
 
 When feasible, prefer delegating units of work to sub-agents to keep the main session context clean.
