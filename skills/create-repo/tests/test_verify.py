@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from scripts.verify import StepResult, VerifyResult, run_step, verify
+from scripts.verify import StepResult, VerifyResult, detect_platform, run_step, verify
 
 
 def _mock_run(returncode: int = 0, stdout: str = "", stderr: str = ""):
@@ -331,3 +331,57 @@ def test_verify_python_runs_correct_sequence():
     assert "ruff check" in step_names
     assert "pytest" in step_names
     assert "dev server" in step_names
+
+
+# --- detect_platform ---
+
+
+def test_detect_platform_swift_ts(tmp_path):
+    """Returns 'swift-ts' when package.json and apps/mobile/project.yml both exist."""
+    (tmp_path / "package.json").write_text("{}")
+    mobile = tmp_path / "apps" / "mobile"
+    mobile.mkdir(parents=True)
+    (mobile / "project.yml").write_text("name: MyApp")
+    assert detect_platform(tmp_path) == "swift-ts"
+
+
+def test_detect_platform_node_without_mobile(tmp_path):
+    """Returns 'node' when only package.json exists (no mobile project)."""
+    (tmp_path / "package.json").write_text("{}")
+    assert detect_platform(tmp_path) == "node"
+
+
+def test_detect_platform_fullstack_python_takes_precedence(tmp_path):
+    """Returns 'fullstack-python' when both pyproject.toml and package.json exist."""
+    (tmp_path / "package.json").write_text("{}")
+    (tmp_path / "pyproject.toml").write_text("[project]")
+    assert detect_platform(tmp_path) == "fullstack-python"
+
+
+def test_detect_platform_swift_ts_beats_fullstack_python(tmp_path):
+    """swift-ts detection comes before fullstack-python."""
+    (tmp_path / "package.json").write_text("{}")
+    (tmp_path / "pyproject.toml").write_text("[project]")
+    mobile = tmp_path / "apps" / "mobile"
+    mobile.mkdir(parents=True)
+    (mobile / "project.yml").write_text("name: MyApp")
+    # swift-ts check comes first
+    assert detect_platform(tmp_path) == "swift-ts"
+
+
+# --- verify_swift_ts (skip on non-macOS) ---
+
+
+def test_verify_swift_ts_skips_on_linux():
+    """On non-macOS, swift-ts verify should skip Swift steps."""
+    with (
+        patch("scripts.verify.detect_platform", return_value="swift-ts"),
+        patch("scripts.verify.subprocess.run", return_value=_mock_run()),
+        patch("scripts.verify.verify_swift_ts") as mock_swift,
+    ):
+        mock_swift.return_value = VerifyResult(
+            steps=[StepResult("swift: skipped", True, 0)]
+        )
+        result = verify(Path("/tmp/test-project"))
+
+    assert result.passed

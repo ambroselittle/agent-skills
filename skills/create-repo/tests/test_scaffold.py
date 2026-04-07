@@ -1220,3 +1220,132 @@ def test_existing_templates_unaffected_by_dir_var_feature(tmp_path, versions):
         assert "__" not in rel or "__tests__" in rel, (
             f"Unexpected double-underscore in path: {rel}"
         )
+
+
+# ---------------------------------------------------------------------------
+# swift-ts scaffold tests
+# ---------------------------------------------------------------------------
+
+
+def test_scaffold_swift_ts_creates_expected_structure(tmp_path, versions):
+    output = tmp_path / "my-app"
+    created = scaffold("my-app", "swift-ts", versions, output)
+
+    assert len(created) > 0
+
+    # Common files (from __common/ and __common/ts/)
+    assert (output / "docker-compose.yml").exists()
+    assert (output / ".gitignore").exists()
+    assert (output / ".env.example").exists()
+    assert (output / "CLAUDE.md").exists()
+    assert (output / "biome.json").exists()
+    assert (output / ".claude" / "rules" / "testing.md").exists()
+    assert (output / ".github" / "workflows" / "ci.yml").exists()
+    assert (output / ".github" / "pull_request_template.md").exists()
+
+    # Root monorepo files (inherited from fullstack-ts)
+    assert (output / "package.json").exists()
+    assert (output / "pnpm-workspace.yaml").exists()
+    assert (output / "turbo.json").exists()
+    assert (output / "tsconfig.json").exists()
+
+    # REST API (swift-ts specific, NOT tRPC)
+    assert (output / "apps" / "api" / "package.json").exists()
+    assert (output / "apps" / "api" / "src" / "index.ts").exists()
+    assert (output / "apps" / "api" / "src" / "routes" / "index.ts").exists()
+    assert (output / "apps" / "api" / "src" / "routes" / "health.ts").exists()
+    assert (output / "apps" / "api" / "src" / "routes" / "users.ts").exists()
+    assert (output / "apps" / "api" / "__tests__" / "routes.test.ts").exists()
+
+    # API E2E tests
+    assert (output / "apps" / "api" / "playwright.config.ts").exists()
+    assert (output / "apps" / "api" / "e2e" / "smoke.test.ts").exists()
+    assert (output / "apps" / "api" / "e2e" / "users.test.ts").exists()
+    assert (output / "apps" / "api" / "vitest.config.ts").exists()
+
+    # API tsconfig inherited from base (NOT duplicated)
+    assert (output / "apps" / "api" / "tsconfig.json").exists()
+
+    # Packages (inherited from fullstack-ts)
+    assert (output / "packages" / "db" / "package.json").exists()
+    assert (output / "packages" / "db" / "prisma" / "schema.prisma").exists()
+    assert (output / "packages" / "db" / "prisma" / "seed.ts").exists()
+    assert (output / "packages" / "db" / "src" / "index.ts").exists()
+    assert (output / "packages" / "types" / "package.json").exists()
+    assert (output / "packages" / "config" / "tsconfig.base.json").exists()
+
+    # Scripts
+    assert (output / "scripts" / "setup.ts").exists()
+    assert (output / "scripts" / "discover-ports.ts").exists()
+    assert (output / "scripts" / "cleanup-samples.ts").exists()
+
+    # Swift multiplatform app (directory name substituted from __swift_project_name__)
+    assert (output / "apps" / "mobile" / "project.yml").exists()
+    assert (output / "apps" / "mobile" / "Sources" / "MyApp" / "App.swift").exists()
+    assert (output / "apps" / "mobile" / "Sources" / "MyApp" / "ContentView.swift").exists()
+    assert (output / "apps" / "mobile" / "Sources" / "MyApp" / "Models" / "User.swift").exists()
+    assert (output / "apps" / "mobile" / "Sources" / "MyApp" / "Services" / "APIClient.swift").exists()
+    assert (output / "apps" / "mobile" / "Sources" / "MyApp" / "Views" / "UsersView.swift").exists()
+    assert (output / "apps" / "mobile" / "Tests" / "MyAppTests" / "APIClientTests.swift").exists()
+    assert (output / "apps" / "mobile" / "Resources" / "Assets.xcassets" / "Contents.json").exists()
+
+    # NO apps/web
+    assert not (output / "apps" / "web").exists()
+
+    # NO tRPC files
+    assert not (output / "apps" / "api" / "src" / "router.ts").exists()
+    assert not (output / "apps" / "api" / "src" / "trpc.ts").exists()
+    assert not (output / "apps" / "api" / "__tests__" / "router.test.ts").exists()
+
+    # NO __swift_project_name__ marker dirs in output
+    for path in created:
+        rel = str(path.relative_to(output))
+        assert "__swift_project_name__" not in rel, (
+            f"Unsubstituted __swift_project_name__ in: {rel}"
+        )
+
+
+def test_scaffold_swift_ts_renders_jinja2_variables(tmp_path, versions):
+    output = tmp_path / "cool-app"
+    scaffold("cool-app", "swift-ts", versions, output)
+
+    # Root package.json
+    root_pkg = json.loads((output / "package.json").read_text())
+    assert root_pkg["name"] == "cool-app"
+
+    # API package.json scope and deps — no tRPC
+    api_pkg = json.loads((output / "apps" / "api" / "package.json").read_text())
+    assert api_pkg["name"] == "@cool-app/api"
+    assert "hono" in api_pkg["dependencies"]
+    assert "@trpc/server" not in api_pkg.get("dependencies", {})
+    assert "@hono/trpc-server" not in api_pkg.get("dependencies", {})
+
+    # Versions substituted in API
+    assert versions["hono"] in api_pkg["dependencies"]["hono"]
+
+    # CLAUDE.md has project name (the swift-ts override, not the __common one)
+    claude_md = (output / "CLAUDE.md").read_text()
+    assert "cool-app" in claude_md
+    assert "Swift" in claude_md  # swift-ts specific CLAUDE.md
+
+    # docker-compose has project-specific db name
+    dc = (output / "docker-compose.yml").read_text()
+    assert "cool-app_dev" in dc
+
+    # Swift project.yml has PascalCase project name
+    project_yml = (output / "apps" / "mobile" / "project.yml").read_text()
+    assert "CoolApp" in project_yml
+
+    # Swift source directories use PascalCase
+    assert (output / "apps" / "mobile" / "Sources" / "CoolApp" / "App.swift").exists()
+    assert (output / "apps" / "mobile" / "Tests" / "CoolAppTests" / "APIClientTests.swift").exists()
+
+    # APIClient.swift has project name
+    api_client = (output / "apps" / "mobile" / "Sources" / "CoolApp" / "Services" / "APIClient.swift").read_text()
+    assert "cool-app" in api_client
+
+    # CI template has both ubuntu and macos jobs
+    ci = (output / ".github" / "workflows" / "ci.yml").read_text()
+    assert "ubuntu-latest" in ci
+    assert "macos-15" in ci
+    assert "CoolApp" in ci
