@@ -1,23 +1,27 @@
 # Mobile App
 
 This directory is ready for your Xcode project. A workspace has been pre-created at the repo
-root (`{{ swift_project_name }}.xcworkspace`) that ties the Xcode project to the full monorepo —
-so you see all repo files alongside your Swift code in Xcode's file navigator.
+root (`{{ swift_project_name }}.xcworkspace`) — open it in Xcode to see all repo files in the
+file navigator alongside your Swift code.
 
 ## Set Up the Xcode Project
 
-**Always open Xcode via the workspace, not the `.xcodeproj` directly.**
+**Step 1 — Create the Xcode project:**
+
+1. In Xcode: **File → New → Project**
+2. Choose your template (e.g. **App** under iOS / Multiplatform)
+3. Set the product name to **`{{ swift_project_name }}`**
+4. When prompted for a save location, navigate into **this directory** (`apps/ios/`) and save
+5. Xcode creates `apps/ios/{{ swift_project_name }}.xcodeproj`
+
+**Step 2 — Add the project to the workspace:**
 
 1. Open `{{ swift_project_name }}.xcworkspace` (at the repo root) in Xcode
-2. In Xcode: **File → New → Project**
-3. Choose your template (e.g. **App** under iOS / Multiplatform)
-4. Set the product name to **`{{ swift_project_name }}`**
-5. When prompted for a save location, navigate into **this directory** (`apps/ios/`) and save
-6. Xcode creates `apps/ios/{{ swift_project_name }}.xcodeproj` — the workspace already points there
+2. In the file navigator, right-click → **Add Files to "{{ swift_project_name }}"…**
+3. Select `apps/ios/{{ swift_project_name }}.xcodeproj` and click **Add**
 
-The workspace file (`{{ swift_project_name }}.xcworkspace/contents.xcworkspacedata`) references
-both `apps/ios/{{ swift_project_name }}.xcodeproj` and the repo root, so once you save the project
-in the right place everything is connected.
+The workspace shows the full monorepo alongside your Xcode project. Always open Xcode via
+the workspace going forward, not the `.xcodeproj` directly.
 
 ## Connect to the API
 
