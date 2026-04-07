@@ -7,13 +7,18 @@ file navigator alongside your Swift code.
 ## Set Up the Xcode Project
 
 1. Open `{{ swift_project_name }}.xcworkspace` (at the repo root) in Xcode
-2. **File → New → Project**, choose your template (e.g. **App** under iOS / Multiplatform)
+2. **File → New → Project**, choose **App** under **iOS** (not Multiplatform — see note below)
 3. Set the product name to **`{{ swift_project_name }}`**
 4. In the save sheet, set **"Add to: {{ swift_project_name }}"** — this wires the project into
    the workspace in one step
 5. Set the save location to **this directory** (`apps/ios/`) and click **Create**
 
 Always open Xcode via the workspace going forward, not the `.xcodeproj` directly.
+
+> **iOS vs Multiplatform:** Choose **iOS**. It supports iPhone, iPad, Mac (Designed for iPad),
+> and visionOS from a single target — just add destinations in project settings. The Multiplatform
+> template creates separate Mac and iOS targets with divergent code paths, which is only needed
+> for a fully native Mac app experience.
 
 > **Fallback:** If you already created the project separately, drag
 > `apps/ios/{{ swift_project_name }}.xcodeproj` from Finder into the workspace's
