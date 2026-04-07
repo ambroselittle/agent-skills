@@ -496,6 +496,7 @@ def verify_python(
 
     Assumes setup is already done (deps installed, docker running, db migrated).
     Reads ports from .env if available.
+    Uses the same just commands a developer would run — not direct tool invocations.
     """
     result = VerifyResult()
 
@@ -504,83 +505,53 @@ def verify_python(
     if "API_PORT" in dotenv:
         api_port = int(dotenv["API_PORT"])
 
-    # Step 1: Lint
-    step = run_step("ruff check", ["uv", "run", "ruff", "check", "."], project_dir, timeout=60)
+    # Step 0: Verify justfile parses correctly (fatal — all steps depend on just)
+    step = run_step("just --summary", ["just", "--summary"], project_dir, timeout=10)
     result.steps.append(step)
     if not step.passed:
         return result
 
-    # Step 2: Format check — fatal, templates must be formatted before verify
-    step = run_step(
-        "ruff format --check",
-        ["uv", "run", "ruff", "format", "--check", "."],
-        project_dir,
-        timeout=60,
-    )
+    # Step 1: Lint (just lint — matches what developers run)
+    step = run_step("lint", ["just", "lint"], project_dir, timeout=60)
     result.steps.append(step)
     if not step.passed:
         return result
 
-    # Step 3: Test
-    step = run_step("pytest", ["uv", "run", "pytest"], project_dir, timeout=120)
+    # Step 2: Format check (just format-check — matches what developers run)
+    step = run_step("format-check", ["just", "format-check"], project_dir, timeout=60)
     result.steps.append(step)
     if not step.passed:
         return result
 
-    # Step 3b: Ensure Postgres is running (may have been stopped if setup ran separately)
-    compose_file = project_dir / "docker-compose.yml"
-    if compose_file.exists():
-        is_up = subprocess.run(
-            ["docker", "compose", "ps", "--quiet", "postgres"],
-            cwd=project_dir,
-            capture_output=True,
-            timeout=10,
-        ).stdout.strip()
-        if not is_up:
-            subprocess.run(
-                ["docker", "compose", "up", "-d"],
-                cwd=project_dir,
-                capture_output=True,
-                timeout=60,
-            )
-            for _ in range(15):
-                ready = subprocess.run(
-                    ["docker", "compose", "exec", "-T", "postgres", "pg_isready", "-U", "postgres"],
-                    cwd=project_dir,
-                    capture_output=True,
-                    timeout=5,
-                )
-                if ready.returncode == 0:
-                    break
-                time.sleep(2)
+    # Step 3: Test (just test — matches what developers run)
+    step = run_step("test", ["just", "test"], project_dir, timeout=120)
+    result.steps.append(step)
+    if not step.passed:
+        return result
 
-    # Step 4: Dev server smoke check
-    api_app_dir = project_dir / "apps" / "api"
-    if not api_app_dir.exists():
-        # Flat project layout — run from root
-        api_app_dir = project_dir
-
-    dev_env = {**os.environ, "PORT": str(api_port)}
-    if "DATABASE_URL" in dotenv:
-        dev_env["DATABASE_URL"] = dotenv["DATABASE_URL"]
+    # Step 4: Dev server via `just start` — the exact user-facing entry point.
+    # just start handles postgres (or skips docker if DATABASE_URL is externally set).
     import tempfile
+
+    start_env = {**os.environ}
+    if "DATABASE_URL" in dotenv:
+        start_env["DATABASE_URL"] = dotenv["DATABASE_URL"]
 
     dev_stderr = tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False)
     dev_proc = subprocess.Popen(
-        ["uv", "run", "uvicorn", "src.main:app", "--port", str(api_port)],
-        cwd=api_app_dir,
+        ["just", "start"],
+        cwd=project_dir,
         stdout=subprocess.DEVNULL,
         stderr=dev_stderr,
-        env=dev_env,
+        env=start_env,
         start_new_session=True,
     )
-
     dev_pgid = os.getpgid(dev_proc.pid)
     atexit.register(_kill_process_group, dev_pgid)
 
     try:
         start = time.monotonic()
-        api_up = wait_for_port(api_port, timeout=15)
+        api_up = wait_for_port(api_port, timeout=60)
         elapsed = time.monotonic() - start
 
         if not api_up:
@@ -598,8 +569,7 @@ def verify_python(
         result.steps.append(exit_step)
     finally:
         try:
-            pgid = os.getpgid(dev_proc.pid)
-            _kill_process_group(pgid)
+            _kill_process_group(dev_pgid)
         except (ProcessLookupError, PermissionError):
             pass
 
@@ -630,57 +600,31 @@ def verify_fullstack_python(
     if "WEB_PORT" in dotenv:
         web_port = int(dotenv["WEB_PORT"])
 
-    # Step 0: Verify justfile parses correctly (non-fatal — just may not be installed)
+    # Step 0: Verify justfile parses (fatal — all steps depend on just)
     step = run_step("just --summary", ["just", "--summary"], project_dir, timeout=10)
     result.steps.append(step)
-    # Non-fatal — just may not be installed in the verify environment
+    if not step.passed:
+        return result
 
-    # Step 1: Python lint
-    step = run_step("ruff check", ["uv", "run", "ruff", "check", "."], project_dir, timeout=60)
+    # Step 1: Lint — just lint runs ruff + biome together, matching what developers run
+    step = run_step("lint", ["just", "lint"], project_dir, timeout=60)
     result.steps.append(step)
     if not step.passed:
         return result
 
-    # Step 2: Python format check — fatal, templates must be formatted before verify
-    step = run_step(
-        "ruff format --check",
-        ["uv", "run", "ruff", "format", "--check", "."],
-        project_dir,
-        timeout=60,
-    )
+    # Step 2: Format check — just format-check runs ruff + biome together
+    step = run_step("format-check", ["just", "format-check"], project_dir, timeout=60)
     result.steps.append(step)
     if not step.passed:
         return result
 
-    # Step 3: Python tests
-    step = run_step("pytest", ["uv", "run", "pytest"], project_dir, timeout=120)
+    # Step 3: Tests — just test runs pytest + vitest together, matching what developers run
+    step = run_step("test", ["just", "test"], project_dir, timeout=120)
     result.steps.append(step)
     if not step.passed:
         return result
 
-    # Step 4: Biome check on web app — fail on any diagnostic output
-    step = run_step(
-        "biome check (web)",
-        ["npx", "@biomejs/biome", "check", "--error-on-warnings", "apps/web/"],
-        project_dir,
-        timeout=60,
-        fail_on_output=[r"Found \d+ (error|warning|info)"],
-    )
-    result.steps.append(step)
-    # Non-fatal
-
-    # Step 5: Web unit tests
-    step = run_step(
-        "vitest (web)",
-        ["pnpm", "--dir", "apps/web", "run", "test"],
-        project_dir,
-        timeout=60,
-    )
-    result.steps.append(step)
-    if not step.passed:
-        return result
-
-    # Step 6: Install Playwright browsers
+    # Step 4: Install Playwright browsers
     playwright_config = project_dir / "apps" / "web" / "playwright.config.ts"
     if playwright_config.exists():
         step = run_step(

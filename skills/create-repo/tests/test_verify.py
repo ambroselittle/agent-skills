@@ -280,10 +280,10 @@ def test_verify_node_fullstack_runs_both_e2e(tmp_path):
 
 
 def test_verify_python_stops_on_first_failure():
-    """Python verify should stop at the first failing step."""
+    """Python verify should stop at the first failing step (lint)."""
 
     def fake_run(cmd, **kwargs):
-        if "check" in cmd:
+        if isinstance(cmd, list) and cmd[:2] == ["just", "lint"]:
             return _mock_run(returncode=1, stderr="lint failed")
         return _mock_run()
 
@@ -294,12 +294,13 @@ def test_verify_python_stops_on_first_failure():
         result = verify(Path("/tmp/test-project"))
 
     assert not result.passed
-    assert result.steps[0].name == "ruff check"
-    assert len(result.steps) == 1
+    failed = [s for s in result.steps if not s.passed]
+    assert len(failed) == 1
+    assert failed[0].name == "lint"
 
 
 def test_verify_python_runs_correct_sequence():
-    """Python verify should run ruff, pytest, dev server (no install/docker — that's setup)."""
+    """Python verify should run just lint/format-check/test/start (no install/docker — that's setup)."""
     commands_run = []
 
     def fake_run(cmd, **kwargs):
@@ -325,8 +326,9 @@ def test_verify_python_runs_correct_sequence():
     step_names = [s.name for s in result.steps]
     assert "uv sync" not in step_names
     assert "docker compose up" not in step_names
-    assert "ruff check" in step_names
-    assert "pytest" in step_names
+    assert "lint" in step_names
+    assert "format-check" in step_names
+    assert "test" in step_names
     assert "dev server" in step_names
 
 
