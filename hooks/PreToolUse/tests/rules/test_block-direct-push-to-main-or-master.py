@@ -53,6 +53,21 @@ def test_boundary_initial_push_to_empty_remote_allowed(rule):
     assert result["decision"] == "proceed"
 
 
+def test_boundary_cd_path_used_for_empty_remote_check(rule):
+    """cd /path && git push uses the cd path as cwd when checking if remote is empty."""
+    captured_cwd = []
+
+    def mock_is_empty(remote, cwd):
+        captured_cwd.append(cwd)
+        return True
+
+    with patch("operations.git._remote_is_empty", side_effect=mock_is_empty):
+        result = evaluate(_payload("cd /some/repo && git push -u origin main"), [rule])
+
+    assert result["decision"] == "proceed"
+    assert captured_cwd == ["/some/repo"]
+
+
 def test_boundary_non_empty_remote_still_denied(rule):
     """Push to main on a non-empty remote is still denied."""
     with patch("operations.git._remote_is_empty", return_value=False):

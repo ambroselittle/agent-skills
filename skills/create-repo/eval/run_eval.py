@@ -245,10 +245,6 @@ def run_eval(
             # Clean up Docker resources if we started them
             if not skip_docker:
                 _teardown_docker(project_dir)
-                # Wait for Docker ports to be fully released before next template
-                import time as _time
-
-                _time.sleep(2)
 
             # Clean up the eval run directory to avoid accumulating node_modules
             if output_dir is None and project_dir.exists():

@@ -109,6 +109,14 @@ def _extract_push_remote(tokens: list[str]) -> str | None:
     return positional[0] if positional else None
 
 
+def _extract_cd_cwd(all_subcommands: list[list[str]], before_idx: int) -> str | None:
+    """Find the last `cd <path>` before the given subcommand index."""
+    for tokens in reversed(all_subcommands[:before_idx]):
+        if tokens and tokens[0] == "cd" and len(tokens) >= 2:
+            return tokens[1]
+    return None
+
+
 def _remote_is_empty(remote: str, cwd: str | None) -> bool:
     """Return True if the remote has no refs (initial push to empty repo)."""
     try:
@@ -207,7 +215,8 @@ def matches_git_push_direct(payload: dict, rule: dict) -> bool:
     if not deny_branches:
         return False
 
-    for tokens in _split_subcommands(command):
+    all_subcommands = _split_subcommands(command)
+    for i, tokens in enumerate(all_subcommands):
         if not _is_git_subcommand(tokens, "push"):
             continue
         if _is_force_flag(tokens):
@@ -220,9 +229,10 @@ def matches_git_push_direct(payload: dict, rule: dict) -> bool:
         if not _branch_matches_any(branch, deny_branches):
             continue
 
-        # Allow initial pushes to empty remotes — no history to protect
+        # Allow initial pushes to empty remotes — no history to protect.
+        # cwd may come from -C flag or from a preceding `cd <path>` subcommand.
         remote = _extract_push_remote(tokens)
-        cwd = _extract_git_cwd(tokens)
+        cwd = _extract_git_cwd(tokens) or _extract_cd_cwd(all_subcommands, i)
         if remote and _remote_is_empty(remote, cwd):
             continue
 

@@ -12,6 +12,7 @@ Developers run multiple projects simultaneously. Hardcoded ports (5432, 8000, 30
 - TS templates: `scripts/discover-ports.ts` → `.env.ports` + per-package `.env` files
 - Python templates: `scripts/setup.py` → root `.env` + `apps/api/.env`
 - Port ranges: DB 5432–5499, API 8000–8099 (Python) / 3100–3199 (TS), Web 3000–3099
+- Both scripts use a global port registry at `~/.agent-skills/.port-registry.json` to avoid collisions when multiple scaffolding runs happen concurrently (locked via a lock file — `fcntl.LOCK_EX` on Python, `openSync('wx')` on TS)
 
 **2. `docker-compose.yml` must use `${DB_PORT:-5432}:5432`**
 - The host-side port is variable; the container-side is always 5432
