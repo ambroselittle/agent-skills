@@ -762,7 +762,7 @@ def verify_swift_ts(
     import sys
 
     if sys.platform != "darwin":
-        result.steps.append(VerifyStep(
+        result.steps.append(StepResult(
             "swift: skipped",
             "(not macOS)",
             True,
@@ -772,9 +772,22 @@ def verify_swift_ts(
 
     mobile_dir = project_dir / "apps" / "mobile"
     if not mobile_dir.exists():
-        result.steps.append(VerifyStep(
+        result.steps.append(StepResult(
             "swift: skipped",
             "apps/mobile/ not found",
+            True,
+            0,
+        ))
+        return result
+
+    # Check if Swift tools are available
+    import shutil
+
+    if not shutil.which("xcodegen") or not shutil.which("xcodebuild"):
+        missing = [t for t in ("xcodegen", "xcodebuild") if not shutil.which(t)]
+        result.steps.append(StepResult(
+            "swift: skipped",
+            f"Missing tools: {', '.join(missing)}. Install Xcode and xcodegen for Swift verification.",
             True,
             0,
         ))
