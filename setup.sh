@@ -108,6 +108,7 @@ if $IS_WORKTREE; then
   done < <(
     git -C "$SCRIPT_DIR" diff --name-only main... -- skills/ 2>/dev/null
     git -C "$SCRIPT_DIR" diff --name-only -- skills/ 2>/dev/null
+    git -C "$SCRIPT_DIR" ls-files --others --exclude-standard -- skills/ 2>/dev/null
   )
   _changed_skills=($(printf '%s\n' "${_changed_skills[@]}" | sort -u))
 fi

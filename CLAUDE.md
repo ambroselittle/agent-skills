@@ -6,18 +6,19 @@ AI agent skills, hooks, and project templates for Claude Code. Skills are prompt
 
 ```
 skills/                # Skill definitions (SKILL.md + supporting files)
-  ├── start-work/      # Plan before building
-  ├── hack/            # Implement from a plan (coordinates sub-agents)
-  ├── ship/            # Push + open PR
-  ├── code-review/     # Multi-agent parallel PR review
-  ├── plan-review/     # Expert review of implementation plans
-  ├── create-repo/     # Monorepo scaffolding (Python scripts + Jinja2 templates)
-  ├── solve-take-home/ # End-to-end take-home challenge solver
-  ├── author-e2e/      # Playwright test generation from scenarios
-  ├── make-skill/      # Interactive skill creator
-  ├── learn/           # Route lessons to the right destination
-  ├── fix-tests/       # CI failure diagnosis
-  └── shared/          # Reusable agents (code-detective) + scripts (context.sh, get-diff.sh)
+  ├── start-work/         # Plan before building
+  ├── hack/               # Implement from a plan (coordinates sub-agents)
+  ├── ship/               # Push + open PR
+  ├── code-review/        # Multi-agent parallel PR review (findings only)
+  ├── apply-review-fixes/ # Apply fixes from code review, verify, commit, publish
+  ├── plan-review/        # Expert review of implementation plans
+  ├── create-repo/        # Monorepo scaffolding (Python scripts + Jinja2 templates)
+  ├── solve-take-home/    # End-to-end take-home challenge solver
+  ├── author-e2e/         # Playwright test generation from scenarios
+  ├── make-skill/         # Interactive skill creator
+  ├── learn/              # Route lessons to the right destination
+  ├── fix-tests/          # CI failure diagnosis
+  └── shared/             # Reusable agents, scripts (context.sh, get-diff.sh), references
 hooks/
   └── PreToolUse/      # Rule-based allow/deny engine for tool calls
 templates/             # CLAUDE.md guidance templates for ~/.claude/CLAUDE.md
