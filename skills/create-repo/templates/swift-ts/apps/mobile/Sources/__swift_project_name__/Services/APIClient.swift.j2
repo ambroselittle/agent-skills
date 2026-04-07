@@ -1,0 +1,47 @@
+import Foundation
+
+/// HTTP client for the {{ project_name }} REST API.
+///
+/// Configure `baseURL` to point to your running API server.
+/// In development, the API runs on `http://localhost:3001`.
+actor APIClient {
+    static let shared = APIClient()
+
+    var baseURL = URL(string: "http://localhost:3001/api")!
+
+    private let decoder: JSONDecoder = {
+        let d = JSONDecoder()
+        d.keyDecodingStrategy = .convertFromSnakeCase
+        return d
+    }()
+
+    private let encoder: JSONEncoder = {
+        let e = JSONEncoder()
+        e.keyEncodingStrategy = .convertToSnakeCase
+        return e
+    }()
+
+    // MARK: - Users
+
+    // --- sample routes start ---
+    func listUsers() async throws -> [User] {
+        let (data, _) = try await URLSession.shared.data(from: baseURL.appending(path: "users"))
+        return try decoder.decode([User].self, from: data)
+    }
+
+    func createUser(email: String, name: String?) async throws -> User {
+        var request = URLRequest(url: baseURL.appending(path: "users"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        struct CreateUserBody: Encodable {
+            let email: String
+            let name: String?
+        }
+        request.httpBody = try encoder.encode(CreateUserBody(email: email, name: name))
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+        return try decoder.decode(User.self, from: data)
+    }
+    // --- sample routes end ---
+}

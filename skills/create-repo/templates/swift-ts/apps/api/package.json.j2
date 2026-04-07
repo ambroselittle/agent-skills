@@ -1,0 +1,30 @@
+{
+  "name": "{{ scope }}/api",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./routes": "./src/routes/index.ts"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "{{ scope }}/db": "workspace:*",
+    "{{ scope }}/types": "workspace:*",
+    "@hono/node-server": "{{ versions.hono_node_server }}",
+    "hono": "{{ versions.hono }}",
+    "dotenv": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@playwright/test": "{{ versions.playwright_test }}",
+    "tsx": "latest",
+    "typescript": "{{ versions.typescript }}",
+    "vitest": "{{ versions.vitest }}"
+  }
+}

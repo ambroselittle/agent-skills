@@ -1,0 +1,12 @@
+{
+  "platform": ["ts", "swift"],
+  "extends": "fullstack-ts",
+  "exclude": [
+    "apps/web/**",
+    "apps/api/src/router.ts.j2",
+    "apps/api/src/trpc.ts.j2",
+    "apps/api/__tests__/router.test.ts.j2",
+    "apps/api/package.json.j2",
+    "apps/api/src/index.ts.j2"
+  ]
+}

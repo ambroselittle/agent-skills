@@ -1,0 +1,54 @@
+name: {{ swift_project_name }}
+options:
+  bundleIdPrefix: com.example
+  deploymentTarget:
+    iOS: "17.0"
+    macOS: "14.0"
+    visionOS: "1.0"
+  xcodeVersion: "16.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: "YES"
+
+targets:
+  {{ swift_project_name }}:
+    type: application
+    platform: [iOS, macOS, visionOS]
+    sources:
+      - path: Sources/{{ swift_project_name }}
+    resources:
+      - path: Resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.{{ project_name }}
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: "YES"
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: "YES"
+        INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        SUPPORTS_MACCATALYST: "YES"
+
+  {{ swift_project_name }}Tests:
+    type: bundle.unit-test
+    platform: [iOS, macOS, visionOS]
+    sources:
+      - path: Tests/{{ swift_project_name }}Tests
+    dependencies:
+      - target: {{ swift_project_name }}
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.{{ project_name }}.tests
+
+schemes:
+  {{ swift_project_name }}:
+    build:
+      targets:
+        {{ swift_project_name }}: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - {{ swift_project_name }}Tests

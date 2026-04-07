@@ -1,0 +1,22 @@
+import { defineConfig } from "@playwright/test"
+
+const apiPort = Number(process.env.E2E_API_PORT) || 4101
+
+export default defineConfig({
+  testDir: "./e2e",
+  retries: 0,
+  use: {
+    baseURL: `http://localhost:${apiPort}`,
+    trace: "retain-on-failure",
+  },
+  ...(process.env.PLAYWRIGHT_SKIP_WEBSERVER
+    ? {}
+    : {
+        webServer: {
+          command: `PORT=${apiPort} pnpm --filter {{ scope }}/api run dev`,
+          port: apiPort,
+          reuseExistingServer: true,
+          cwd: "../..",
+        },
+      }),
+})

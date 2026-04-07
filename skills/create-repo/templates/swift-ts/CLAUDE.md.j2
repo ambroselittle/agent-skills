@@ -1,0 +1,58 @@
+# {{ project_name }}
+
+## Project Structure
+
+This is a Swift + TypeScript monorepo: SwiftUI multiplatform app + Hono REST API.
+
+- `apps/mobile/` — SwiftUI multiplatform app (iOS, iPadOS, macOS, visionOS)
+- `apps/api/` — Hono REST API (TypeScript, managed with pnpm)
+- `packages/db/` — Prisma database schema and client
+- `packages/types/` — Shared TypeScript types
+- `packages/config/` — Shared TypeScript configuration
+
+## Commands
+
+### TypeScript (API)
+- `pnpm dev` — Start API dev server
+- `pnpm build` — Build all TS packages
+- `pnpm test` — Run all TS tests (Vitest)
+- `pnpm lint` — Lint with Biome
+- `pnpm typecheck` — TypeScript type checking
+- `pnpm db:push` — Push Prisma schema to database
+- `pnpm db:studio` — Open Prisma Studio
+
+### Swift (Mobile)
+- `cd apps/mobile && xcodegen generate` — Generate Xcode project
+- Open `apps/mobile/{{ swift_project_name }}.xcodeproj` in Xcode
+- Build and run from Xcode (Cmd+R)
+- Run tests from Xcode (Cmd+U)
+
+## Development
+
+1. `docker compose up -d` — Start Postgres
+2. `pnpm install` — Install TS dependencies
+3. `pnpm db:push` — Push database schema
+4. `pnpm dev` — Start API server
+5. `cd apps/mobile && xcodegen generate` — Generate Xcode project
+6. Open in Xcode and run
+
+## API
+
+- REST API serves all routes under `/api` prefix
+- Health check: `GET /api/health`
+- User CRUD: `GET /api/users`, `POST /api/users`
+- The Swift app connects to the API via `APIClient` (URLSession + Codable)
+
+## Conventions
+
+### TypeScript (apps/api/, packages/)
+- Strict TypeScript (`strict: true`)
+- Biome for linting and formatting
+- All packages use workspace protocol (`workspace:*`)
+- Every app and package has at least one test
+
+### Swift (apps/mobile/)
+- Swift 6.0, SwiftUI for all views
+- XcodeGen for project generation (never edit .xcodeproj directly)
+- Swift Testing framework for unit tests
+- URLSession + Codable for API communication (no third-party networking libs)
