@@ -212,7 +212,7 @@ def _check_node_ts_common(project_dir: Path, checks: list[CheckResult]) -> None:
                 )
             )
 
-    # biome.json noExplicitAny
+    # biome.json lint rules
     biome_path = project_dir / "biome.json"
     if biome_path.exists():
         biome = json.loads(biome_path.read_text())
@@ -222,6 +222,16 @@ def _check_node_ts_common(project_dir: Path, checks: list[CheckResult]) -> None:
                 "biome noExplicitAny is error",
                 no_any == "error",
                 None if no_any == "error" else f"noExplicitAny is '{no_any}', expected 'error'",
+            )
+        )
+        no_unused = (
+            biome.get("linter", {}).get("rules", {}).get("correctness", {}).get("noUnusedImports")
+        )
+        checks.append(
+            CheckResult(
+                "biome noUnusedImports is error",
+                no_unused == "error",
+                None if no_unused == "error" else f"noUnusedImports is '{no_unused}', expected 'error'",
             )
         )
 

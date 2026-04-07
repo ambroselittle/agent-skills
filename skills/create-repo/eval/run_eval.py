@@ -48,7 +48,7 @@ FALLBACK_VERSIONS = {
     "prisma": "7.5.0",
     "prisma_client": "7.5.0",
     "prisma_adapter_pg": "7.5.0",
-    "biomejs_biome": "2.0.0",
+    "biomejs_biome": "2.4.10",
     "trpc_server": "11.1.0",
     "trpc_client": "11.1.0",
     "trpc_react_query": "11.1.0",
