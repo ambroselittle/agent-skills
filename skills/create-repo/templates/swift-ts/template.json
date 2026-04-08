@@ -1,5 +1,6 @@
 {
   "platform": "ts",
+  "description": "Swift multiplatform (iOS/iPadOS/Mac/visionOS) + Hono REST API + Prisma + Postgres",
   "extends": "fullstack-ts",
   "exclude": [
     "apps/web/**",

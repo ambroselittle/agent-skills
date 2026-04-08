@@ -7,6 +7,9 @@ case "$1" in
   repo-home)
     cd "$SKILL_DIR" && uv run python -m scripts.find_repo_home 2>/dev/null || echo '{}'
     ;;
+  list-templates)
+    cd "$SKILL_DIR" && uv run python -m scripts.list_templates 2>/dev/null || echo '(templates unavailable)'
+    ;;
   *)
     echo "unknown flag: $1" >&2; exit 1
     ;;

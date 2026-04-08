@@ -31,6 +31,7 @@ This is a hard stop — do not proceed, do not attempt to install it yourself, d
 The repo home finder results are pre-loaded below. Use them for the Location question.
 
 - Repo home: !`~/.claude/skills/create-repo/scripts/context.sh repo-home`
+- Available templates: !`~/.claude/skills/create-repo/scripts/context.sh list-templates`
 
 If the result is empty or `{}`, fall back to `./<project-name>` and `~/Code/<project-name>` as location options.
 
