@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "bash scripts/dev.sh",
     "generate:schema": "tsx scripts/print-schema.ts",
-    "build": "tsc",
+    "build": "tsup",
     "start": "node dist/index.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
@@ -21,10 +21,11 @@
     "graphql": "{{ versions.graphql }}",
     "graphql-yoga": "{{ versions.graphql_yoga }}",
     "hono": "{{ versions.hono }}",
-    "dotenv": "latest"
+    "dotenv": "{{ versions.dotenv }}"
   },
   "devDependencies": {
-    "tsx": "latest",
+    "tsup": "{{ versions.tsup }}",
+    "tsx": "{{ versions.tsx }}",
     "typescript": "{{ versions.typescript }}",
     "vitest": "{{ versions.vitest }}"
   }

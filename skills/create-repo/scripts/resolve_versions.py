@@ -59,6 +59,8 @@ PACKAGE_REGISTRY: dict[str, tuple[str, str]] = {
     "testing_library_jest_dom": ("@testing-library/jest-dom", "npm"),
     "jsdom": ("jsdom", "npm"),
     "dotenv": ("dotenv", "npm"),
+    "tsx": ("tsx", "npm"),
+    "tsup": ("tsup", "npm"),
     # GraphQL
     "graphql": ("graphql", "npm"),
     "graphql_yoga": ("graphql-yoga", "npm"),
