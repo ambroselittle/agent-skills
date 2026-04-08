@@ -61,6 +61,7 @@ These skills form a pipeline from idea to merged PR:
 | `/apply-review-fixes` | Takes the findings from `/code-review`, applies fixes, verifies, and commits. Separated so you can review findings before anything changes. |
 | `/learn` | Routes lessons from a work item to skill updates, repo-local rules, or user CLAUDE.md guidance — closing the improvement loop. |
 | `/fix-tests` | Diagnoses CI test failures, groups by root cause, and fixes methodically. |
+| `/author-e2e` | Generate Playwright E2E tests from scenario files or feature descriptions. Produces page objects and test files following Page Object Model best practices. |
 | `/make-skill` | Interactive interview to create a new skill from scratch. |
 
 ---
@@ -88,7 +89,7 @@ Every scaffold includes: dynamic port discovery (no hardcoded ports), docker-com
 
 ```
 skills/          # Skill definitions (SKILL.md + agents, scripts, references)
-hooks/           # PreToolUse hook engine, rules.json, and tests (~415 tests)
+hooks/           # PreToolUse hook engine, rules.json, and tests (~449 tests)
 templates/       # CLAUDE.md guidance templates (core + per-user overlays)
 setup.sh         # Idempotent installer — links skills, installs hooks, updates CLAUDE.md
 ```
