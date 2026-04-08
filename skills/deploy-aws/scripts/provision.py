@@ -205,6 +205,44 @@ def ensure_rds_instance(rds, ec2, app: str, existing_password: str | None) -> di
     }
 
 
+# ── DB Migration ─────────────────────────────────────────────────────────────
+
+
+def _run_db_migrate(db_url: str) -> None:
+    """Run prisma db push and db:seed from the repo root using the production DATABASE_URL.
+
+    Uses pnpm workspace filter to target the db package. Seed uses upsert so it's
+    safe to re-run on every deploy — idempotent by design.
+    """
+    import subprocess as sp
+    import os
+
+    env = {**os.environ, "DATABASE_URL": db_url}
+
+    print("\nDatabase migration:")
+    print("  Running db:push...")
+    result = sp.run(
+        ["pnpm", "--filter", "**/db", "db:push", "--accept-data-loss"],
+        env=env, capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        print(f"  WARNING: db:push failed (exit {result.returncode})", file=sys.stderr)
+        print(result.stderr[-500:] if result.stderr else "(no output)", file=sys.stderr)
+    else:
+        print("  db:push: done")
+
+    print("  Running db:seed...")
+    result = sp.run(
+        ["pnpm", "--filter", "**/db", "db:seed"],
+        env=env, capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        print(f"  WARNING: db:seed failed (exit {result.returncode})", file=sys.stderr)
+        print(result.stderr[-500:] if result.stderr else "(no output)", file=sys.stderr)
+    else:
+        print("  db:seed: done")
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 
@@ -214,6 +252,7 @@ def main():
     parser.add_argument("--region", default="us-east-1")
     parser.add_argument("--services", required=True, help="Comma-separated service names, e.g. api,web")
     parser.add_argument("--db", default="none", help="'rds', 'none', or 'external:<DATABASE_URL>'")
+    parser.add_argument("--skip-migrate", action="store_true", help="Skip db:push and db:seed after RDS provisioning")
     args = parser.parse_args()
 
     services = [s.strip() for s in args.services.split(",")]
@@ -251,7 +290,14 @@ def main():
         existing_password = config.get("database", {}).get("password")
         db_info = ensure_rds_instance(rds, ec2, args.app, existing_password)
         config["database"] = db_info
-        db_url = f"postgresql://{db_info['username']}:{db_info['password']}@{db_info['endpoint']}:{db_info['port']}/{db_info['name']}"
+        # sslmode=no-verify: RDS requires SSL but the Prisma pg adapter doesn't
+        # enable it by default, and sslmode=require triggers full cert verification
+        # (no CA cert in container). no-verify encrypts without cert chain check.
+        db_url = (
+            f"postgresql://{db_info['username']}:{db_info['password']}"
+            f"@{db_info['endpoint']}:{db_info['port']}/{db_info['name']}"
+            f"?sslmode=no-verify"
+        )
         config["database"]["url"] = db_url
     elif args.db.startswith("external:"):
         db_url = args.db[len("external:"):]
@@ -262,6 +308,10 @@ def main():
         config.pop("database", None)
 
     save_config(config)
+
+    # Run db migrations + seed after RDS is up
+    if "database" in config and "url" in config["database"] and not args.skip_migrate:
+        _run_db_migrate(config["database"]["url"])
 
     print("\n── Provision complete ──────────────────────────────")
     for service in services:

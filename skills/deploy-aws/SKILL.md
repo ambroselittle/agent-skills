@@ -1,7 +1,7 @@
 ---
 name: deploy-aws
 description: Deploy a project to AWS using App Runner (containers) + RDS (Postgres). Detects Dockerfiles, provisions infra, builds and pushes images, deploys services, and prints live URLs. Optimized for agent-skills templates but works on any repo with Dockerfiles.
-argument-hint: "[update]"
+argument-hint: "[update|cleanup]"
 ---
 
 # Deploy to AWS
@@ -10,6 +10,7 @@ You are a deployment assistant. Your job is to get this project running on AWS w
 
 **Arguments:** $ARGUMENTS
 - `update` — skip interview, re-deploy using existing `.deploy-aws.json` config
+- `cleanup` — tear down all provisioned AWS resources and delete `.deploy-aws.json`
 
 **Pre-loaded context:**
 
@@ -20,7 +21,21 @@ You are a deployment assistant. Your job is to get this project running on AWS w
 
 ---
 
-## Step 0: Auth Check
+## Step 0: Cleanup (early exit)
+
+If `$ARGUMENTS` is `cleanup`:
+
+1. Confirm with the user: "This will delete all AWS resources for the app in `.deploy-aws.json` (App Runner services, ECR repos, RDS instance, security group, IAM role). This cannot be undone. Proceed?"
+2. If confirmed, run:
+   ```bash
+   uv run --project ~/.claude/skills/deploy-aws python ~/.claude/skills/deploy-aws/scripts/cleanup.py
+   ```
+   Pass `--keep-config` if the user says they want to keep `.deploy-aws.json`.
+3. Print the script output and stop — do not proceed to any other steps.
+
+---
+
+## Step 1: Auth Check
 
 If the AWS auth pre-loaded context shows an error or is empty:
 
@@ -30,20 +45,20 @@ Stop here until auth is confirmed.
 
 ---
 
-## Step 1: Assess State
+## Step 2: Assess State
 
 If `$ARGUMENTS` includes `update` **and** `.deploy-aws.json` exists with a valid config:
 - Skip the interview entirely
-- Jump to Step 3 (build + push)
+- Jump to Step 4 (build + push)
 
 If `.deploy-aws.json` exists but `update` was not passed:
 - Tell the user: "Found existing deploy config for `<app>` in `<region>`. This will update the running services. Proceed?"
-- If yes: skip interview, jump to Step 3
+- If yes: skip interview, jump to Step 4
 - If no: proceed with interview (may overwrite config)
 
 ---
 
-## Step 2: Interview
+## Step 3: Interview
 
 Use `AskUserQuestion` for every question. Batch independent questions in one call (max 4 per call).
 
@@ -113,7 +128,7 @@ Ask: "Ready to deploy?" before proceeding.
 
 ---
 
-## Step 3: Provision Infrastructure
+## Step 4: Provision Infrastructure
 
 Run the provision script. This is idempotent — safe to re-run.
 
@@ -136,7 +151,7 @@ If it fails: read the error, diagnose (common issues: region not enabled, servic
 
 ---
 
-## Step 4: Build and Push Images
+## Step 5: Build and Push Images
 
 For each service being deployed, build its Docker image and push to ECR.
 
@@ -151,7 +166,7 @@ If a build fails: show the last 20 lines of output, diagnose the error (missing 
 
 ---
 
-## Step 5: Deploy Services
+## Step 6: Deploy Services
 
 Deploy each service to App Runner. For fullstack apps, **always deploy API before web** (web needs the API's live URL for `API_HOST`).
 
@@ -166,7 +181,7 @@ If deploying web after api: the script automatically reads the API's live URL fr
 
 ---
 
-## Step 6: Done
+## Step 7: Done
 
 Print a clean summary:
 
@@ -191,5 +206,5 @@ If any service URL is for the web app, open it: `open <url>`.
 - **Always provision before build** — ECR repos must exist before pushing images.
 - **API before web** — web's `API_HOST` env var needs the API's live URL.
 - **Idempotency** — all scripts are safe to re-run. Re-running provision won't duplicate resources.
-- **Free tier** — remind the user to delete RDS when done if they don't need it long-term (`aws rds delete-db-instance --db-instance-identifier <id> --skip-final-snapshot`).
+- **Free tier** — remind the user to tear everything down when done if they don't need it long-term. Say: "Run `/deploy-aws cleanup` to remove all provisioned resources."
 - **Secrets** — never log or print DATABASE_URL or passwords to the terminal. The scripts handle this.

@@ -96,20 +96,26 @@ def main():
     # ECR login
     ecr_login(session, region, account_id)
 
-    # Build
-    print("\nBuilding image...")
-    run(["docker", "build", "-f", dockerfile, "-t", tag, "."])
+    # Build and push in one step, forcing linux/amd64 for App Runner compatibility.
+    # Critical on Apple Silicon — docker build defaults to arm64 which silently
+    # fails to start on App Runner's amd64 infrastructure.
+    print("\nBuilding and pushing image (linux/amd64)...")
+    run([
+        "docker", "buildx", "build",
+        "--platform", "linux/amd64",
+        "-f", dockerfile,
+        "-t", tag,
+        "--push",
+        ".",
+    ])
 
-    # Push
-    print("\nPushing image...")
-    run(["docker", "push", tag])
-
-    # Get the image digest for pinning
+    # Fetch the digest from the registry (buildx --push writes directly, no local image)
     result = subprocess.run(
-        ["docker", "inspect", "--format={{index .RepoDigests 0}}", tag],
+        ["docker", "buildx", "imagetools", "inspect", tag, "--format", "{{.Manifest.Digest}}"],
         capture_output=True, text=True
     )
-    image_uri = result.stdout.strip() if result.returncode == 0 and result.stdout.strip() else tag
+    digest = result.stdout.strip()
+    image_uri = f"{ecr_repo}@{digest}" if digest else tag
 
     # Update config
     config["services"][service]["image_uri"] = image_uri

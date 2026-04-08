@@ -66,8 +66,25 @@ def find_or_create_service(apprunner, svc_name: str, image_uri: str,
         for svc in resp.get("ServiceSummaryList", []):
             if svc["ServiceName"] == svc_name:
                 arn = svc["ServiceArn"]
-                print(f"  Service exists: {arn}")
-                # Update the service with the new image
+                status = svc.get("Status", "")
+                print(f"  Service exists: {arn} (status: {status})")
+
+                if status == "CREATE_FAILED":
+                    # Delete the failed service and recreate fresh
+                    print(f"  Service is in CREATE_FAILED — deleting before recreating...")
+                    apprunner.delete_service(ServiceArn=arn)
+                    # Poll until deleted
+                    for _ in range(30):
+                        time.sleep(10)
+                        try:
+                            apprunner.describe_service(ServiceArn=arn)
+                        except ClientError as e:
+                            if "ResourceNotFoundException" in str(e) or "does not exist" in str(e).lower():
+                                break
+                    print(f"  Deleted. Creating fresh service...")
+                    break  # fall through to create
+
+                # Update the existing service
                 apprunner.update_service(
                     ServiceArn=arn,
                     SourceConfiguration={
@@ -110,24 +127,54 @@ def find_or_create_service(apprunner, svc_name: str, image_uri: str,
     return arn, "CREATING"
 
 
-def wait_for_running(apprunner, service_arn: str, timeout_s: int = 300) -> str:
-    """Poll until service reaches RUNNING. Returns the service URL."""
-    print(f"  Waiting for service to reach RUNNING state...")
+def get_apprunner_events(apprunner, service_arn: str, max_lines: int = 10) -> list[str]:
+    """Fetch recent App Runner service events for diagnostics."""
+    try:
+        resp = apprunner.list_operations(ServiceArn=service_arn)
+        events = []
+        for op in resp.get("OperationSummaryList", [])[:3]:
+            events.append(f"  [{op.get('Status','?')}] {op.get('Type','?')} @ {op.get('StartedAt','?')}")
+        return events
+    except Exception:
+        return []
+
+
+def wait_for_running(apprunner, service_arn: str, timeout_s: int = 1200) -> str:
+    """Poll until service reaches RUNNING. Returns the service URL.
+
+    First deploys typically take 10-20 minutes on App Runner.
+    Prints recent events log on timeout for diagnostics.
+    """
+    print(f"  Waiting for service to reach RUNNING state (timeout: {timeout_s//60}m)...")
     deadline = time.time() + timeout_s
+    last_status = None
     while time.time() < deadline:
         resp = apprunner.describe_service(ServiceArn=service_arn)
         svc = resp["Service"]
         status = svc["Status"]
         url = svc.get("ServiceUrl", "")
-        print(f"    Status: {status}")
+        if status != last_status:
+            elapsed = int(time.time() - (deadline - timeout_s))
+            print(f"    [{elapsed:3d}s] {status}")
+            last_status = status
         if status == "RUNNING":
             return f"https://{url}"
-        if status in ("CREATE_FAILED", "DELETE_FAILED", "OPERATION_IN_PROGRESS"):
-            if status not in ("OPERATION_IN_PROGRESS",):
-                print(f"ERROR: service entered {status} state", file=sys.stderr)
-                sys.exit(1)
+        if status in ("CREATE_FAILED", "DELETE_FAILED"):
+            print(f"ERROR: service entered {status} state", file=sys.stderr)
+            events = get_apprunner_events(apprunner, service_arn)
+            if events:
+                print("Recent events:", file=sys.stderr)
+                for e in events:
+                    print(e, file=sys.stderr)
+            sys.exit(1)
         time.sleep(10)
-    print(f"ERROR: timed out waiting for service to reach RUNNING after {timeout_s}s", file=sys.stderr)
+
+    print(f"ERROR: timed out after {timeout_s//60}m waiting for RUNNING", file=sys.stderr)
+    events = get_apprunner_events(apprunner, service_arn)
+    if events:
+        print("Recent events:", file=sys.stderr)
+        for e in events:
+            print(e, file=sys.stderr)
     sys.exit(1)
 
 
