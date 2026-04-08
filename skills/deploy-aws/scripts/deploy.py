@@ -178,6 +178,59 @@ def wait_for_running(apprunner, service_arn: str, timeout_s: int = 1200) -> str:
     sys.exit(1)
 
 
+def verify_deployment(service: str, url: str) -> None:
+    """Hit health endpoints to confirm the deployment is actually serving traffic.
+
+    RUNNING status only means the container is up — this confirms it responds correctly.
+    API: GET /api/health → {"status":"ok"}
+    Web: GET / → 200 + also checks /api/health proxies correctly
+    GraphQL: POST /api/graphql with { health } query as a bonus check
+    """
+    import urllib.request
+    import urllib.error
+    import json as _json
+
+    print(f"\n  Verifying deployment at {url}...")
+
+    def get(path: str, label: str) -> bool:
+        try:
+            with urllib.request.urlopen(f"{url}{path}", timeout=10) as resp:
+                body = resp.read().decode()
+                print(f"  ✓ {label} ({resp.status})")
+                return True, body
+        except urllib.error.HTTPError as e:
+            print(f"  ✗ {label} (HTTP {e.code})", file=sys.stderr)
+            return False, ""
+        except Exception as e:
+            print(f"  ✗ {label} ({e})", file=sys.stderr)
+            return False, ""
+
+    if service == "api":
+        ok, body = get("/api/health", "GET /api/health")
+        if ok and '"ok"' not in body:
+            print(f"  ✗ Health response unexpected: {body[:100]}", file=sys.stderr)
+        # GraphQL health query
+        try:
+            data = _json.dumps({"query": "{ health }"}).encode()
+            req = urllib.request.Request(
+                f"{url}/api/graphql",
+                data=data,
+                headers={"Content-Type": "application/json"},
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                result = _json.loads(resp.read())
+                if result.get("data", {}).get("health"):
+                    print(f"  ✓ GraphQL {{ health }} query")
+                else:
+                    print(f"  ~ GraphQL query returned: {str(result)[:100]}")
+        except Exception as e:
+            print(f"  ~ GraphQL check skipped ({e})")
+
+    elif service == "web":
+        get("/", "GET / (web app)")
+        get("/api/health", "GET /api/health (via nginx proxy)")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Deploy a service to App Runner")
     parser.add_argument("--service", required=True, help="Service name (e.g. api, web)")
@@ -226,6 +279,8 @@ def main():
     )
 
     url = wait_for_running(apprunner, service_arn)
+
+    verify_deployment(service, url)
 
     # Save URL and ARN to config
     config["services"][service]["url"] = url

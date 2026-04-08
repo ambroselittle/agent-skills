@@ -9,6 +9,7 @@ import argparse
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import boto3
@@ -67,6 +68,61 @@ def ecr_login(session: boto3.Session, region: str, account_id: str) -> None:
     print(f"  Logged in to ECR registry")
 
 
+def smoke_test(service: str, tag: str) -> None:
+    """Run the container locally and verify the health endpoint responds.
+
+    Uses native arch (fast on any machine). The API health endpoint doesn't
+    touch the DB so a dummy DATABASE_URL is sufficient.
+    API smoke test: GET /api/health → {"status":"ok"}
+    Web smoke test: GET / → 200 (nginx serving static assets)
+    """
+    import urllib.request
+    import urllib.error
+
+    host_port = 3001 if service == "api" else 3080
+    container_port = 3001 if service == "api" else 80
+    health_url = (
+        f"http://localhost:{host_port}/api/health"
+        if service == "api"
+        else f"http://localhost:{host_port}/"
+    )
+    env_args = ["-e", f"PORT={container_port}"]
+    if service == "api":
+        env_args += ["-e", "DATABASE_URL=postgresql://test:test@localhost:5432/test"]
+        env_args += ["-e", "NODE_ENV=production"]
+
+    print(f"\nSmoke testing '{service}' locally...")
+    cid_result = subprocess.run(
+        ["docker", "run", "-d", "--rm", "-p", f"{host_port}:{container_port}"] + env_args + [tag],
+        capture_output=True, text=True
+    )
+    if cid_result.returncode != 0:
+        print(f"  ERROR: container failed to start", file=sys.stderr)
+        print(cid_result.stderr, file=sys.stderr)
+        sys.exit(1)
+    cid = cid_result.stdout.strip()
+
+    try:
+        for attempt in range(10):
+            time.sleep(2)
+            try:
+                with urllib.request.urlopen(health_url, timeout=3) as resp:
+                    if resp.status < 400:
+                        print(f"  Smoke test passed ({resp.status} {health_url})")
+                        return
+            except (urllib.error.URLError, OSError):
+                pass
+        # Last attempt — show container logs before failing
+        logs = subprocess.run(["docker", "logs", cid], capture_output=True, text=True)
+        print(f"  ERROR: smoke test failed — container did not respond at {health_url}", file=sys.stderr)
+        if logs.stdout or logs.stderr:
+            print("  Container logs:", file=sys.stderr)
+            print((logs.stdout + logs.stderr)[-1000:], file=sys.stderr)
+        sys.exit(1)
+    finally:
+        subprocess.run(["docker", "stop", cid], capture_output=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Build and push a service image to ECR")
     parser.add_argument("--service", required=True, help="Service name (e.g. api, web)")
@@ -96,10 +152,20 @@ def main():
     # ECR login
     ecr_login(session, region, account_id)
 
-    # Build and push in one step, forcing linux/amd64 for App Runner compatibility.
-    # Critical on Apple Silicon — docker build defaults to arm64 which silently
-    # fails to start on App Runner's amd64 infrastructure.
-    print("\nBuilding and pushing image (linux/amd64)...")
+    # Build locally first for smoke test, then push amd64 to ECR.
+    # Local build uses native arch (fast, no emulation) — enough to verify startup.
+    # Push step forces linux/amd64 for App Runner compatibility (critical on Apple Silicon).
+    local_tag = f"{tag}-smoke"
+    print("\nBuilding image locally for smoke test...")
+    run(["docker", "build", "-f", dockerfile, "-t", local_tag, "."])
+
+    smoke_test(service, local_tag)
+
+    # Clean up local smoke image
+    subprocess.run(["docker", "rmi", local_tag], capture_output=True)
+
+    print("\nBuilding and pushing linux/amd64 image to ECR...")
+    ecr_login(session, region, account_id)
     run([
         "docker", "buildx", "build",
         "--platform", "linux/amd64",
