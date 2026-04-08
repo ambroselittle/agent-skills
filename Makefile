@@ -13,6 +13,8 @@ init: ## Install deps, link skills & hooks, sync envs
 	@printf "\033[36mSyncing Python deps...\033[0m\n"
 	@cd skills/create-repo && uv sync --group dev --quiet
 	@cd skills/deploy-aws && uv sync --quiet
+	@printf "\033[36mInstalling Playwright browsers...\033[0m\n"
+	@cd skills/deploy-aws && uv run playwright install chromium --quiet 2>/dev/null || true
 	@printf "\033[36mRunning setup...\033[0m\n"
 	@./setup.sh
 	@main_repo=$$(git rev-parse --git-common-dir | sed 's|/\.git$$||'); \

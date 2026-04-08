@@ -5,6 +5,7 @@ requires-python = ">=3.12"
 dependencies = [
     "boto3~=1.42",
     "botocore[crt]~=1.42",
+    "playwright~=1.49",
 ]
 
 [dependency-groups]

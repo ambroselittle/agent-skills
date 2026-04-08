@@ -179,12 +179,17 @@ def wait_for_running(apprunner, service_arn: str, timeout_s: int = 1200) -> str:
 
 
 def verify_deployment(service: str, url: str) -> None:
-    """Hit health endpoints to confirm the deployment is actually serving traffic.
+    """Verify the deployment end-to-end — not just that the container is up.
 
-    RUNNING status only means the container is up — this confirms it responds correctly.
-    API: GET /api/health → {"status":"ok"}
-    Web: GET / → 200 + also checks /api/health proxies correctly
-    GraphQL: POST /api/graphql with { health } query as a bonus check
+    API checks:
+      1. GET /api/health → {"status":"ok"} or "ok"
+      2a. GraphQL: POST /api/graphql { users { email } } → alice + bob in seed data (DB check)
+      2b. tRPC fallback: GET /api/trpc/user.list → alice + bob (if not GraphQL)
+
+    Web checks:
+      1. GET /api/health via nginx proxy (confirms nginx → API routing works)
+      2. Playwright: load URL in headless browser, wait for "API status: ok" rendered text
+         (confirms browser JS → API → DB full stack, not just proxy connectivity)
     """
     import urllib.request
     import urllib.error
@@ -192,7 +197,7 @@ def verify_deployment(service: str, url: str) -> None:
 
     print(f"\n  Verifying deployment at {url}...")
 
-    def get(path: str, label: str) -> bool:
+    def get(path: str, label: str):
         try:
             with urllib.request.urlopen(f"{url}{path}", timeout=10) as resp:
                 body = resp.read().decode()
@@ -205,30 +210,94 @@ def verify_deployment(service: str, url: str) -> None:
             print(f"  ✗ {label} ({e})", file=sys.stderr)
             return False, ""
 
-    if service == "api":
-        ok, body = get("/api/health", "GET /api/health")
-        if ok and '"ok"' not in body:
-            print(f"  ✗ Health response unexpected: {body[:100]}", file=sys.stderr)
-        # GraphQL health query
+    def graphql(query: str, label: str):
         try:
-            data = _json.dumps({"query": "{ health }"}).encode()
+            data = _json.dumps({"query": query}).encode()
             req = urllib.request.Request(
                 f"{url}/api/graphql",
                 data=data,
                 headers={"Content-Type": "application/json"},
             )
             with urllib.request.urlopen(req, timeout=10) as resp:
-                result = _json.loads(resp.read())
-                if result.get("data", {}).get("health"):
-                    print(f"  ✓ GraphQL {{ health }} query")
-                else:
-                    print(f"  ~ GraphQL query returned: {str(result)[:100]}")
+                return _json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return None  # not a GraphQL service
+            print(f"  ✗ {label} (HTTP {e.code})", file=sys.stderr)
+            return {}
         except Exception as e:
-            print(f"  ~ GraphQL check skipped ({e})")
+            print(f"  ✗ {label} ({e})", file=sys.stderr)
+            return {}
+
+    if service == "api":
+        # 1. Health endpoint
+        ok, body = get("/api/health", "GET /api/health")
+        if ok and '"ok"' not in body and "'ok'" not in body and "ok" not in body.lower():
+            print(f"  ✗ Health response unexpected: {body[:100]}", file=sys.stderr)
+
+        # 2. Seed data check — confirms API → DB connectivity with real data
+        result = graphql("{ users { email } }", "GraphQL users query")
+        if result is None:
+            # Not a GraphQL service — try tRPC
+            try:
+                ok, body = get("/api/trpc/user.list?input=%7B%22json%22%3Anull%7D", "tRPC user.list")
+                if ok:
+                    data = _json.loads(body)
+                    emails = [u.get("email", "") for u in (data.get("result", {}).get("data", {}).get("json") or [])]
+                    if "alice@example.com" in emails and "bob@example.com" in emails:
+                        print(f"  ✓ Seed data present (alice, bob)")
+                    else:
+                        print(f"  ✗ Seed data missing — got: {emails[:5]}", file=sys.stderr)
+            except Exception as e:
+                print(f"  ~ Data check skipped: {e}")
+        elif result:
+            users = result.get("data", {}).get("users", [])
+            emails = [u.get("email", "") for u in users]
+            if "alice@example.com" in emails and "bob@example.com" in emails:
+                print(f"  ✓ Seed data present (alice, bob) via GraphQL")
+            else:
+                print(f"  ✗ Seed data missing — got: {emails[:5]}", file=sys.stderr)
 
     elif service == "web":
-        get("/", "GET / (web app)")
+        # 1. Proxy check — confirms nginx routes /api/ to the API service
         get("/api/health", "GET /api/health (via nginx proxy)")
+
+        # 2. Playwright — load the real page, confirm the React app renders API data
+        print(f"  Launching headless browser to verify rendered UI...")
+        try:
+            from playwright.sync_api import sync_playwright, Error as PlaywrightError
+            with sync_playwright() as pw:
+                # Install chromium if missing (first run after deploy-aws env setup)
+                try:
+                    browser = pw.chromium.launch(headless=True)
+                except Exception:
+                    import subprocess
+                    print(f"  Installing Chromium (first run)...")
+                    subprocess.run(
+                        ["python", "-m", "playwright", "install", "chromium"],
+                        capture_output=True,
+                    )
+                    browser = pw.chromium.launch(headless=True)
+
+                page = browser.new_page()
+                page.goto(url, timeout=30000)
+                try:
+                    # Both fullstack-ts (tRPC) and fullstack-graphql show this text when API is reachable
+                    page.wait_for_selector("text=API status: ok", timeout=20000)
+                    print(f"  ✓ Browser rendered 'API status: ok' (web → API → DB confirmed)")
+                except PlaywrightError:
+                    content = page.content()
+                    # Look for error state
+                    if "API status: error" in content:
+                        print(f"  ✗ Browser shows 'API status: error' — web cannot reach API", file=sys.stderr)
+                    elif "API status: loading" in content:
+                        print(f"  ✗ Browser stuck on 'loading...' — API call timed out", file=sys.stderr)
+                    else:
+                        print(f"  ✗ Expected 'API status: ok' not found in rendered page", file=sys.stderr)
+                finally:
+                    browser.close()
+        except ImportError:
+            print(f"  ~ Playwright not installed — skipping browser check (run: uv sync in skills/deploy-aws)")
 
 
 def main():
