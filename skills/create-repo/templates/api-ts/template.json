@@ -1,5 +1,6 @@
 {
   "platform": "ts",
+  "description": "TypeScript API only (no frontend) — Hono + tRPC + Prisma + Postgres",
   "extends": "fullstack-ts",
   "exclude": [
     "apps/web/**"

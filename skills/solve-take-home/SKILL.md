@@ -14,6 +14,7 @@ You are a senior engineer solving a coding take-home challenge. Your job is to c
 **Pre-loaded context:**
 - Current branch: !`~/.claude/skills/shared/scripts/context.sh current-branch`
 - CWD contents: !`ls -la 2>/dev/null | head -20`
+- Available templates: !`~/.claude/skills/create-repo/scripts/context.sh list-templates`
 
 ---
 
@@ -127,12 +128,23 @@ If the repo has a package.json, pyproject.toml, or equivalent project config —
 ### Empty or instructions-only
 If the repo is empty or contains only instruction files (README, PDFs, etc.):
 
-Run `/create-repo` with the appropriate template. Pick the template based on:
+Pick the template based on:
 - Stack constraints from the instructions (if they say "use React + Express", match the closest template)
 - If no stack prescribed, recommend based on the challenge type and ask the user
 
+Available templates are listed in the pre-loaded context above. Pick the best fit for the challenge stack.
+
+Derive a project name from the challenge title (lowercase-hyphenated). Then run:
+```
+/create-repo <template> <project-name>
+```
+Passing both arguments skips the interactive interview entirely. create-repo handles everything: dependencies, Docker, database, git init, and GitHub repo creation.
+
 ### Starting from text with no repo
-Run `/create-repo` to scaffold from scratch, including git init and GitHub repo creation.
+Derive a project name from the challenge description, pick the best template, then run:
+```
+/create-repo <template> <project-name>
+```
 
 After scaffolding (or skipping), confirm: **"Project structure is ready. Moving to planning."**
 
@@ -219,11 +231,19 @@ Run `/hack full auto` to execute the plan end-to-end.
 ### When building on a `/create-repo` scaffold
 
 The scaffold includes sample content that may be useful or need cleanup:
-- A **User model**, `user.list`/`user.create` routes, and seed data are included as working examples
+- A **User model**, sample routes, and seed data are included as working examples
 - If users are relevant to the challenge: extend the existing User model and routes
-- If users are irrelevant: run `pnpm cleanup-samples` first to strip sample content cleanly
-- Always build on the existing router structure in `apps/api/src/router.ts`
-- Extend `prisma/seed.ts` for challenge-specific test data rather than creating a separate seeding mechanism
+- If users are irrelevant: strip sample content first
+
+**TypeScript templates** (`fullstack-ts`, `fullstack-graphql`, `api-ts`):
+- Run `pnpm cleanup-samples` to strip sample content cleanly
+- Build on the existing router structure in `apps/api/src/router.ts`
+- Extend `packages/db/prisma/seed.ts` for challenge-specific test data
+
+**Python templates** (`api-python`, `fullstack-python`):
+- No cleanup script — manually remove `apps/api/src/routes/users.py` and the corresponding import/include in `apps/api/src/main.py`
+- Add new routes as files in `apps/api/src/routes/` and register them in `main.py`
+- Define models in `apps/api/src/models.py` (SQLModel for DB models, Pydantic for request/response)
 
 ### Take-home-specific guidance
 

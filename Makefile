@@ -1,4 +1,4 @@
-.PHONY: init test test-hooks test-create-repo test-scaffolds scaffold lint format format-check check help
+.PHONY: init test test-hooks test-create-repo test-scaffolds scaffold list-repo-templates lint format format-check check help
 
 ## Setup & daily use
 help: ## Show available commands
@@ -12,6 +12,9 @@ init: ## Install deps, link skills & hooks, sync envs
 	@command -v uv >/dev/null 2>&1 || { echo "Installing uv..."; curl -LsSf https://astral.sh/uv/install.sh | sh; }
 	@printf "\033[36mSyncing Python deps...\033[0m\n"
 	@cd skills/create-repo && uv sync --group dev --quiet
+	@cd skills/deploy-aws && uv sync --quiet
+	@printf "\033[36mInstalling Playwright browsers...\033[0m\n"
+	@cd skills/deploy-aws && uv run playwright install chromium --quiet 2>/dev/null || true
 	@printf "\033[36mRunning setup...\033[0m\n"
 	@./setup.sh
 	@main_repo=$$(git rev-parse --git-common-dir | sed 's|/\.git$$||'); \
@@ -39,10 +42,13 @@ test-scaffolds: ## Scaffold E2E (needs pnpm, node, Docker) [TEMPLATE=name|all] [
 	@printf "\033[36mRunning scaffold E2E...\033[0m\n"
 	@cd skills/create-repo && uv run python ../../scripts/test-scaffolds.py $(TEMPLATE) $(if $(KEEP),--keep $(KEEP))
 
-scaffold: ## Scaffold + setup a project without the AI interview [TEMPLATE=swift-ts NAME=my-app OUTPUT=~/Repos/my-app]
-	@[ -n "$(TEMPLATE)" ] || { echo "Usage: make scaffold TEMPLATE=swift-ts NAME=my-app OUTPUT=~/Repos/my-app"; exit 1; }
-	@[ -n "$(NAME)" ] || { echo "Usage: make scaffold TEMPLATE=swift-ts NAME=my-app OUTPUT=~/Repos/my-app"; exit 1; }
-	@[ -n "$(OUTPUT)" ] || { echo "Usage: make scaffold TEMPLATE=swift-ts NAME=my-app OUTPUT=~/Repos/my-app"; exit 1; }
+list-repo-templates: ## List available create-repo templates with descriptions
+	@cd skills/create-repo && uv run python -m scripts.list_templates --human
+
+scaffold: ## Scaffold + setup a project without the AI interview [TEMPLATE=swift-ts NAME=my-app OUTPUT=~/Repos/my-app] [GITHUB_ORG=ambroselittle]
+	@[ -n "$(TEMPLATE)" ] || { echo "Usage: make scaffold TEMPLATE=swift-ts NAME=my-app OUTPUT=~/Repos/my-app [GITHUB_ORG=ambroselittle]"; exit 1; }
+	@[ -n "$(NAME)" ] || { echo "Usage: make scaffold TEMPLATE=swift-ts NAME=my-app OUTPUT=~/Repos/my-app [GITHUB_ORG=ambroselittle]"; exit 1; }
+	@[ -n "$(OUTPUT)" ] || { echo "Usage: make scaffold TEMPLATE=swift-ts NAME=my-app OUTPUT=~/Repos/my-app [GITHUB_ORG=ambroselittle]"; exit 1; }
 	@printf "\033[36mResolving versions...\033[0m\n"
 	@cd skills/create-repo && uv run python -m scripts.resolve_versions --template $(TEMPLATE) --output /tmp/create-repo-versions.json
 	@printf "\033[36mScaffolding $(NAME)...\033[0m\n"
@@ -54,6 +60,12 @@ scaffold: ## Scaffold + setup a project without the AI interview [TEMPLATE=swift
 		$(if $(FORCE),--force,)
 	@printf "\033[36mSetting up...\033[0m\n"
 	cd skills/create-repo && uv run python -m scripts.scaffold --setup $(OUTPUT) $(if $(SKIP_DOCKER),--skip-docker,)
+	@printf "\033[36mInitializing git...\033[0m\n"
+	cd skills/create-repo && uv run python -m scripts.init_git $(OUTPUT) \
+		--project-name $(NAME) \
+		--template $(TEMPLATE) \
+		--stack "$(TEMPLATE) scaffold" \
+		$(if $(GITHUB_ORG),--github-org $(GITHUB_ORG),--no-github)
 
 ## Code quality
 check: format lint ## Auto-fix formatting and lint

@@ -133,6 +133,44 @@ context by only loading when relevant.
   **All checks must pass** -- do not ignore failures just because they seem unrelated; ask user if unsure.
 - Ask yourself if a staff+ engineer would approve of what you've written and iterate, if not.
 
+### Verify the Full End-to-End Outcome
+
+The goal is to verify what the actual *consumer* of the work would experience — not just that the
+technical artifact you produced exists or passed an isolated check. Who that consumer is depends on
+context: an end user opening a deployed app, a developer running a scaffolded project's own scripts,
+an analyst querying a pipeline's output dataset, a downstream team importing a published package.
+
+**Don't stop at the first positive signal.** Each layer of a system can succeed independently while
+the integration fails. A green build doesn't mean the app runs. A running container doesn't mean it
+serves real data. A generated file doesn't mean the command that reads it works. Keep verifying
+until you've confirmed the outcome from the consumer's point of view.
+
+**Use the same entry points the consumer would.** Verifying pieces independently — checking that
+files exist, that individual steps exited 0, that a health endpoint returns 200 — can miss
+integration mismatches that only appear when the system is exercised end-to-end the way it's
+actually used.
+
+**Upfront success criteria.** For complex multi-step tasks, list what "done" looks like *before*
+starting and confirm it matches expectations. This prevents the incremental-reveal pattern where
+each round of checking uncovers another unchecked layer.
+
+**Examples across different problem domains:**
+
+- *Deployed web + API + database:* The page renders real content → the frontend reaches the API →
+  the API returns live database rows → seed data is present. "Service is RUNNING" is not done.
+
+- *Scaffolded project template:* The generated project's own scripts (`install`, `build`, `test`)
+  all succeed end-to-end. Independently checking that expected files exist can miss wiring issues
+  between scaffolded pieces — verify using the same commands the developer would actually run.
+
+- *Data pipeline:* The output dataset contains the expected rows for known inputs — not just that
+  each transformation step exited 0. A pipeline can complete cleanly while producing empty or
+  malformed output if an upstream join silently drops records.
+
+- *Published package or library:* A fresh install in a new project can import the package and call
+  its exports. Build artifacts in `dist/` existing is not the same as the package being consumable
+  downstream — the `exports` map, `main` field, or peer dep resolution may still be broken.
+
 ## Blocked commands
 
 These commands will be blocked -- avoid generating them and use alternatives instead:

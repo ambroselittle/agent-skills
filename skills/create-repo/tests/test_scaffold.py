@@ -49,6 +49,8 @@ def versions() -> dict:
         "testing_library_react": "16.3.2",
         "testing_library_jest_dom": "6.9.1",
         "dotenv": "17.4.1",
+        "tsx": "4.21.0",
+        "tsup": "8.5.1",
         "pnpm": "10.33.0",
         # GraphQL stack
         "graphql": "16.13.2",
