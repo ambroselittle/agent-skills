@@ -175,13 +175,19 @@ def main():
         ".",
     ])
 
-    # Fetch the digest from the registry (buildx --push writes directly, no local image)
+    # Fetch the digest from the registry (buildx --push writes directly, no local image).
+    # Compute digest from the raw manifest — the --format template is unreliable across
+    # Docker versions for multi-platform manifest lists.
     result = subprocess.run(
-        ["docker", "buildx", "imagetools", "inspect", tag, "--format", "{{.Manifest.Digest}}"],
-        capture_output=True, text=True
+        ["docker", "buildx", "imagetools", "inspect", tag, "--raw"],
+        capture_output=True,
     )
-    digest = result.stdout.strip()
-    image_uri = f"{ecr_repo}@{digest}" if digest else tag
+    if result.returncode == 0 and result.stdout:
+        import hashlib
+        digest = f"sha256:{hashlib.sha256(result.stdout).hexdigest()}"
+        image_uri = f"{ecr_repo}@{digest}"
+    else:
+        image_uri = tag
 
     # Update config
     config["services"][service]["image_uri"] = image_uri
