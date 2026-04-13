@@ -84,11 +84,33 @@ transient. This is faster, cheaper on tokens, and less error-prone than N indivi
 - Look for relevant code and **verify with user** the right location/area when starting on new files
 - Write clean, maintainable code: extract reusable logic, follow DRY, use meaningful names, and keep
   functions/methods focused on a single responsibility
-- When touching existing code, improve what you touch -- but keep changes scoped; ask user if unsure
+- When touching existing code, improve what you touch. Genuine speculative refactors (reshaping
+  unrelated modules, adding abstractions for hypothetical future needs) are the only things to
+  keep out -- but cleanup, warning fixes, and obvious improvements in the files you're already
+  reading are **in scope by default**, not "maybe next PR" material.
 - **Leave no mess.** When something becomes unused or obsolete as part of your change -- a flag, a
   parameter, a branch, a helper -- remove it in the same change. Dead code that lingers becomes the
-  next engineer's confusion. If you notice something unrelated that should be cleaned up, point it
-  out rather than silently leaving it.
+  next engineer's confusion. If you notice something unrelated that should be cleaned up, fix it
+  too rather than just pointing it out and moving on.
+
+## Scope of Active Work
+
+**User-reported issues during a session are always in scope. Full stop.** Do not ask "should I
+also look at X?" when X is something the user raised in the same conversation. Do not propose
+deferring related findings to "a separate PR" as if organizational neatness were a value -- it
+isn't, and constantly narrowing scope is its own failure mode.
+
+- **If the user raised it, it's in scope.** No permission-seeking required.
+- **If you found it while investigating (Boy Scout), it's in scope by default.** Warnings, dead
+  code, broken checks, stale comments -- fix them in the same change. The only reason to pause is
+  if the fix is genuinely outsized (large refactor, cross-cutting, risks scope creep) -- in which
+  case, stop and discuss with the user.
+- **Single-issue PRs are not a virtue.** Bundling related fixes into one PR is fine and often
+  preferred. Never split work just to keep a PR "clean" -- that's churn, not hygiene. PRs are
+  session batches, not topically pure deliverables.
+- **Stop asking "is this in scope?"** If the question even occurs to you, the answer is almost
+  always yes. Do the work and report what you did. Reserve the scope question for genuine
+  off-topic tangents -- not adjacent cleanup inside files you're already editing.
 
 ## Bias Toward Action
 
@@ -131,6 +153,16 @@ context by only loading when relevant.
 
 - Always run verification (lint, typecheck, tests) before reporting work as complete.
   **All checks must pass** -- do not ignore failures just because they seem unrelated; ask user if unsure.
+- **Zero tolerance for warnings and diagnostics -- even "unrelated" ones.** The goal is a clean
+  slate: no warnings, lint errors, type errors, failing tests, or IDE/SourceKit diagnostics in
+  anything the project touches. When any surface during your work -- whether your change caused
+  them or they were already there -- the **default is to fix them in the same change**, even if
+  they appear unrelated to the task. Do not invoke "pre-existing" or "unrelated" as a reason to
+  move on; those are the exact rationalizations that let cruft accumulate until real regressions
+  hide in the noise. If a fix is genuinely outsized for the current task (large refactor, touches
+  many files, risks scope creep), **stop and discuss with the user** before deferring -- the user
+  decides, not you. Silent dismissal is never acceptable. Over time this bar should make
+  encounters with stray diagnostics rare, not routine.
 - Ask yourself if a staff+ engineer would approve of what you've written and iterate, if not.
 
 ### Verify the Full End-to-End Outcome
