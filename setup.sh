@@ -419,6 +419,75 @@ else
 fi
 
 # --------------------------------------------------------------------------- #
+# 6. Install CLI scripts                                                      #
+# --------------------------------------------------------------------------- #
+
+section "Installing CLI scripts"
+
+SCRIPTS_TARGET_DIR="$CLAUDE_DIR/scripts"
+mkdir -p "$SCRIPTS_TARGET_DIR"
+
+# claude-resume
+_resume_source="$SCRIPT_DIR/scripts/claude-resume/claude-resume.sh"
+_resume_target="$SCRIPTS_TARGET_DIR/claude-resume.sh"
+
+if [[ -f "$_resume_source" ]]; then
+  if [[ -L "$_resume_target" ]]; then
+    existing="$(readlink "$_resume_target")"
+    if [[ "$existing" == "$_resume_source" ]]; then
+      skip "claude-resume already linked"
+    else
+      rm -f "$_resume_target"
+      ln -s "$_resume_source" "$_resume_target"
+      ok "claude-resume (updated link)"
+    fi
+  else
+    [[ -f "$_resume_target" ]] && rm -f "$_resume_target"
+    ln -s "$_resume_source" "$_resume_target"
+    ok "claude-resume"
+  fi
+else
+  warn "claude-resume source not found, skipping"
+fi
+
+# Shell alias: re-claude
+_shell_rc=""
+case "$SHELL" in
+  */zsh)  _shell_rc="$HOME/.zshrc" ;;
+  */bash) _shell_rc="$HOME/.bash_profile" ;;
+esac
+
+if [[ -n "$_shell_rc" ]] && [[ -f "$_shell_rc" ]]; then
+  _fence_begin="# BEGIN agent-skills-aliases"
+  _fence_end="# END agent-skills-aliases"
+
+  read -r -d '' _alias_block << 'ALIASES' || true
+
+# BEGIN agent-skills-aliases — managed by agent-skills setup, do not edit manually
+alias reclaude="$HOME/.claude/scripts/claude-resume.sh"
+# END agent-skills-aliases
+ALIASES
+
+  if grep -q "$_fence_begin" "$_shell_rc" 2>/dev/null; then
+    _block_file="$(mktemp)"
+    printf '%s\n' "$_alias_block" > "$_block_file"
+    _updated="$(awk -v block_file="$_block_file" '
+      /# BEGIN agent-skills-aliases/ { while ((getline line < block_file) > 0) print line; in_block=1; next }
+      /# END agent-skills-aliases/   { in_block=0; next }
+      !in_block                      { print }
+    ' "$_shell_rc")"
+    rm -f "$_block_file"
+    echo "$_updated" > "$_shell_rc"
+    ok "Shell aliases updated in $(basename "$_shell_rc")"
+  else
+    echo "$_alias_block" >> "$_shell_rc"
+    ok "Shell aliases added to $(basename "$_shell_rc") — run: source ~/${_shell_rc##*/}"
+  fi
+else
+  skip "Shell aliases — unsupported shell or missing rc file"
+fi
+
+# --------------------------------------------------------------------------- #
 # Done                                                                        #
 # --------------------------------------------------------------------------- #
 
