@@ -2,12 +2,12 @@
 name: solve-take-home
 description: Solve a coding take-home challenge end-to-end. Give it a repo URL, local path, or paste the prompt — it discovers instructions, scaffolds if needed, plans, implements, polishes, and ships. Say "solve take-home" to start.
 argument-hint: "[repo-url | local-path | 'paste']"
-depends-on: create-repo, start-work, hack, ship
+depends-on: create-repo, plan-work, do-work
 ---
 
 # Solve Take-Home: End-to-End Challenge Runner
 
-You are a senior engineer solving a coding take-home challenge. Your job is to coordinate the full lifecycle — from reading the prompt to shipping a polished, complete solution. You delegate heavy lifting to existing skills (`/create-repo`, `/start-work`, `/hack`, `/ship`) and focus on what they can't do alone: understanding what a take-home IS, extracting what's being asked, ensuring the final output meets evaluation criteria, and maintaining awareness of time constraints.
+You are a senior engineer solving a coding take-home challenge. Your job is to coordinate the full lifecycle — from reading the prompt to shipping a polished, complete solution. You delegate heavy lifting to existing skills (`/create-repo`, `/plan-work`, `/do-work`) and focus on what they can't do alone: understanding what a take-home IS, extracting what's being asked, ensuring the final output meets evaluation criteria, and maintaining awareness of time constraints.
 
 **Arguments:** $ARGUMENTS
 
@@ -198,7 +198,7 @@ Wait for confirmation. This is the key design gate — the user should agree on 
 
 ## Phase 4: Plan
 
-Run `/start-work` with the synthesized brief AND the approved architecture as the work description.
+Run `/plan-work` with the synthesized brief AND the approved architecture as the work description.
 
 Frame it explicitly — pass:
 - The full brief text (requirements, constraints, acceptance criteria, bonus items)
@@ -207,7 +207,7 @@ Frame it explicitly — pass:
 - The submission format (so the plan accounts for it)
 - Any time constraints (so phases are scoped appropriately)
 
-When `/start-work` asks about scope classification, bias toward **medium or large**. Take-homes benefit from thorough planning even when the implementation is small — the plan shows your thinking process, and evaluators read commit history.
+When `/plan-work` asks about scope classification, bias toward **medium or large**. Take-homes benefit from thorough planning even when the implementation is small — the plan shows your thinking process, and evaluators read commit history.
 
 After the plan is created, **verify coverage against the requirements, architecture, AND eval criteria**:
 - Does every requirement (including bonus items) have at least one task?
@@ -226,7 +226,7 @@ Wait for confirmation, then proceed.
 
 ## Phase 5: Implement
 
-Run `/hack full auto` to execute the plan end-to-end.
+Run `/do-work` to execute the plan end-to-end.
 
 ### When building on a `/create-repo` scaffold
 
@@ -255,7 +255,7 @@ Between hack phases, check:
 - **Time awareness** — if the take-home has time constraints, monitor elapsed time. Flag if a phase is taking disproportionate time.
 - **Breadth over depth** — prioritize a complete, working solution over a perfect partial one. Ship all requirements before polishing any single one.
 
-If `/hack` hits a hard stop, address it and continue. The goal is a complete solution.
+If `/do-work` hits a hard stop, address it and continue. The goal is a complete solution.
 
 ---
 
@@ -283,7 +283,7 @@ If Playwright MCP is registered, supplement the scripted E2E tests with ad-hoc b
 - Do the setup instructions actually work from a clean state?
 
 ### 4. Git history check
-- Are commits meaningful and progressive? (They should be — `/hack` commits per task)
+- Are commits meaningful and progressive? (They should be — `/do-work` commits per task)
 - Does `git log --oneline` tell a coherent story?
 
 ### 5. Code quality check
@@ -306,7 +306,7 @@ If any checks fail or gaps exist:
 
 **Want to fix these, or ship as-is?"**
 
-Fix what the user approves, then run `/ship` to push and open a PR (or prepare the submission in whatever format was specified in the brief).
+Fix what the user approves. The PR should already be open (created by `/do-work` at the end of Phase 5). If not, push and open one now. Prepare the submission in whatever format was specified in the brief.
 
 ---
 

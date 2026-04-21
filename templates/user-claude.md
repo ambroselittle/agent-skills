@@ -21,8 +21,8 @@ The answer is almost always that you can and should improve/fix when it is an un
 
 ## Slash Commands Are Skill Invocations
 
-When a user message starts with `/skill-name` (e.g., `/apply-review-fixes`, `/code-review`,
-`/hack`), **always invoke it via the Skill tool** — even if the harness didn't expand it into a
+When a user message starts with `/skill-name` (e.g., `/do-fixes`, `/code-review`,
+`/do-work`), **always invoke it via the Skill tool** — even if the harness didn't expand it into a
 `<command-name>` tag. The harness may not recognize newly added skills until `setup.sh` is re-run,
 or the command may arrive unexpanded in remote/dispatch sessions. Treat any message starting with
 `/<word>` that matches a known skill name as a skill invocation. If the Skill tool rejects it
@@ -76,7 +76,7 @@ you discover new information.
 
 - Gitignore `.work/` directories — do not commit implementation plans
 - PRs are the record of what was done and why (git blame → PR → ticket)
-- The ship skill captures key decisions in the PR description
+- The PR creation step (in /do-work) captures key decisions in the PR description
 
 ## Working with git/gh
 
@@ -286,3 +286,8 @@ same discussion. After completing an approved change: STOP, report what was done
 remaining proposed changes as next steps, and ask which to proceed with. "We discussed it" does
 not mean "you authorized it." Each change is a separate authorization. This counteracts the
 natural momentum where one approval biases toward feeling authorized for adjacent work.
+
+**Exception — plan execution via /do-work:** When working a plan, commit and push authorization is
+implicit. Verification passing is the gate, not per-commit user approval. The user authorized the
+plan; executing it (including commits, push, and PR creation) is the expected outcome. Hard stops
+(verification failures, security concerns, plan deviations) still require user input.

@@ -1,10 +1,10 @@
 ---
-name: start-work
-description: Plan work before writing any code. Use this at the start of any new task, feature, bug fix, or issue — give it a GitHub issue number (e.g. #42), a description of what to build, or just say "start work" to begin. Fetches context, discovers relevant code, and produces a phased implementation plan in .work/<slug>/plan.md. Always run this before /hack.
+name: plan-work
+description: Plan work before writing any code. Use this at the start of any new task, feature, bug fix, or issue — give it a GitHub issue number (e.g. #42), a description of what to build, or just say "plan work" to begin. Fetches context, discovers relevant code, and produces a phased implementation plan in .work/<slug>/plan.md. Always run this before /do-work.
 argument-hint: "[GITHUB-ISSUE-NUMBER | description]"
 ---
 
-# Start Work: Plan Before You Build
+# Plan Work: Plan Before You Build
 
 You are a senior engineer helping to set up a well-scoped implementation plan before writing any code.
 
@@ -14,7 +14,7 @@ You are a senior engineer helping to set up a well-scoped implementation plan be
 - Current branch: !`~/.claude/skills/shared/scripts/context.sh current-branch`
 - Plans in progress: !`~/.claude/skills/shared/scripts/context.sh plans-in-progress`
 - User branch prefix: !`~/.claude/skills/shared/scripts/context.sh user-slug`
-- CLAUDE.md exists: !`~/.claude/skills/start-work/scripts/context.sh claude-md-exists`
+- CLAUDE.md exists: !`~/.claude/skills/plan-work/scripts/context.sh claude-md-exists`
 - Repo remote (owner/repo): !`~/.claude/skills/shared/scripts/context.sh repo-remote`
 
 ---
@@ -201,13 +201,13 @@ If you're unsure how to phase the work, fewer larger phases beats more smaller o
 
 ### Plan document format
 
-Save to `.work/<slug>/plan.md`. Use this exact format so `/hack` can read it.
+Save to `.work/<slug>/plan.md`. Use this exact format so `/do-work` can read it.
 
 **Structure:** Phases are logical milestones (e.g. "data model", "API", "UI"). Tasks within a phase are individual units of work, each producing its own commit. Each task should be atomic — something that leaves the codebase in a coherent, verifiable state.
 
 ```markdown
 ---
-skill: start-work
+skill: plan-work
 issue: <ISSUE-NUMBER or "none">
 branch: <branch-name>
 status: planning
@@ -266,20 +266,22 @@ If command supports it, pass related files--do not run on entire codebase; let P
 
 ## Lessons
 
-<!-- Populated during the work by /hack and /learn. Each entry: what happened, what was learned, where it should go. -->
+<!-- Populated during the work by /do-work. Each entry: what happened, what was learned, where it should go. -->
 ```
 
 ---
 
-## Phase 2.5: Plan Review (Optional)
+## Phase 2.5: Plan Review (Conditional)
 
-After drafting the plan but before presenting it to the user, consider whether a `/plan-review` pass would add value. This is based on the scope classification from Phase 0.5:
+After drafting the plan but before presenting it to the user, determine whether to run `/plan-review`.
 
-- **Large scope:** Recommend running `/plan-review` before proceeding. Tell the user: "This is a large-scope plan — I'd recommend running `/plan-review` on it before we finalize. Want me to do that now?"
+**Collaborative plan detection:** If the user actively shaped this plan during the session — e.g., they provided specific guidance on approach, made 2+ revision requests, or you iterated together on the structure — skip plan review entirely. The user already reviewed it through the collaborative process. Note: "Skipping plan review — you shaped this plan collaboratively."
+
+**Otherwise, use scope classification:**
+
+- **Large scope:** Auto-run `/plan-review` — don't ask, just do it. Present findings stepwise (plan-review handles this). Wait for resolution before presenting the final plan in Phase 3.
 - **Medium scope:** Mention it as an option: "The plan is ready. You can run `/plan-review` on it for expert review, or we can proceed as-is."
 - **Small scope:** Skip — don't mention it.
-
-If the user runs `/plan-review`, wait for them to finalize any changes from the review before presenting the plan in Phase 3.
 
 ---
 
@@ -299,7 +301,7 @@ Ask: **"Any changes to the plan before we start?"**
 
 ---
 
-**Next step:** Plan saved. Run `/hack` to start implementing.
+**Next step:** Plan saved. Run `/do-work` to start implementing.
 
 ## Guidelines
 

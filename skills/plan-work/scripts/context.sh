@@ -1,5 +1,5 @@
 #!/bin/bash
-# Pre-loaded context helper for start-work skill.
+# Pre-loaded context helper for plan-work skill.
 # Usage: context.sh <flag>
 case "$1" in
   claude-md-exists)
