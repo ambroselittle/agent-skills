@@ -22,8 +22,30 @@ jobs:
       - name: create-repo tests (unit + structural eval)
         run: cd skills/create-repo && uv run pytest tests/ -v -m "not e2e"
 
+  scaffold-paths:
+    name: Check scaffold paths
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.filter.outputs.scaffold }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            scaffold:
+              - 'skills/create-repo/templates/**'
+              - 'skills/create-repo/scripts/**'
+              - 'skills/create-repo/eval/**'
+              - 'skills/create-repo/pyproject.toml'
+              - 'skills/create-repo/uv.lock'
+              - 'Makefile'
+              - '.github/workflows/ci.yml'
+
   scaffold-e2e:
     name: Scaffold E2E
+    needs: scaffold-paths
+    if: needs.scaffold-paths.outputs.changed == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
