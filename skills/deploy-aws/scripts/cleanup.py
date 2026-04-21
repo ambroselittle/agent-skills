@@ -117,9 +117,9 @@ def delete_rds_instance(rds, identifier: str) -> None:
 def delete_security_group(ec2, sg_name: str) -> None:
     print(f"  Deleting security group: {sg_name}")
     try:
-        sgs = ec2.describe_security_groups(
-            Filters=[{"Name": "group-name", "Values": [sg_name]}]
-        )["SecurityGroups"]
+        sgs = ec2.describe_security_groups(Filters=[{"Name": "group-name", "Values": [sg_name]}])[
+            "SecurityGroups"
+        ]
     except ClientError:
         raise
 
@@ -148,9 +148,7 @@ def delete_iam_role(iam, role_arn: str) -> None:
 
     # Detach managed policies first
     try:
-        attached = iam.list_attached_role_policies(RoleName=role_name)[
-            "AttachedPolicies"
-        ]
+        attached = iam.list_attached_role_policies(RoleName=role_name)["AttachedPolicies"]
         for policy in attached:
             print(f"    Detaching policy: {policy['PolicyName']}")
             iam.detach_role_policy(RoleName=role_name, PolicyArn=policy["PolicyArn"])

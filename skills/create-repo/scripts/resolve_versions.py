@@ -291,7 +291,8 @@ def resolve_versions(
                     return cached_versions
                 else:
                     print(
-                        f"Cache missing {len(missing)} key(s) ({', '.join(sorted(missing))}) — re-resolving fresh.",
+                        f"Cache missing {len(missing)} key(s)"
+                        f" ({', '.join(sorted(missing))}) — re-resolving fresh.",
                         file=sys.stderr,
                     )
                     # Fall through to full fresh resolution below

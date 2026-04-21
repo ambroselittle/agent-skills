@@ -36,7 +36,6 @@ def service_name(app: str, service: str) -> str:
 def build_env_vars(service: str, config: dict) -> list[dict]:
     """Build environment variable list for the App Runner service."""
     env = []
-    app = config["app"]
     db = config.get("database")
 
     if service == "api":
@@ -57,8 +56,9 @@ def build_env_vars(service: str, config: dict) -> list[dict]:
     return env
 
 
-def find_or_create_service(apprunner, svc_name: str, image_uri: str,
-                            role_arn: str, port: int, env_vars: list[dict]) -> tuple[str, str]:
+def find_or_create_service(
+    apprunner, svc_name: str, image_uri: str, role_arn: str, port: int, env_vars: list[dict]
+) -> tuple[str, str]:
     """Create or update App Runner service. Returns (service_arn, status)."""
     # Check if service exists
     try:
@@ -71,7 +71,7 @@ def find_or_create_service(apprunner, svc_name: str, image_uri: str,
 
                 if status == "CREATE_FAILED":
                     # Delete the failed service and recreate fresh
-                    print(f"  Service is in CREATE_FAILED — deleting before recreating...")
+                    print("  Service is in CREATE_FAILED — deleting before recreating...")
                     apprunner.delete_service(ServiceArn=arn)
                     # Poll until deleted
                     for _ in range(30):
@@ -79,9 +79,12 @@ def find_or_create_service(apprunner, svc_name: str, image_uri: str,
                         try:
                             apprunner.describe_service(ServiceArn=arn)
                         except ClientError as e:
-                            if "ResourceNotFoundException" in str(e) or "does not exist" in str(e).lower():
+                            if (
+                                "ResourceNotFoundException" in str(e)
+                                or "does not exist" in str(e).lower()
+                            ):
                                 break
-                    print(f"  Deleted. Creating fresh service...")
+                    print("  Deleted. Creating fresh service...")
                     break  # fall through to create
 
                 # Update the existing service
@@ -93,14 +96,16 @@ def find_or_create_service(apprunner, svc_name: str, image_uri: str,
                             "ImageRepositoryType": "ECR",
                             "ImageConfiguration": {
                                 "Port": str(port),
-                                "RuntimeEnvironmentVariables": {v["name"]: v["value"] for v in env_vars},
+                                "RuntimeEnvironmentVariables": {
+                                    v["name"]: v["value"] for v in env_vars
+                                },
                             },
                         },
                         "AuthenticationConfiguration": {"AccessRoleArn": role_arn},
                         "AutoDeploymentsEnabled": False,
                     },
                 )
-                print(f"  Triggered update")
+                print("  Triggered update")
                 return arn, "UPDATING"
     except ClientError as e:
         print(f"  Warning: could not list services: {e}")
@@ -133,7 +138,9 @@ def get_apprunner_events(apprunner, service_arn: str, max_lines: int = 10) -> li
         resp = apprunner.list_operations(ServiceArn=service_arn)
         events = []
         for op in resp.get("OperationSummaryList", [])[:3]:
-            events.append(f"  [{op.get('Status','?')}] {op.get('Type','?')} @ {op.get('StartedAt','?')}")
+            events.append(
+                f"  [{op.get('Status', '?')}] {op.get('Type', '?')} @ {op.get('StartedAt', '?')}"
+            )
         return events
     except Exception:
         return []
@@ -145,7 +152,7 @@ def wait_for_running(apprunner, service_arn: str, timeout_s: int = 1200) -> str:
     First deploys typically take 10-20 minutes on App Runner.
     Prints recent events log on timeout for diagnostics.
     """
-    print(f"  Waiting for service to reach RUNNING state (timeout: {timeout_s//60}m)...")
+    print(f"  Waiting for service to reach RUNNING state (timeout: {timeout_s // 60}m)...")
     deadline = time.time() + timeout_s
     last_status = None
     while time.time() < deadline:
@@ -169,7 +176,7 @@ def wait_for_running(apprunner, service_arn: str, timeout_s: int = 1200) -> str:
             sys.exit(1)
         time.sleep(10)
 
-    print(f"ERROR: timed out after {timeout_s//60}m waiting for RUNNING", file=sys.stderr)
+    print(f"ERROR: timed out after {timeout_s // 60}m waiting for RUNNING", file=sys.stderr)
     events = get_apprunner_events(apprunner, service_arn)
     if events:
         print("Recent events:", file=sys.stderr)
@@ -191,9 +198,9 @@ def verify_deployment(service: str, url: str) -> None:
       2. Playwright: load URL in headless browser, wait for "API status: ok" rendered text
          (confirms browser JS → API → DB full stack, not just proxy connectivity)
     """
-    import urllib.request
-    import urllib.error
     import json as _json
+    import urllib.error
+    import urllib.request
 
     print(f"\n  Verifying deployment at {url}...")
 
@@ -240,12 +247,17 @@ def verify_deployment(service: str, url: str) -> None:
         if result is None:
             # Not a GraphQL service — try tRPC
             try:
-                ok, body = get("/api/trpc/user.list?input=%7B%22json%22%3Anull%7D", "tRPC user.list")
+                ok, body = get(
+                    "/api/trpc/user.list?input=%7B%22json%22%3Anull%7D", "tRPC user.list"
+                )
                 if ok:
                     data = _json.loads(body)
-                    emails = [u.get("email", "") for u in (data.get("result", {}).get("data", {}).get("json") or [])]
+                    emails = [
+                        u.get("email", "")
+                        for u in (data.get("result", {}).get("data", {}).get("json") or [])
+                    ]
                     if "alice@example.com" in emails and "bob@example.com" in emails:
-                        print(f"  ✓ Seed data present (alice, bob)")
+                        print("  ✓ Seed data present (alice, bob)")
                     else:
                         print(f"  ✗ Seed data missing — got: {emails[:5]}", file=sys.stderr)
             except Exception as e:
@@ -254,7 +266,7 @@ def verify_deployment(service: str, url: str) -> None:
             users = result.get("data", {}).get("users", [])
             emails = [u.get("email", "") for u in users]
             if "alice@example.com" in emails and "bob@example.com" in emails:
-                print(f"  ✓ Seed data present (alice, bob) via GraphQL")
+                print("  ✓ Seed data present (alice, bob) via GraphQL")
             else:
                 print(f"  ✗ Seed data missing — got: {emails[:5]}", file=sys.stderr)
 
@@ -263,16 +275,19 @@ def verify_deployment(service: str, url: str) -> None:
         get("/api/health", "GET /api/health (via nginx proxy)")
 
         # 2. Playwright — load the real page, confirm the React app renders API data
-        print(f"  Launching headless browser to verify rendered UI...")
+        print("  Launching headless browser to verify rendered UI...")
         try:
-            from playwright.sync_api import sync_playwright, Error as PlaywrightError
+            from playwright.sync_api import Error as PlaywrightError
+            from playwright.sync_api import sync_playwright
+
             with sync_playwright() as pw:
                 # Install chromium if missing (first run after deploy-aws env setup)
                 try:
                     browser = pw.chromium.launch(headless=True)
                 except Exception:
                     import subprocess
-                    print(f"  Installing Chromium (first run)...")
+
+                    print("  Installing Chromium (first run)...")
                     subprocess.run(
                         ["python", "-m", "playwright", "install", "chromium"],
                         capture_output=True,
@@ -282,22 +297,35 @@ def verify_deployment(service: str, url: str) -> None:
                 page = browser.new_page()
                 page.goto(url, timeout=30000)
                 try:
-                    # Both fullstack-ts (tRPC) and fullstack-graphql show this text when API is reachable
+                    # Both fullstack-ts (tRPC) and fullstack-graphql show this
+                    # text when API is reachable
                     page.wait_for_selector("text=API status: ok", timeout=20000)
-                    print(f"  ✓ Browser rendered 'API status: ok' (web → API → DB confirmed)")
+                    print("  ✓ Browser rendered 'API status: ok' (web → API → DB confirmed)")
                 except PlaywrightError:
                     content = page.content()
                     # Look for error state
                     if "API status: error" in content:
-                        print(f"  ✗ Browser shows 'API status: error' — web cannot reach API", file=sys.stderr)
+                        print(
+                            "  ✗ Browser shows 'API status: error' — web cannot reach API",
+                            file=sys.stderr,
+                        )
                     elif "API status: loading" in content:
-                        print(f"  ✗ Browser stuck on 'loading...' — API call timed out", file=sys.stderr)
+                        print(
+                            "  ✗ Browser stuck on 'loading...' — API call timed out",
+                            file=sys.stderr,
+                        )
                     else:
-                        print(f"  ✗ Expected 'API status: ok' not found in rendered page", file=sys.stderr)
+                        print(
+                            "  ✗ Expected 'API status: ok' not found in rendered page",
+                            file=sys.stderr,
+                        )
                 finally:
                     browser.close()
         except ImportError:
-            print(f"  ~ Playwright not installed — skipping browser check (run: uv sync in skills/deploy-aws)")
+            print(
+                "  ~ Playwright not installed — skipping browser check"
+                " (run: uv sync in skills/deploy-aws)"
+            )
 
 
 def main():
@@ -322,7 +350,9 @@ def main():
 
     role_arn = config.get("iam_role_arn")
     if not role_arn:
-        print("ERROR: iam_role_arn not in .deploy-aws.json — run provision.py first", file=sys.stderr)
+        print(
+            "ERROR: iam_role_arn not in .deploy-aws.json — run provision.py first", file=sys.stderr
+        )
         sys.exit(1)
 
     # Port: api runs on 3001, web nginx on 80

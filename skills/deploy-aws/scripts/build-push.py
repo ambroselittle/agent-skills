@@ -59,13 +59,17 @@ def ecr_login(session: boto3.Session, region: str, account_id: str) -> None:
     ecr = session.client("ecr")
     token = ecr.get_authorization_token(registryIds=[account_id])
     import base64
+
     auth = token["authorizationData"][0]
     decoded = base64.b64decode(auth["authorizationToken"]).decode()
     username, password = decoded.split(":", 1)
     registry = auth["proxyEndpoint"]
-    run(["docker", "login", "--username", username, "--password-stdin", registry],
-        input=password.encode(), capture_output=True)
-    print(f"  Logged in to ECR registry")
+    run(
+        ["docker", "login", "--username", username, "--password-stdin", registry],
+        input=password.encode(),
+        capture_output=True,
+    )
+    print("  Logged in to ECR registry")
 
 
 def smoke_test(service: str, tag: str) -> None:
@@ -76,8 +80,8 @@ def smoke_test(service: str, tag: str) -> None:
     API smoke test: GET /api/health → {"status":"ok"}
     Web smoke test: GET / → 200 (nginx serving static assets)
     """
-    import urllib.request
     import urllib.error
+    import urllib.request
 
     host_port = 3001 if service == "api" else 3080
     container_port = 3001 if service == "api" else 80
@@ -94,16 +98,17 @@ def smoke_test(service: str, tag: str) -> None:
     print(f"\nSmoke testing '{service}' locally...")
     cid_result = subprocess.run(
         ["docker", "run", "-d", "--rm", "-p", f"{host_port}:{container_port}"] + env_args + [tag],
-        capture_output=True, text=True
+        capture_output=True,
+        text=True,
     )
     if cid_result.returncode != 0:
-        print(f"  ERROR: container failed to start", file=sys.stderr)
+        print("  ERROR: container failed to start", file=sys.stderr)
         print(cid_result.stderr, file=sys.stderr)
         sys.exit(1)
     cid = cid_result.stdout.strip()
 
     try:
-        for attempt in range(10):
+        for _attempt in range(10):
             time.sleep(2)
             try:
                 with urllib.request.urlopen(health_url, timeout=3) as resp:
@@ -114,7 +119,10 @@ def smoke_test(service: str, tag: str) -> None:
                 pass
         # Last attempt — show container logs before failing
         logs = subprocess.run(["docker", "logs", cid], capture_output=True, text=True)
-        print(f"  ERROR: smoke test failed — container did not respond at {health_url}", file=sys.stderr)
+        print(
+            f"  ERROR: smoke test failed — container did not respond at {health_url}",
+            file=sys.stderr,
+        )
         if logs.stdout or logs.stderr:
             print("  Container logs:", file=sys.stderr)
             print((logs.stdout + logs.stderr)[-1000:], file=sys.stderr)
@@ -131,7 +139,6 @@ def main():
     config = load_config()
     region = config["region"]
     account_id = config["account"]
-    app = config["app"]
     service = args.service
 
     svc_config = config.get("services", {}).get(service)
@@ -166,14 +173,21 @@ def main():
 
     print("\nBuilding and pushing linux/amd64 image to ECR...")
     ecr_login(session, region, account_id)
-    run([
-        "docker", "buildx", "build",
-        "--platform", "linux/amd64",
-        "-f", dockerfile,
-        "-t", tag,
-        "--push",
-        ".",
-    ])
+    run(
+        [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/amd64",
+            "-f",
+            dockerfile,
+            "-t",
+            tag,
+            "--push",
+            ".",
+        ]
+    )
 
     # Fetch the digest from the registry (buildx --push writes directly, no local image).
     # Compute digest from the raw manifest — the --format template is unreliable across
@@ -184,6 +198,7 @@ def main():
     )
     if result.returncode == 0 and result.stdout:
         import hashlib
+
         digest = f"sha256:{hashlib.sha256(result.stdout).hexdigest()}"
         image_uri = f"{ecr_repo}@{digest}"
     else:
@@ -195,7 +210,7 @@ def main():
     save_config(config)
 
     print(f"\n  Pushed: {image_uri}")
-    print(f"  Updated .deploy-aws.json\n")
+    print("  Updated .deploy-aws.json\n")
 
 
 if __name__ == "__main__":

@@ -60,14 +60,18 @@ def ensure_ecr_repo(ecr, app: str, service: str) -> str:
 
 # ── IAM ──────────────────────────────────────────────────────────────────────
 
-APPRUNNER_TRUST_POLICY = json.dumps({
-    "Version": "2012-10-17",
-    "Statement": [{
-        "Effect": "Allow",
-        "Principal": {"Service": "build.apprunner.amazonaws.com"},
-        "Action": "sts:AssumeRole",
-    }],
-})
+APPRUNNER_TRUST_POLICY = json.dumps(
+    {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Principal": {"Service": "build.apprunner.amazonaws.com"},
+                "Action": "sts:AssumeRole",
+            }
+        ],
+    }
+)
 
 ECR_ACCESS_POLICY_ARN = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 
@@ -108,9 +112,9 @@ def ensure_rds_security_group(ec2, app: str) -> str:
     """Create a security group that allows Postgres from anywhere (App Runner uses NAT IPs).
     Returns the SG id."""
     sg_name = f"{app}-rds-sg"
-    sgs = ec2.describe_security_groups(
-        Filters=[{"Name": "group-name", "Values": [sg_name]}]
-    )["SecurityGroups"]
+    sgs = ec2.describe_security_groups(Filters=[{"Name": "group-name", "Values": [sg_name]}])[
+        "SecurityGroups"
+    ]
     if sgs:
         sg_id = sgs[0]["GroupId"]
         print(f"  Security group already exists: {sg_id}")
@@ -122,12 +126,16 @@ def ensure_rds_security_group(ec2, app: str) -> str:
     sg_id = sg["GroupId"]
     ec2.authorize_security_group_ingress(
         GroupId=sg_id,
-        IpPermissions=[{
-            "IpProtocol": "tcp",
-            "FromPort": 5432,
-            "ToPort": 5432,
-            "IpRanges": [{"CidrIp": "0.0.0.0/0", "Description": "App Runner egress IPs (dynamic)"}],
-        }],
+        IpPermissions=[
+            {
+                "IpProtocol": "tcp",
+                "FromPort": 5432,
+                "ToPort": 5432,
+                "IpRanges": [
+                    {"CidrIp": "0.0.0.0/0", "Description": "App Runner egress IPs (dynamic)"}
+                ],
+            }
+        ],
     )
     print(f"  Created security group: {sg_id}")
     return sg_id
@@ -156,7 +164,7 @@ def ensure_rds_instance(rds, ec2, app: str, existing_password: str | None) -> di
                 "password": password,  # may differ from actual if not first run
             }
         else:
-            print(f"  RDS instance exists but not yet available, waiting...")
+            print("  RDS instance exists but not yet available, waiting...")
     except ClientError as e:
         if e.response["Error"]["Code"] != "DBInstanceNotFound":
             raise
@@ -215,7 +223,6 @@ def _run_db_migrate(db_url: str) -> None:
     safe to re-run on every deploy — idempotent by design.
     """
     import subprocess as sp
-    import os
 
     env = {**os.environ, "DATABASE_URL": db_url}
 
@@ -223,7 +230,9 @@ def _run_db_migrate(db_url: str) -> None:
     print("  Running db:push...")
     result = sp.run(
         ["pnpm", "--filter", "**/db", "db:push", "--accept-data-loss"],
-        env=env, capture_output=True, text=True
+        env=env,
+        capture_output=True,
+        text=True,
     )
     if result.returncode != 0:
         print(f"  WARNING: db:push failed (exit {result.returncode})", file=sys.stderr)
@@ -233,8 +242,7 @@ def _run_db_migrate(db_url: str) -> None:
 
     print("  Running db:seed...")
     result = sp.run(
-        ["pnpm", "--filter", "**/db", "db:seed"],
-        env=env, capture_output=True, text=True
+        ["pnpm", "--filter", "**/db", "db:seed"], env=env, capture_output=True, text=True
     )
     if result.returncode != 0:
         print(f"  WARNING: db:seed failed (exit {result.returncode})", file=sys.stderr)
@@ -250,9 +258,15 @@ def main():
     parser = argparse.ArgumentParser(description="Provision AWS infra for deployment")
     parser.add_argument("--app", required=True, help="App name (used for resource naming)")
     parser.add_argument("--region", default="us-east-1")
-    parser.add_argument("--services", required=True, help="Comma-separated service names, e.g. api,web")
+    parser.add_argument(
+        "--services", required=True, help="Comma-separated service names, e.g. api,web"
+    )
     parser.add_argument("--db", default="none", help="'rds', 'none', or 'external:<DATABASE_URL>'")
-    parser.add_argument("--skip-migrate", action="store_true", help="Skip db:push and db:seed after RDS provisioning")
+    parser.add_argument(
+        "--skip-migrate",
+        action="store_true",
+        help="Skip db:push and db:seed after RDS provisioning",
+    )
     args = parser.parse_args()
 
     services = [s.strip() for s in args.services.split(",")]
@@ -300,9 +314,9 @@ def main():
         )
         config["database"]["url"] = db_url
     elif args.db.startswith("external:"):
-        db_url = args.db[len("external:"):]
+        db_url = args.db[len("external:") :]
         config["database"] = {"url": db_url, "source": "external"}
-        print(f"\nDatabase: using external URL")
+        print("\nDatabase: using external URL")
     else:
         print("\nDatabase: none")
         config.pop("database", None)
