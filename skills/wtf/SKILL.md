@@ -25,12 +25,12 @@ This writes `~/.agent-skills/wtf/<timestamp>-<slug>.md` with frontmatter (sessio
 Fire off the GitHub backlog append in the background so the skill returns immediately:
 
 ```bash
-nohup ~/.claude/skills/wtf/scripts/backlog-append.sh "$CAPTURE_FILE" \
-  > ~/Library/Logs/wtf-backlog-append.log 2>&1 &
-disown
+mkdir -p ~/Library/Logs
+( nohup ~/.claude/skills/wtf/scripts/backlog-append.sh "$CAPTURE_FILE" \
+  > ~/Library/Logs/wtf-backlog-append.log 2>&1 & )
 ```
 
-The background script looks for an open `WTF`-labeled issue in `ambroselittle/agent-skills` that isn't currently `In Progress`, appends this correction to its body, or creates a new issue if none is open. `disown` ensures it survives the skill returning.
+The subshell-with-background pattern `( ... & )` detaches the process cleanly in both `bash` and `zsh` — no `disown` needed (which triggers a "no current job" warning on zsh). The background script looks for an open `WTF`-labeled issue in `ambroselittle/agent-skills` that isn't currently `In Progress`, appends this correction to its body, or creates a new issue if none is open.
 
 ## Step 3: Report back
 
