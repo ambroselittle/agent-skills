@@ -69,11 +69,37 @@ you discover new information.
 - **Batch commits before pushing** -- every push triggers CI and jobs do not self-cancel.
   Accumulate all changes locally, then push once when the work is ready for review.
 
-## Batch Edits via Scripts
+## Scaling Large Operations
+
+Before doing repetitive or large-scale work, choose the right execution strategy:
+
+### Deterministic bulk work — use a script
 
 When making the same or similar changes to 3+ files — or 3+ places in one file — write a
 quick Python script to do it in one pass instead of editing one-by-one. Save to `/tmp/` so it's
 transient. This is faster, cheaper on tokens, and less error-prone than N individual Edit calls.
+Same principle for discovery: if the task is "find all X matching Y," a script with `glob`/`grep`
+beats spawning agents.
+
+### Intelligent bulk work — fan out to sub-agents
+
+When the work requires judgment (authoring tests, writing documentation, reviewing code, applying
+context-dependent fixes), coordinate as a hub and delegate to parallel sub-agents:
+
+1. **Plan the work yourself first.** Identify every unit of work and its inputs. Don't delegate
+   planning — delegate execution.
+2. **Use the cheapest model that can handle the task.** Haiku for mechanical transforms, Sonnet
+   for anything requiring understanding. Reserve Opus for genuinely hard judgment calls.
+3. **Scope each agent tightly.** One task, one clear deliverable. Tell each agent exactly which
+   files to read and which to write. Specify what it should *not* do — no running tests, no
+   lint fixes, no exploration beyond the stated scope.
+4. **Separate reads from writes.** Discovery agents get read-only instructions. Authoring agents
+   get a precise spec and write to specific files. Mixing the two leads to agents wandering.
+5. **Batch and verify.** Don't fire off 50 agents and hope. Work in batches — send a wave, wait
+   for results, run verification (tests, lint, typecheck), fix issues, then send the next wave.
+   Catch drift early rather than debugging 50 interleaved failures.
+6. **Keep your own context clean.** The point of delegation is that agent results stay out of
+   your main context. Summarize outcomes; don't paste raw output back into the conversation.
 
 ## Code Organization
 
