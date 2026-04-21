@@ -1,19 +1,28 @@
 ---
-name: apply-review-fixes
-description: Apply fixes from a code review. Reads the review doc, fixes checked findings, verifies, commits, pushes, and posts the PR summary comment. Run after reviewing /code-review findings.
+name: do-fixes
+description: Apply fixes from a review. Detects the most recent review artifact and applies checked findings — currently supports code-review output. Verifies, commits, pushes, and posts the PR summary comment.
 argument-hint: "[review-doc-path]"
 depends-on: code-review
 context: fork
 ---
 
-# Apply Review Fixes: Fix, Verify, and Publish
+# Do Fixes: Apply Review Findings
 
-You are executing fixes from a completed code review. The review document contains findings with
-checkboxes — checked `[x]` findings get fixed, unchecked `[ ]` findings get skipped.
+You are applying fixes from a completed review. This skill detects the most recent review artifact
+and applies the appropriate fixes.
 
 **Arguments:** $ARGUMENTS
 - No arguments: auto-discover the most recent review doc for this branch
 - Path: use the specified review doc
+
+### Context Detection
+
+Scan `.work/<slug>/reviews/` for the most recent review artifact:
+- **`*.review.*.md`** (code-review output) → apply code fixes using the flow below
+- *(Future: plan-review artifacts → apply plan improvements)*
+
+The review document contains findings with checkboxes — checked `[x]` findings get fixed,
+unchecked `[ ]` findings get skipped.
 
 **Pre-loaded context:**
 - Current branch: !`~/.claude/skills/shared/scripts/context.sh current-branch`

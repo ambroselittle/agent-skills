@@ -6,18 +6,15 @@ AI agent skills, hooks, and project templates for Claude Code. Skills are prompt
 
 ```
 skills/                # Skill definitions (SKILL.md + supporting files)
-  ├── start-work/         # Plan before building
-  ├── hack/               # Implement from a plan (coordinates sub-agents)
-  ├── ship/               # Push + open PR
-  ├── code-review/        # Multi-agent parallel PR review (findings only)
-  ├── apply-review-fixes/ # Apply fixes from code review, verify, commit, publish
+  ├── plan-work/          # Plan before building
+  ├── do-work/            # Implement from a plan, commit, and open PR
+  ├── code-review/        # Multi-agent parallel PR review (dialogic findings)
+  ├── do-fixes/           # Apply fixes from a review, verify, commit, publish
   ├── plan-review/        # Expert review of implementation plans
   ├── create-repo/        # Monorepo scaffolding (Python scripts + Jinja2 templates)
   ├── solve-take-home/    # End-to-end take-home challenge solver
   ├── author-e2e/         # Playwright test generation from scenarios
   ├── make-skill/         # Interactive skill creator
-  ├── learn/              # Route lessons to the right destination
-  ├── fix-tests/          # CI failure diagnosis
   └── shared/             # Reusable agents, scripts (context.sh, get-diff.sh), references
 hooks/
   └── PreToolUse/      # Rule-based allow/deny engine for tool calls
@@ -39,7 +36,7 @@ Every skill has a `SKILL.md` with YAML frontmatter:
 name: skill-name
 description: Short phrase shown to user
 argument-hint: "[options]"
-depends-on: start-work          # optional prerequisite
+depends-on: plan-work           # optional prerequisite
 context: fork                   # optional: run in isolated context
 ---
 ```

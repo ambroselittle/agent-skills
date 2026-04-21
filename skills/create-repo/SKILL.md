@@ -327,7 +327,7 @@ Then report:
 > Quick start copied to clipboard — paste in a terminal to jump in. (Starts Postgres + dev servers in one command.)
 >
 > Next steps:
-> - Run `/start-work` to plan your first feature
+> - Run `/plan-work` to plan your first feature
 > - The starter includes a basic health check — start building from there
 > - Tests run with `pnpm test` (Vitest/pytest depending on template)"
 

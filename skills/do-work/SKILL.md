@@ -1,22 +1,23 @@
 ---
-name: hack
-description: Implement work from a plan. Use this to execute a phase of a .work/<slug>/plan.md — writing code, running verification, and committing when done. Say "hack phase 2" to target a specific phase, or just "hack" to continue from where you left off. Say "hack full auto" to run all phases end-to-end without stopping between phases. Always run /start-work first to create a plan.
-argument-hint: "[phase-number | phase-name | full auto]"
-depends-on: start-work
+name: do-work
+description: Implement work from a plan end-to-end. Executes all phases, commits verified work, and opens a PR when done. Say "do-work phase 2" to target a specific phase, or just "do-work" to run all remaining phases. Always run /plan-work first to create a plan.
+argument-hint: "[phase-number | phase-name]"
+depends-on: plan-work
 ---
 
-# Hack: Implement From the Plan
+# Do Work: Implement From the Plan
 
-You are a senior engineer executing a well-scoped implementation plan. Your job is to write correct, clean code — one committable phase at a time.
+You are a senior engineer executing a well-scoped implementation plan. Your job is to write correct, clean code — working through all phases, committing as you go, and opening a PR when done.
 
 **Arguments:** $ARGUMENTS
-
-**Mode:** If arguments contain "full auto" → FULL AUTO (run all phases end-to-end). Otherwise → single phase.
 
 **Pre-loaded context:**
 - Current branch: !`~/.claude/skills/shared/scripts/context.sh current-branch`
 - Uncommitted changes: !`~/.claude/skills/shared/scripts/context.sh uncommitted-changes`
 - Plans in progress: !`~/.claude/skills/shared/scripts/context.sh plans-in-progress`
+- Unpushed commits: !`~/.claude/skills/shared/scripts/context.sh unpushed`
+- Open PR: !`~/.claude/skills/shared/scripts/context.sh open-pr`
+- PR template: !`~/.claude/skills/shared/scripts/context.sh pr-template`
 
 ---
 
@@ -28,22 +29,21 @@ Branch names include a user prefix (e.g. `ambrose/42-add-dark-mode`). Strip ever
 
 Read `.work/<slug>/plan.md`.
 
-- **No plan found**: "No plan found for this branch. Run `/start-work` to create one, or tell me the path to the right `.work/` directory."
+- **No plan found**: "No plan found for this branch. Run `/plan-work` to create one, or tell me the path to the right `.work/` directory."
 - **`status: complete`**: "This plan is marked complete. Want to re-run a specific phase, or start fresh?"
 - **Uncommitted changes present** (from pre-loaded context): "There are uncommitted changes from a previous run. Want to continue from where things left off, or reset to a clean state?" Wait for their answer — do not make this decision automatically.
 
 ### Determine what to implement
 
 Parse `$ARGUMENTS`:
-- `full auto` → run all phases sequentially (see Full Auto Mode below)
-- `phase N`, `phase N: <name>`, or just a number → run that specific phase
-- `<phase name>` → match against phase names in the plan (case-insensitive)
+- `phase N`, `phase N: <name>`, or just a number → run that specific phase, then continue to subsequent phases
+- `<phase name>` → match against phase names in the plan (case-insensitive), then continue forward
 - No arguments → find the first phase that has any unchecked tasks. A partially-done phase (some tasks checked, some not) counts as the current phase — resume it, don't skip it.
-- All phases complete → "All phases are already done. Ready for `/code-review`?"
+- All phases complete → skip to the Finish Line.
 
-**In single-phase mode**: show the user which phase you're implementing and ask: "Implementing [phase name]. Ready to start?" Wait for confirmation.
+Announce which phases you'll run and start immediately — no confirmation needed.
 
-**In full auto mode**: announce which phases you'll run and start immediately — no per-phase confirmation. See Full Auto Mode below.
+If there are 3+ phases with substantial scope (not just cleanup), note this and suggest stacking PRs — one PR per phase, each targeting the previous phase's branch. Ask: "This looks like substantial work across [N] phases. Want to stack PRs (one per phase) or open a single PR at the end?" Wait for their answer, then start.
 
 ---
 
@@ -131,71 +131,97 @@ For each task:
 3. **Targeted tests** for this task's changes, if applicable
 4. **E2E tests** — if the project has a `playwright.config.ts` and E2E tests exist, include the E2E test command (e.g. `pnpm test:e2e`, or whatever CLAUDE.md specifies) in the verification run. Skip this step if no Playwright setup exists.
 
-If checks fail: fix and re-run once. If still failing: **stop and report** — don't loop. Describe what failed and what you tried. In full auto mode, this is a hard stop (see below).
+If checks fail: fix and re-run once. If still failing: **stop and report** — don't loop. Describe what failed and what you tried.
 
 **Step 2 — Commit:**
 1. Stage only the files that belong to this task — be specific. Don't `git add .` unless you've verified every changed file is part of this task.
 2. Commit with the message from the plan task line.
 3. Update `.work/<slug>/plan.md`: mark the task `[x]`.
 
-**In single-phase mode**: after checks pass, present and ask — "Checks pass. Ready to commit: `<task commit message>`?" Wait for confirmation before committing.
-
-**In full auto mode**: if checks pass, commit automatically. If checks fail after one fix attempt, hard stop.
-
 After all tasks committed, update the plan:
 - Update phase header to `~~Phase N: <name>~~ ✓`
 - Set `status: in-progress` (or `complete` if all phases done)
 
-In single-phase mode, prompt once at phase end: "Any lessons worth capturing from this phase? Add bullet entries to the `## Lessons` section of plan.md now — or run `/learn` at the end of the work item to route them all at once."
+---
 
-(Skip this prompt in full auto mode — save it for the end.)
+## Phase 3: Next Phase
+
+After committing all tasks in a phase, proceed to the next phase without pausing. Report briefly what was completed and move on.
+
+If all phases are done, proceed to the Finish Line.
 
 ---
 
-## Phase 3: What's Next
+## Finish Line: Push and Open a PR
 
-After committing:
-- Report what was completed
-- Name the next phase (or confirm the plan is done)
-- Surface any open questions that came up during implementation
+When all phases are complete (or you're finishing a stacked PR for a single phase):
 
-**Single phase mode**: "Phase [N] complete ([X] commits). Next is [Phase N+1: name]. Want to continue?" — don't start automatically.
+### Step 1: Final Verification
 
-**Full auto mode**: proceed to the next phase without asking.
+Run the repo's full verification suite one last time (format, lint, typecheck, full test suite — not just targeted tests). If anything fails, fix it before proceeding.
 
-**Plan complete**: "All phases done. Ready to `/ship`? (verifies, pushes, and opens a PR if one doesn't exist)"
+### Step 2: Push
+
+```bash
+git push -u origin <branch>
+```
+
+### Step 3: Open a PR
+
+Use the repo's PR template if one exists (check pre-loaded `pr-template` context).
+
+**PR body — write as capabilities, not file inventory:**
+- Describe what the PR enables or changes from a user/engineer perspective (new behaviors, fixed problems, improved workflows)
+- Group by feature or theme
+- Do NOT list files and what each does — that's what `git diff` is for
+- Exception: call out a specific file if it's the primary interface point
+
+**Derive PR body from:**
+- Plan at `.work/<slug>/plan.md` — goal, scope, phases completed
+- `git log --oneline @{u}..` for commit history
+- Key decisions from plan's Context, Open Questions, and Lessons sections
+
+**Key Decisions section** (include when there were meaningful technical choices):
+- Important technical choices and rationale
+- Alternatives considered and rejection reasons
+- Scope decisions (what was left out and why)
+- Keep to 3-5 bullets max
+- Omit entirely if the change was trivial
+
+Create the PR:
+```bash
+gh pr create --title "<title>" --body "<body>"
+```
+
+### Step 4: Update the Plan
+
+Update `.work/<slug>/plan.md` frontmatter:
+- Set `status: pr-open`
+- Add `pr: <PR-URL>`
+
+### Done
+
+"The PR is ready for your review: [URL]"
 
 ---
 
-## Full Auto Mode
+## Hard Stops
 
-Activated by `hack full auto`. Runs all remaining phases end-to-end.
-
-**Before starting**: list all phases and their tasks. If there are 3+ phases with substantial scope (not just cleanup), suggest stacking PRs — one PR per phase, each targeting the previous phase's branch. Ask: "This looks like substantial work across [N] phases. Want to stack PRs (one per phase) or open a single PR at the end?" Wait for their answer, then start immediately.
-
-**Between phases**: after all tasks in a phase are committed and verified, start the next phase without pausing. If stacking PRs, open the phase's PR before starting the next phase.
-
-**When all phases complete**: push the branch and open a PR (using the repo's PR template if one exists). This is the finish line — full auto means set it and forget it.
-
-**Hard stops** — always stop and wait for the user, even in full auto mode:
+Always stop and wait for the user — regardless of progress:
 - Verification fails after two fix attempts — avoid flailing and expanding scope to force a fix
 - A task requires a decision that isn't answerable from the plan or codebase
 - A security-related concern is encountered (see Security below)
 - The approach in the plan turns out to be wrong or impossible — do not improvise a different solution; stop and report
 
-After reporting a hard stop and the user helps resolve it, ask: "Should I continue in full auto mode?" If yes, pick up from the next uncompleted task. If no, revert to single-phase mode.
+After a hard stop is resolved, pick up from the next uncompleted task and continue.
 
-**Resuming without full auto**: `/hack` with no arguments always resumes from the next uncompleted task regardless of how you got here.
-
-**Do not deviate from the plan in full auto mode.** If the plan says "add a `darkMode` field to `User`" and you discover the schema is different than expected, stop — don't quietly adapt the approach. The plan was agreed on; changes to it need the user's input.
+**Do not deviate from the plan.** If the plan says "add a `darkMode` field to `User`" and you discover the schema is different than expected, stop — don't quietly adapt the approach. The plan was agreed on; changes to it need the user's input.
 
 ---
 
 ## Security
 
-Regardless of mode, if you encounter anything that looks like a security issue — a hook that was blocked, a permission that was denied, a pattern that resembles a vulnerability — **stop immediately and report it**. Do not attempt to work around it, reframe it, or find an alternative path to the same outcome. A block is a stop sign.
-
-This applies in full auto mode too. Security stops override the "no per-phase confirmation" rule.
+If you encounter anything that looks like a security issue — a hook that was blocked, a permission that was denied, a pattern that resembles a vulnerability — **stop immediately and report it**. Do not attempt to work around it, reframe it, or find an alternative path to the same outcome. A block is a stop sign.
 
 ---
 
@@ -206,7 +232,3 @@ This applies in full auto mode too. Security stops override the "no per-phase co
 - **Verification is not optional.** Unverified code is not done.
 - **When stuck, stop.** Two failed attempts at the same problem is the limit — escalate, don't spiral.
 - **The plan is the contract.** Implement what it says. If it's wrong, say so — don't silently fix it your way.
-- **In single-phase mode, the two confirmation gates are non-negotiable:**
-  1. **"Implementing [phase]. Ready to start?"** — do not write a single line of code or spawn a single agent before the user confirms.
-  2. **"Checks pass. Ready to commit: `<message>`?"** — do not run `git commit` before the user confirms. This applies to every commit in the phase, not just the first.
-- **Discussing work is not approval to commit.** The user commenting on the code, asking a follow-up question, or saying something like "looks good" or "nice" is not commit approval. Only proceed when the user responds with an explicit go-ahead ("y", "yes", "commit", "go ahead", "lgtm", etc.).

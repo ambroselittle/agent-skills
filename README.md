@@ -48,19 +48,16 @@ Skills are agentic superpowers that orchestrate multi-step workflows. Invoke the
 These skills form a pipeline from idea to merged PR:
 
 ```
-/start-work → /plan-review → /hack → /ship → /code-review → /apply-review-fixes → /learn
+/plan-work → /plan-review → /do-work (includes PR) → /code-review → /do-fixes
 ```
 
 | Skill | What it does |
 | --- | --- |
-| `/start-work` | Takes a GitHub issue or description, discovers relevant code, and produces a phased implementation plan in `.work/<slug>/plan.md`; unlike Claude's built in plans, these survive sessions and can be saved historically |
-| `/plan-review` | Runs parallel specialized agents (architecture, completeness, security, testing) over the plan before a line of code is written. Planning is 10x more important with agentic dev, and getting it right saves time, rework, and cost. |
-| `/hack` | Implements work from a plan phase by phase — coordinates sub-agents, verifies, commits per task. Supports full auto mode — fire and forget until it's ready for review. |
-| `/ship` | Verifies, commits, pushes, and opens a PR. Runs a docs sanity check and fills the repo's PR template. |
-| `/code-review` | Multi-pass parallel review with specialized agents. Two-pass approach (normal + reversed diff) for higher recall. Presents findings without touching code. |
-| `/apply-review-fixes` | Takes the findings from `/code-review`, applies fixes, verifies, and commits. Separated so you can review findings before anything changes. |
-| `/learn` | Routes lessons from a work item to skill updates, repo-local rules, or user CLAUDE.md guidance — closing the improvement loop. |
-| `/fix-tests` | Diagnoses CI test failures, groups by root cause, and fixes methodically. |
+| `/plan-work` | Takes a GitHub issue or description, discovers relevant code, and produces a phased implementation plan in `.work/<slug>/plan.md`. Unlike Claude's built-in plans, these persist to disk and survive across sessions. |
+| `/plan-review` | Runs parallel specialized agents (architecture, completeness, security, testing) over the plan before a line of code is written. Presents findings stepwise by category for in-session discussion. Auto-runs for large plans. |
+| `/do-work` | Implements work from a plan end-to-end — coordinates sub-agents, verifies, commits per task, pushes, and opens a PR when done. No confirmation gates; hard stops only for genuine blockers. |
+| `/code-review` | Multi-pass parallel review with specialized agents. Two-pass approach (normal + reversed diff) for higher recall. Presents findings in-session with opt-out model — default is to fix everything. |
+| `/do-fixes` | Applies checked findings from `/code-review`, verifies, commits, and posts a PR summary comment. Context-aware — detects the most recent review artifact type. |
 | `/author-e2e` | Generate Playwright E2E tests from scenario files or feature descriptions. Produces page objects and test files following Page Object Model best practices. |
 | `/make-skill` | Interactive interview to create a new skill from scratch. |
 

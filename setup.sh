@@ -126,6 +126,14 @@ _should_link_skill() {
   return 1
 }
 
+# Clean up stale symlinks (from renamed or deleted skills)
+while IFS= read -r -d '' target; do
+  if [[ -L "$target" && ! -e "$target" ]]; then
+    rm -f "$target"
+    ok "removed stale symlink: $(basename "$target")"
+  fi
+done < <(find "$CLAUDE_SKILLS_DIR" -maxdepth 1 -type l -print0 2>/dev/null)
+
 _linked=0
 _skipped=0
 for skill_dir in "$SCRIPT_DIR"/skills/*/; do

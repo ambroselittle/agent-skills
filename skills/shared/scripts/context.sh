@@ -42,6 +42,14 @@ case "$1" in
     # Space-separated list of active work slugs (excludes done/), e.g. "issue-42-foo issue-99-bar".
     find .work -maxdepth 3 -name plan.md 2>/dev/null | sed 's|/plan.md$||' | sed 's|^\.work/||' | grep -v '^done' | tr '\n' ' ' || echo "failed to discover"
     ;;
+  unpushed)
+    # Commits ahead of the upstream tracking branch (up to 10).
+    git log --oneline "@{u}.." 2>/dev/null | head -10
+    ;;
+  pr-template)
+    # Whether a PR template exists: "found" or "none".
+    if [ -f .github/pull_request_template.md ]; then echo "found"; else echo "none"; fi
+    ;;
   *)
     echo "unknown flag: $1" >&2; exit 1
     ;;
