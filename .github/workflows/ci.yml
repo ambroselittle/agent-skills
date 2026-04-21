@@ -40,7 +40,6 @@ jobs:
               - 'skills/create-repo/pyproject.toml'
               - 'skills/create-repo/uv.lock'
               - 'Makefile'
-              - '.github/workflows/ci.yml'
 
   scaffold-e2e:
     name: Scaffold E2E
