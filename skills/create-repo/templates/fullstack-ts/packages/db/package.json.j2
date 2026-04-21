@@ -3,11 +3,12 @@
   "private": true,
   "type": "module",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
     "generate": "prisma generate && tsx scripts/generate-barrel.ts",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "build": "tsup",
+    "build": "tsup && tsc --emitDeclarationOnly",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
