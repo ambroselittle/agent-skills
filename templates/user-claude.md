@@ -69,11 +69,37 @@ you discover new information.
 - **Batch commits before pushing** -- every push triggers CI and jobs do not self-cancel.
   Accumulate all changes locally, then push once when the work is ready for review.
 
-## Batch Edits via Scripts
+## Scaling Large Operations
+
+Before doing repetitive or large-scale work, choose the right execution strategy:
+
+### Deterministic bulk work — use a script
 
 When making the same or similar changes to 3+ files — or 3+ places in one file — write a
 quick Python script to do it in one pass instead of editing one-by-one. Save to `/tmp/` so it's
 transient. This is faster, cheaper on tokens, and less error-prone than N individual Edit calls.
+Same principle for discovery: if the task is "find all X matching Y," a script with `glob`/`grep`
+beats spawning agents.
+
+### Intelligent bulk work — fan out to sub-agents
+
+When the work requires judgment (authoring tests, writing documentation, reviewing code, applying
+context-dependent fixes), coordinate as a hub and delegate to parallel sub-agents:
+
+1. **Plan the work yourself first.** Identify every unit of work and its inputs. Don't delegate
+   planning — delegate execution.
+2. **Use the cheapest model that can handle the task.** Haiku for mechanical transforms, Sonnet
+   for anything requiring understanding. Reserve Opus for genuinely hard judgment calls.
+3. **Scope each agent tightly.** One task, one clear deliverable. Tell each agent exactly which
+   files to read and which to write. Specify what it should *not* do — no running tests, no
+   lint fixes, no exploration beyond the stated scope.
+4. **Separate reads from writes.** Discovery agents get read-only instructions. Authoring agents
+   get a precise spec and write to specific files. Mixing the two leads to agents wandering.
+5. **Batch and verify.** Don't fire off 50 agents and hope. Work in batches — send a wave, wait
+   for results, run verification (tests, lint, typecheck), fix issues, then send the next wave.
+   Catch drift early rather than debugging 50 interleaved failures.
+6. **Keep your own context clean.** The point of delegation is that agent results stay out of
+   your main context. Summarize outcomes; don't paste raw output back into the conversation.
 
 ## Code Organization
 
@@ -84,11 +110,33 @@ transient. This is faster, cheaper on tokens, and less error-prone than N indivi
 - Look for relevant code and **verify with user** the right location/area when starting on new files
 - Write clean, maintainable code: extract reusable logic, follow DRY, use meaningful names, and keep
   functions/methods focused on a single responsibility
-- When touching existing code, improve what you touch -- but keep changes scoped; ask user if unsure
+- When touching existing code, improve what you touch. Genuine speculative refactors (reshaping
+  unrelated modules, adding abstractions for hypothetical future needs) are the only things to
+  keep out -- but cleanup, warning fixes, and obvious improvements in the files you're already
+  reading are **in scope by default**, not "maybe next PR" material.
 - **Leave no mess.** When something becomes unused or obsolete as part of your change -- a flag, a
   parameter, a branch, a helper -- remove it in the same change. Dead code that lingers becomes the
-  next engineer's confusion. If you notice something unrelated that should be cleaned up, point it
-  out rather than silently leaving it.
+  next engineer's confusion. If you notice something unrelated that should be cleaned up, fix it
+  too rather than just pointing it out and moving on.
+
+## Scope of Active Work
+
+**User-reported issues during a session are always in scope. Full stop.** Do not ask "should I
+also look at X?" when X is something the user raised in the same conversation. Do not propose
+deferring related findings to "a separate PR" as if organizational neatness were a value -- it
+isn't, and constantly narrowing scope is its own failure mode.
+
+- **If the user raised it, it's in scope.** No permission-seeking required.
+- **If you found it while investigating (Boy Scout), it's in scope by default.** Warnings, dead
+  code, broken checks, stale comments -- fix them in the same change. The only reason to pause is
+  if the fix is genuinely outsized (large refactor, cross-cutting, risks scope creep) -- in which
+  case, stop and discuss with the user.
+- **Single-issue PRs are not a virtue.** Bundling related fixes into one PR is fine and often
+  preferred. Never split work just to keep a PR "clean" -- that's churn, not hygiene. PRs are
+  session batches, not topically pure deliverables.
+- **Stop asking "is this in scope?"** If the question even occurs to you, the answer is almost
+  always yes. Do the work and report what you did. Reserve the scope question for genuine
+  off-topic tangents -- not adjacent cleanup inside files you're already editing.
 
 ## Bias Toward Action
 
@@ -131,7 +179,55 @@ context by only loading when relevant.
 
 - Always run verification (lint, typecheck, tests) before reporting work as complete.
   **All checks must pass** -- do not ignore failures just because they seem unrelated; ask user if unsure.
+- **Zero tolerance for warnings and diagnostics -- even "unrelated" ones.** The goal is a clean
+  slate: no warnings, lint errors, type errors, failing tests, or IDE/SourceKit diagnostics in
+  anything the project touches. When any surface during your work -- whether your change caused
+  them or they were already there -- the **default is to fix them in the same change**, even if
+  they appear unrelated to the task. Do not invoke "pre-existing" or "unrelated" as a reason to
+  move on; those are the exact rationalizations that let cruft accumulate until real regressions
+  hide in the noise. If a fix is genuinely outsized for the current task (large refactor, touches
+  many files, risks scope creep), **stop and discuss with the user** before deferring -- the user
+  decides, not you. Silent dismissal is never acceptable. Over time this bar should make
+  encounters with stray diagnostics rare, not routine.
 - Ask yourself if a staff+ engineer would approve of what you've written and iterate, if not.
+
+### Verify the Full End-to-End Outcome
+
+The goal is to verify what the actual *consumer* of the work would experience — not just that the
+technical artifact you produced exists or passed an isolated check. Who that consumer is depends on
+context: an end user opening a deployed app, a developer running a scaffolded project's own scripts,
+an analyst querying a pipeline's output dataset, a downstream team importing a published package.
+
+**Don't stop at the first positive signal.** Each layer of a system can succeed independently while
+the integration fails. A green build doesn't mean the app runs. A running container doesn't mean it
+serves real data. A generated file doesn't mean the command that reads it works. Keep verifying
+until you've confirmed the outcome from the consumer's point of view.
+
+**Use the same entry points the consumer would.** Verifying pieces independently — checking that
+files exist, that individual steps exited 0, that a health endpoint returns 200 — can miss
+integration mismatches that only appear when the system is exercised end-to-end the way it's
+actually used.
+
+**Upfront success criteria.** For complex multi-step tasks, list what "done" looks like *before*
+starting and confirm it matches expectations. This prevents the incremental-reveal pattern where
+each round of checking uncovers another unchecked layer.
+
+**Examples across different problem domains:**
+
+- *Deployed web + API + database:* The page renders real content → the frontend reaches the API →
+  the API returns live database rows → seed data is present. "Service is RUNNING" is not done.
+
+- *Scaffolded project template:* The generated project's own scripts (`install`, `build`, `test`)
+  all succeed end-to-end. Independently checking that expected files exist can miss wiring issues
+  between scaffolded pieces — verify using the same commands the developer would actually run.
+
+- *Data pipeline:* The output dataset contains the expected rows for known inputs — not just that
+  each transformation step exited 0. A pipeline can complete cleanly while producing empty or
+  malformed output if an upstream join silently drops records.
+
+- *Published package or library:* A fresh install in a new project can import the package and call
+  its exports. Build artifacts in `dist/` existing is not the same as the package being consumable
+  downstream — the `exports` map, `main` field, or peer dep resolution may still be broken.
 
 ## Blocked commands
 

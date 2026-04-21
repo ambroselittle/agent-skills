@@ -59,6 +59,8 @@ PACKAGE_REGISTRY: dict[str, tuple[str, str]] = {
     "testing_library_jest_dom": ("@testing-library/jest-dom", "npm"),
     "jsdom": ("jsdom", "npm"),
     "dotenv": ("dotenv", "npm"),
+    "tsx": ("tsx", "npm"),
+    "tsup": ("tsup", "npm"),
     # GraphQL
     "graphql": ("graphql", "npm"),
     "graphql_yoga": ("graphql-yoga", "npm"),
@@ -274,12 +276,26 @@ def resolve_versions(
             cache = json.loads(cache_path.read_text())
             cached_at = cache.get("cached_at", 0)
             if time.time() - cached_at < 86400:  # 24 hours
-                print(
-                    f"Using cached versions from {cache.get('cached_at_human', 'unknown')}. "
-                    "Pass --fresh to re-resolve.",
-                    file=sys.stderr,
-                )
-                return cache["versions"]
+                cached_versions = cache["versions"]
+                # Validate cache covers everything the template actually needs.
+                # New version keys added to templates after the cache was written
+                # would cause a Jinja2 UndefinedError at render time — catch it here.
+                required_keys = discover_required_keys(template_name)
+                missing = required_keys - set(cached_versions.keys())
+                if not missing:
+                    print(
+                        f"Using cached versions from {cache.get('cached_at_human', 'unknown')}. "
+                        "Pass --fresh to re-resolve.",
+                        file=sys.stderr,
+                    )
+                    return cached_versions
+                else:
+                    print(
+                        f"Cache missing {len(missing)} key(s)"
+                        f" ({', '.join(sorted(missing))}) — re-resolving fresh.",
+                        file=sys.stderr,
+                    )
+                    # Fall through to full fresh resolution below
         except (json.JSONDecodeError, KeyError):
             pass  # Corrupted cache, re-resolve
 

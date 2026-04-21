@@ -1,5 +1,6 @@
 {
   "platform": "ts",
+  "description": "React + Hono + GraphQL (Yoga/Pothos) + Apollo Client + Prisma + Postgres + Tailwind/shadcn",
   "extends": "fullstack-ts",
   "exclude": [
     "apps/api/src/router.ts.j2",

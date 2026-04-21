@@ -31,5 +31,6 @@ dist/
 .work/
 .superset/
 install-deps.sh
+.claude/scheduled_tasks.lock
 
 .turbo/

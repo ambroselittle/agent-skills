@@ -25,7 +25,9 @@ def test_run_cmd_success():
 
 
 def test_run_cmd_failure_raises():
-    with patch("scripts.init_git.subprocess.run", return_value=_mock_run(returncode=1, stderr="bad")):
+    with patch(
+        "scripts.init_git.subprocess.run", return_value=_mock_run(returncode=1, stderr="bad")
+    ):
         with pytest.raises(subprocess.CalledProcessError):
             run_cmd(["git", "bad-command"], Path("/tmp"))
 

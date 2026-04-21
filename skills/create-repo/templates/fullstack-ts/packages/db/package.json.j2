@@ -2,22 +2,24 @@
   "name": "{{ scope }}/db",
   "private": true,
   "type": "module",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
     "generate": "prisma generate && tsx scripts/generate-barrel.ts",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "build": "tsc",
+    "build": "tsup && tsc --emitDeclarationOnly",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@prisma/client": "{{ versions.prisma_client }}",
     "@prisma/adapter-pg": "{{ versions.prisma_adapter_pg }}",
-    "dotenv": "latest"
+    "dotenv": "{{ versions.dotenv }}"
   },
   "devDependencies": {
     "prisma": "{{ versions.prisma }}",
-    "tsx": "latest",
+    "tsup": "{{ versions.tsup }}",
+    "tsx": "{{ versions.tsx }}",
     "typescript": "{{ versions.typescript }}"
   }
 }

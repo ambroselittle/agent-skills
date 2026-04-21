@@ -1,3 +1,4 @@
 {
-  "platform": "ts"
+  "platform": "ts",
+  "description": "React + Hono + tRPC + Prisma + Postgres + Tailwind/shadcn"
 }

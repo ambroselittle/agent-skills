@@ -1,5 +1,6 @@
 {
   "platform": ["ts", "python"],
+  "description": "React + FastAPI + Postgres + Tailwind/shadcn",
   "extends": "fullstack-ts",
   "exclude": [
     "apps/api/**",
