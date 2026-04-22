@@ -140,22 +140,40 @@ context-dependent fixes), coordinate as a hub and delegate to parallel sub-agent
 
 ## Scope of Active Work
 
-**User-reported issues during a session are always in scope. Full stop.** Do not ask "should I
-also look at X?" when X is something the user raised in the same conversation. Do not propose
-deferring related findings to "a separate PR" as if organizational neatness were a value -- it
-isn't, and constantly narrowing scope is its own failure mode.
+**User-reported issues during a session are always in scope.** Do not ask "should I
+also look at X?" when X is something the user raised. Do not defer related findings
+to "a separate PR" for organizational neatness -- that's its own failure mode.
 
 - **If the user raised it, it's in scope.** No permission-seeking required.
-- **If you found it while investigating (Boy Scout), it's in scope by default.** Warnings, dead
-  code, broken checks, stale comments -- fix them in the same change. The only reason to pause is
-  if the fix is genuinely outsized (large refactor, cross-cutting, risks scope creep) -- in which
-  case, stop and discuss with the user.
-- **Single-issue PRs are not a virtue.** Bundling related fixes into one PR is fine and often
-  preferred. Never split work just to keep a PR "clean" -- that's churn, not hygiene. PRs are
-  session batches, not topically pure deliverables.
-- **Stop asking "is this in scope?"** If the question even occurs to you, the answer is almost
-  always yes. Do the work and report what you did. Reserve the scope question for genuine
-  off-topic tangents -- not adjacent cleanup inside files you're already editing.
+- **If you found it while investigating, it's in scope by default.** Warnings, dead
+  code, broken checks, stale comments -- fix them in the same change.
+- **Single-issue PRs are not a virtue.** Bundle related fixes.
+- **Stop asking "is this in scope?"** If the question occurs to you, the answer is
+  almost always yes.
+
+### Red-flag phrases — stop signs
+
+If you catch yourself composing any of these, you are probably drifting:
+
+- "not related to our current changes" / "unrelated to this change"
+- "we can address this in a follow-up PR" / "separate PR"
+- "out of scope" / "beyond the current scope"
+- "save those for later" / "as a follow-up" / "to keep this tight"
+- "there's muscle memory" / "not worth the churn"
+
+Legitimate reasons to defer: materially expanded risk, the user said "just this one
+thing," or a hotfix where correctness-over-completeness is a conscious trade. That
+is the whole list.
+
+### Present options neutrally
+
+When offering options, give the options -- not your lean. "We could do X, Y, or Z"
+not "We could do X, Y, or Z, and I'd recommend Y." Unsolicited recommendations are
+noise; the user will ask if they want your take.
+
+This especially matters when one of the options is narrower than what the user
+already asked for -- offering the smaller variant as your lean is the descope
+pattern wearing a menu.
 
 ## Bias Toward Action
 
