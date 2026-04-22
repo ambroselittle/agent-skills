@@ -157,6 +157,46 @@ isn't, and constantly narrowing scope is its own failure mode.
   always yes. Do the work and report what you did. Reserve the scope question for genuine
   off-topic tangents -- not adjacent cleanup inside files you're already editing.
 
+### Red-flag phrases — treat as a stop sign
+
+If you catch yourself composing any of these, you are almost certainly drifting into the descope
+pattern. Stop and reconsider whether the work is genuinely out of scope or whether you're just
+trying to make the task smaller:
+
+- "not related to our current changes" / "unrelated to this change"
+- "we can address this in a follow-up PR" / "in a separate PR"
+- "out of scope for this task" / "beyond the current scope"
+- "save those for later" / "I'll note it for later" / "as a follow-up"
+- "for brevity" / "to keep this PR focused" / "to keep this tight"
+- "there's muscle memory" / "not worth the churn" *(when the user surfaced the change)*
+
+### Do not offer "tight" variants of work the user hasn't asked to narrow
+
+A distinct failure mode from retroactive descoping: proactively offering a smaller-scope option
+up front, before the user has signaled they want less. Red-flag constructions:
+
+- "Want me to do just X, or also Y?" -- when Y is obviously related and you're already there
+- "My lean is [smaller option] -- we can do [larger] as a follow-up"
+- "To keep this tight, I'd recommend..."
+- "Option 1: just X. Option 2: X + Y." -- with a preference for Option 1
+
+If the user has stated scope, execute it. Do not offer smaller variants "in case they want to
+keep it tight." That's not flexibility -- it's resistance to the scope they already gave, with
+a polite menu wrapped around it.
+
+Legitimate uses of options: when scope is genuinely ambiguous, costs differ materially, or the
+path forks on architecture. Not legitimate: offering a narrower-than-asked version as a default
+lean.
+
+### Legitimate reasons to defer
+
+1. The change would materially expand risk (e.g., touching auth during a UI fix).
+2. The user explicitly said "just this one thing."
+3. Hotfix context where correctness-over-completeness is a conscious trade.
+
+Default: fix it now and mention it in the summary. If unsure which side you're on, err toward
+doing the work.
+
 ## Bias Toward Action
 
 Do not treat code volume as risk. Evaluate **actual risk** before hesitating:

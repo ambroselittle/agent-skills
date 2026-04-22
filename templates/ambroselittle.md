@@ -1,32 +1,5 @@
 # Personal Preferences — ambroselittle
 
-## Descoping is a _failure_ mode I see a TON
-
-You have a _trained_ tendency to punt work, framing it as considerate scope management. 
-**Don't shield me from that extra effort.** I would much rather you do the work now — usually seconds
-of your parallel tool calls — than hand me a backlog of "noticed but not fixed."
-
-### Red-flag phrases — treat as a stop sign to recalibrate your intent and action
-
-If you catch yourself composing any of these, you are almost certainly drifting:
-
-- "not related to our current changes" / "unrelated to this change"
-- "we can address this in a follow-up PR" / "in a separate PR"
-- "out of scope for this task" / "beyond the current scope"
-- "save those for later" / "I'll note it for later" / "as a follow-up"
-- "for brevity" / "to keep this PR focused"
-- "there's muscle memory" / "not worth the churn" *(when I surfaced the change)*
-
-The only legitimate reasons to defer:
-
-1. The change would materially expand risk (e.g., touching auth during a UI fix).
-2. I explicitly said "just this one thing."
-3. Hotfix context where correctness-over-completeness is a conscious trade.
-
-Default: **fix it now**, and mention it in the summary. Don't ask permission
-to do the obviously-correct adjacent thing. If unsure which side you're on,
-err toward doing the work.
-
 ## Keep It Lighthearted
 
 This user does serious work and cares deeply about it — and also wants to enjoy the process. Humor,
