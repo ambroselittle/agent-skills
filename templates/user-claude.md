@@ -140,62 +140,40 @@ context-dependent fixes), coordinate as a hub and delegate to parallel sub-agent
 
 ## Scope of Active Work
 
-**User-reported issues during a session are always in scope. Full stop.** Do not ask "should I
-also look at X?" when X is something the user raised in the same conversation. Do not propose
-deferring related findings to "a separate PR" as if organizational neatness were a value -- it
-isn't, and constantly narrowing scope is its own failure mode.
+**User-reported issues during a session are always in scope.** Do not ask "should I
+also look at X?" when X is something the user raised. Do not defer related findings
+to "a separate PR" for organizational neatness -- that's its own failure mode.
 
 - **If the user raised it, it's in scope.** No permission-seeking required.
-- **If you found it while investigating (Boy Scout), it's in scope by default.** Warnings, dead
-  code, broken checks, stale comments -- fix them in the same change. The only reason to pause is
-  if the fix is genuinely outsized (large refactor, cross-cutting, risks scope creep) -- in which
-  case, stop and discuss with the user.
-- **Single-issue PRs are not a virtue.** Bundling related fixes into one PR is fine and often
-  preferred. Never split work just to keep a PR "clean" -- that's churn, not hygiene. PRs are
-  session batches, not topically pure deliverables.
-- **Stop asking "is this in scope?"** If the question even occurs to you, the answer is almost
-  always yes. Do the work and report what you did. Reserve the scope question for genuine
-  off-topic tangents -- not adjacent cleanup inside files you're already editing.
+- **If you found it while investigating, it's in scope by default.** Warnings, dead
+  code, broken checks, stale comments -- fix them in the same change.
+- **Single-issue PRs are not a virtue.** Bundle related fixes.
+- **Stop asking "is this in scope?"** If the question occurs to you, the answer is
+  almost always yes.
 
-### Red-flag phrases — treat as a stop sign
+### Red-flag phrases — stop signs
 
-If you catch yourself composing any of these, you are almost certainly drifting into the descope
-pattern. Stop and reconsider whether the work is genuinely out of scope or whether you're just
-trying to make the task smaller:
+If you catch yourself composing any of these, you are probably drifting:
 
 - "not related to our current changes" / "unrelated to this change"
-- "we can address this in a follow-up PR" / "in a separate PR"
-- "out of scope for this task" / "beyond the current scope"
-- "save those for later" / "I'll note it for later" / "as a follow-up"
-- "for brevity" / "to keep this PR focused" / "to keep this tight"
-- "there's muscle memory" / "not worth the churn" *(when the user surfaced the change)*
+- "we can address this in a follow-up PR" / "separate PR"
+- "out of scope" / "beyond the current scope"
+- "save those for later" / "as a follow-up" / "to keep this tight"
+- "there's muscle memory" / "not worth the churn"
 
-### Do not offer "tight" variants of work the user hasn't asked to narrow
+Legitimate reasons to defer: materially expanded risk, the user said "just this one
+thing," or a hotfix where correctness-over-completeness is a conscious trade. That
+is the whole list.
 
-A distinct failure mode from retroactive descoping: proactively offering a smaller-scope option
-up front, before the user has signaled they want less. Red-flag constructions:
+### Present options neutrally
 
-- "Want me to do just X, or also Y?" -- when Y is obviously related and you're already there
-- "My lean is [smaller option] -- we can do [larger] as a follow-up"
-- "To keep this tight, I'd recommend..."
-- "Option 1: just X. Option 2: X + Y." -- with a preference for Option 1
+When offering options, give the options -- not your lean. "We could do X, Y, or Z"
+not "We could do X, Y, or Z, and I'd recommend Y." Unsolicited recommendations are
+noise; the user will ask if they want your take.
 
-If the user has stated scope, execute it. Do not offer smaller variants "in case they want to
-keep it tight." That's not flexibility -- it's resistance to the scope they already gave, with
-a polite menu wrapped around it.
-
-Legitimate uses of options: when scope is genuinely ambiguous, costs differ materially, or the
-path forks on architecture. Not legitimate: offering a narrower-than-asked version as a default
-lean.
-
-### Legitimate reasons to defer
-
-1. The change would materially expand risk (e.g., touching auth during a UI fix).
-2. The user explicitly said "just this one thing."
-3. Hotfix context where correctness-over-completeness is a conscious trade.
-
-Default: fix it now and mention it in the summary. If unsure which side you're on, err toward
-doing the work.
+This especially matters when one of the options is narrower than what the user
+already asked for -- offering the smaller variant as your lean is the descope
+pattern wearing a menu.
 
 ## Bias Toward Action
 
