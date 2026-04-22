@@ -176,8 +176,18 @@ CLAIMED=1
 # ----- Phase 3: shallow clone -----
 
 CLONE_DIR="/tmp/wtf-worker-${WORK_NUM}-$(date -u +%Y%m%dT%H%M%SZ)"
-log "cloning $REPO to $CLONE_DIR (--depth 1)"
-git clone --depth 1 "git@github.com:$REPO.git" "$CLONE_DIR" 2>&1 | tee -a "$LOG_FILE" >&2
+log "cloning $REPO to $CLONE_DIR (--depth 1, HTTPS)"
+
+# HTTPS for the throwaway clone + gh as credential helper for push/fetch
+# from inside the clone. Rationale: launchd's sandbox can't reach the
+# 1Password SSH agent socket, so SSH auth fails. Using HTTPS with gh's
+# credential helper keeps auth off the disk (no token in URLs or config)
+# while letting the worker clone/push autonomously. This protocol choice
+# applies ONLY to this disposable /tmp/ clone — it does not alter any
+# real repo's origin.
+git clone --depth 1 \
+  --config "credential.helper=!gh auth git-credential" \
+  "https://github.com/$REPO.git" "$CLONE_DIR" 2>&1 | tee -a "$LOG_FILE" >&2
 
 if [ "$MODE" = "iterate" ]; then
   cd "$CLONE_DIR"
