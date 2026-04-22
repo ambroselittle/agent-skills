@@ -23,6 +23,12 @@
     <string>{{HOME}}</string>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:{{HOME}}/.local/bin</string>
+    <!-- macOS TCC blocks launchd from iCloud-synced paths, which breaks
+         users whose ~/.gitconfig is a symlink into ~/Library/Mobile Documents.
+         The installer snapshots the resolved gitconfig into a launchd-readable
+         location and points GIT_CONFIG_GLOBAL here. -->
+    <key>GIT_CONFIG_GLOBAL</key>
+    <string>{{HOME}}/.agent-skills/wtf-worker.gitconfig</string>
   </dict>
 
   <!--

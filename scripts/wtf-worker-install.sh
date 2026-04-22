@@ -36,7 +36,26 @@ case "$mode" in
       exit 1
     fi
 
-    mkdir -p "$(dirname "$PLIST_DEST")" "$LOG_DIR"
+    mkdir -p "$(dirname "$PLIST_DEST")" "$LOG_DIR" "$HOME/.agent-skills"
+
+    # Snapshot the user's gitconfig to a launchd-accessible location.
+    #
+    # macOS TCC blocks launchd agents from reading iCloud-synced paths
+    # (~/Library/Mobile Documents/...). Users commonly symlink their
+    # dotfiles into iCloud, which breaks git inside launchd ("unable to
+    # access '~/.gitconfig': Operation not permitted"). We resolve the
+    # symlink at install time (when we're in the user session and have
+    # full permissions) and write a plain copy under ~/.agent-skills/,
+    # which the launchd agent CAN read. The plist points
+    # GIT_CONFIG_GLOBAL at that snapshot.
+    GITCONFIG_SNAPSHOT="$HOME/.agent-skills/wtf-worker.gitconfig"
+    if [ -r "$HOME/.gitconfig" ]; then
+      cat "$HOME/.gitconfig" > "$GITCONFIG_SNAPSHOT"
+      echo "  Gitconfig snapshot: $GITCONFIG_SNAPSHOT"
+    else
+      echo "⚠ ~/.gitconfig not readable — worker will use an empty git config." >&2
+      : > "$GITCONFIG_SNAPSHOT"
+    fi
 
     # Render placeholders. Using pipe separators in sed since paths contain /.
     sed -e "s|{{REPO_ROOT}}|$REPO_ROOT|g" \
