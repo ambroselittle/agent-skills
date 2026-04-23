@@ -24,11 +24,13 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 ts_file=$(date -u +%Y%m%dT%H%M%SZ)
 ts_iso=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-# Slug from the message: lowercase, non-alnum collapsed to -, trimmed, max 40 chars.
+# Slug from the message: normalize whitespace (including newlines) to single spaces first,
+# then lowercase, non-alnum collapsed to -, trimmed, max 80 chars.
 slug=$(printf '%s' "$message" \
+  | tr -s '[:space:]' ' ' \
   | tr '[:upper:]' '[:lower:]' \
   | sed -E 's/[^a-z0-9]+/-/g; s/^-//; s/-$//' \
-  | cut -c1-40 \
+  | cut -c1-80 \
   | sed -E 's/-$//')
 slug=${slug:-untitled}
 
