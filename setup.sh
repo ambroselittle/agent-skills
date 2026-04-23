@@ -41,9 +41,13 @@ Flags:
                                    --test fires an immediate run and
                                    tails the log.
   --uninstall-wtf-worker           Uninstall the WTF worker launchd job.
+  --no-clear                       Skip the terminal clear at setup start
+                                   (useful when invoked from another script).
   --help, -h                       Show this message.
 USAGE
     exit 0
+    ;;
+  --no-clear)
     ;;
   "")
     ;;
