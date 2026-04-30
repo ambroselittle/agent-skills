@@ -20,6 +20,8 @@ You are a senior engineer executing a well-scoped implementation plan. Your job 
 - Open PR: !`~/.claude/skills/shared/scripts/context.sh open-pr`
 - PR template: !`~/.claude/skills/shared/scripts/context.sh pr-template`
 
+**Setup check:** If the pre-loaded `Work folder` shows `needs-setup`, stop immediately: "Agent-skills isn't configured yet — run `/setup-agent-skills` first, then come back here."
+
 ---
 
 ## Phase 0: Orient
@@ -28,8 +30,8 @@ You are a senior engineer executing a well-scoped implementation plan. Your job 
 
 Use the pre-loaded `Work folder` to locate the plan directory. Read `<work-folder>/plan.md`.
 
-- **Work folder is "none"** (on main/master or no matching work directory): "No plan found for this branch. Run `/plan-work` to create one, or tell me the slug or path to the right `.work/` directory."
-- **Plan file missing** despite a work folder existing: same message.
+- **Work folder is `none`** (on main/master): "No plan found for this branch. Run `/plan-work` to create one, or switch to your feature branch."
+- **Plan file missing** at `<work-folder>/plan.md`: "Work folder found at `<path>` but no plan.md inside. Run `/plan-work` to create the plan."
 - **`status: complete`**: "This plan is marked complete. Want to re-run a specific phase, or start fresh?"
 - **Uncommitted changes present** (from pre-loaded context): "There are uncommitted changes from a previous run. Want to continue from where things left off, or reset to a clean state?" Wait for their answer — do not make this decision automatically.
 
@@ -136,7 +138,7 @@ If checks fail: fix and re-run once. If still failing: **stop and report** — d
 **Step 2 — Commit:**
 1. Stage only the files that belong to this task — be specific. Don't `git add .` unless you've verified every changed file is part of this task.
 2. Commit with the message from the plan task line.
-3. Update `.work/<slug>/plan.md`: mark the task `[x]`.
+3. Update `<work-folder>/plan.md`: mark the task `[x]`.
 
 After all tasks committed, update the plan:
 - Update phase header to `~~Phase N: <name>~~ ✓`
@@ -177,7 +179,7 @@ Use the repo's PR template if one exists (check pre-loaded `pr-template` context
 - Exception: call out a specific file if it's the primary interface point
 
 **Derive PR body from:**
-- Plan at `.work/<slug>/plan.md` — goal, scope, phases completed
+- Plan at `<work-folder>/plan.md` — goal, scope, phases completed
 - `git log --oneline @{u}..` for commit history
 - Key decisions from plan's Context, Open Questions, and Lessons sections
 
@@ -200,7 +202,7 @@ gh pr create --title "<title>" --body "<body>"
 
 ### Step 4: Update the Plan and Linear Issue
 
-Update `.work/<slug>/plan.md` frontmatter:
+Update `<work-folder>/plan.md` frontmatter:
 - Set `status: pr-open`
 - Add `pr: <PR-URL>`
 

@@ -13,7 +13,19 @@ case "$1" in
     ;;
   user-slug)
     # The engineer's personal slug (used for branch prefixes), e.g. "ambrose".
-    # Override: create ~/.claude/user-slug with your preferred slug.
+    # Priority: ~/.claude/agent-skills.json user_prefix → ~/.claude/user-slug → git user.name
+    _config="$HOME/.claude/agent-skills.json"
+    if [ -f "$_config" ]; then
+      _prefix=$(python3 -c "
+import json, sys
+try:
+  d = json.load(open('$_config'))
+  p = d.get('user_prefix', '')
+  if p: print(p)
+except: pass
+" 2>/dev/null)
+      [ -n "$_prefix" ] && echo "$_prefix" && exit 0
+    fi
     if [ -f ~/.claude/user-slug ]; then
       cat ~/.claude/user-slug
     else
@@ -39,23 +51,35 @@ case "$1" in
     git log --oneline -5 2>/dev/null || echo "no commits"
     ;;
   work-folder)
-    # Finds the .work/<slug> directory for the current branch, or "none".
-    # Strips user prefix (e.g. "ambrose/eng-42-foo" → "eng-42-foo"), extracts ticket
-    # token ([A-Z]+-\d+), then scans .work/ for a matching directory.
-    # Falls back to exact slug match if no ticket token found.
+    # Resolves the work folder for the current branch using ~/.claude/agent-skills.json.
+    # Returns: needs-setup | none | <absolute-path>
+    # "needs-setup" means no config exists. "none" means on main/master.
+    # Otherwise returns the path (existing directory or derived path for new plans).
+    _config="$HOME/.claude/agent-skills.json"
+    if [ ! -f "$_config" ]; then echo "needs-setup"; exit 0; fi
+    _work_root=$(python3 -c "
+import json, os, sys
+try:
+  d = json.load(open('$_config'))
+  r = d.get('work_root', '')
+  print(os.path.expanduser(r) if r else '')
+except: pass
+" 2>/dev/null)
+    if [ -z "$_work_root" ]; then echo "needs-setup"; exit 0; fi
     _branch=$(git branch --show-current 2>/dev/null)
     case "$_branch" in main|master|"") echo "none"; exit 0 ;; esac
     _slug="${_branch#*/}"
     _token=$(echo "$_slug" | grep -oiE '[a-z]+-[0-9]+' | head -1)
     _found=""
-    if [ -n "$_token" ] && [ -d .work ]; then
-      _found=$(find .work -maxdepth 1 -type d -iname "${_token}-*" 2>/dev/null | sort | head -1)
-      [ -z "$_found" ] && _found=$(find .work -maxdepth 1 -type d -iname "${_token}" 2>/dev/null | head -1)
+    if [ -n "$_token" ] && [ -d "$_work_root" ]; then
+      _found=$(find "$_work_root" -maxdepth 1 -type d -iname "${_token}-*" 2>/dev/null | sort | head -1)
+      [ -z "$_found" ] && _found=$(find "$_work_root" -maxdepth 1 -type d -iname "${_token}" 2>/dev/null | head -1)
     fi
-    if [ -z "$_found" ] && [ -d .work ]; then
-      _found=$(find .work -maxdepth 1 -type d -name "$_slug" 2>/dev/null | head -1)
+    if [ -z "$_found" ] && [ -d "$_work_root" ]; then
+      _found=$(find "$_work_root" -maxdepth 1 -type d -name "$_slug" 2>/dev/null | head -1)
     fi
-    [ -n "$_found" ] && echo "$_found" || echo "none"
+    # Return found dir or derived path (caller checks if plan.md exists within it)
+    [ -n "$_found" ] && echo "$_found" || echo "$_work_root/$_slug"
     ;;
   ticket-id)
     # Extracts the ticket ID from the current branch name (e.g. "ENG-42"), or "none".
@@ -66,8 +90,19 @@ case "$1" in
     [ -n "$_ticket" ] && echo "$_ticket" || echo "none"
     ;;
   plans-in-progress)
-    # Space-separated list of active work slugs (excludes done/), e.g. "issue-42-foo issue-99-bar".
-    find .work -maxdepth 3 -name plan.md 2>/dev/null | sed 's|/plan.md$||' | sed 's|^\.work/||' | grep -v '^done' | tr '\n' ' ' || echo "failed to discover"
+    # Lists active work slugs from the configured work_root, e.g. "eng-42-foo eng-99-bar".
+    _config="$HOME/.claude/agent-skills.json"
+    _work_root=$(python3 -c "
+import json, os, sys
+try:
+  d = json.load(open('$_config'))
+  r = d.get('work_root', '')
+  print(os.path.expanduser(r) if r else '')
+except: pass
+" 2>/dev/null)
+    if [ -z "$_work_root" ] || [ ! -d "$_work_root" ]; then echo "none"; exit 0; fi
+    find "$_work_root" -maxdepth 2 -name plan.md 2>/dev/null \
+      | sed "s|$_work_root/||" | sed 's|/plan.md$||' | grep -v '^done' | tr '\n' ' ' || echo "none"
     ;;
   unpushed)
     # Commits ahead of the upstream tracking branch (up to 10).

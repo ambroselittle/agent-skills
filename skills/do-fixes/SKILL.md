@@ -17,12 +17,14 @@ and applies the appropriate fixes.
 
 ### Context Detection
 
-Scan `.work/<slug>/reviews/` for the most recent review artifact:
+Scan `<work-folder>/reviews/` for the most recent review artifact:
 - **`*.review.*.md`** (code-review output) → apply code fixes using the flow below
 - *(Future: plan-review artifacts → apply plan improvements)*
 
 The review document contains findings with checkboxes — checked `[x]` findings get fixed,
 unchecked `[ ]` findings get skipped.
+
+**Setup check:** If the pre-loaded `Work folder` shows `needs-setup`, stop: "Run `/setup-agent-skills` first to configure your work folder, then come back."
 
 **Pre-loaded context:**
 - Current branch: !`~/.claude/skills/shared/scripts/context.sh current-branch`
@@ -42,10 +44,10 @@ unchecked `[ ]` findings get skipped.
 
 If a path was provided as argument, use it. Otherwise, auto-discover:
 
-1. Use the pre-loaded `Work folder`. If "none", fall back to `.work/general/reviews/`.
+1. Use the pre-loaded `Work folder`. If `none` (on main), ask the user which branch this review is for.
 2. Look in `<work-folder>/reviews/` for review files (`*.review.*.md`).
 3. Use the most recent one (by date in filename).
-4. If no review doc found in the work folder, fall back to `.work/general/reviews/`.
+4. If no review doc found: "No review document found. Run `/code-review` first to generate one."
 
 If still no review doc: "No review document found. Run `/code-review` first to generate one."
 
@@ -191,7 +193,7 @@ Update with `gh pr edit <pr-number> --body "<updated-body>"`.
 
 First, re-read the review document from disk — your in-context copy may be stale after parallel fix agents updated it:
 ```bash
-cat .work/<ticket>/reviews/<review-filename>.md
+cat <work-folder>/reviews/<review-filename>.md
 ```
 
 Then spawn a sub-agent (`model: sonnet`) with the following:

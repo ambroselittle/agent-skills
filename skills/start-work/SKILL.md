@@ -40,7 +40,7 @@ Apply the standard slug rules:
 
 - Pattern: `<lowercase-team>-<number>-<title-fragment>` — e.g. `eng-42-dark-mode-settings`
 - **72-char max.** If a naive kebab-case of the title would exceed it, reformulate a concise but meaningful summary — do not blindly truncate. The `<team>-<number>-` prefix is never shortened.
-- This slug is used for: the Superset workspace name, the branch name suffix, and the future `.work/<slug>/` directory.
+- This slug is used for: the Superset workspace name, the branch name suffix, and the future the work folder directory.
 
 **Branch name:** `<user-prefix>/<slug>` — e.g. `ambrose/eng-42-dark-mode-settings`
 
@@ -150,4 +150,4 @@ If any Superset tool call fails with an auth or connection error:
 
 - **Confirm slug before creating anything.** One question, then proceed.
 - **Don't plan yet.** `/plan-work` handles intake and discovery — this skill is workspace setup only.
-- **One slug, used everywhere.** Same value → workspace name, branch suffix, future `.work/<slug>/`.
+- **One slug, used everywhere.** Same value → workspace name, branch suffix, future the work folder.

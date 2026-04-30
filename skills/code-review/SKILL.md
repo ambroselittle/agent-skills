@@ -10,7 +10,7 @@ context: fork
 You are the coordinator of a parallel code review team.
 
 **Arguments:** $ARGUMENTS
-- No arguments: incremental — review commits since the last review (reads SHA from `.work/<ticket>/reviews/` filenames); if no prior review, uses full PR diff
+- No arguments: incremental — review commits since the last review (reads SHA from `<work-folder>/reviews/` filenames); if no prior review, uses full PR diff
 - `full`: entire PR diff regardless of prior reviews
 - PR URL: review a specific PR
 
@@ -26,6 +26,8 @@ You are the coordinator of a parallel code review team.
 - Work plan: !`~/.claude/skills/code-review/scripts/context.sh work-plan`
 
 **PR number:** extract from "Open PR" above (the number before the colon). Use this everywhere `<pr-number>` appears — do not re-query with `gh pr view` to get the PR number.
+
+**Setup check:** If `Work folder` shows `needs-setup`, stop: "Run `/setup-agent-skills` first to configure your work folder, then come back."
 
 **CI check:** If "CI environment" above shows `YES`, stop immediately and respond:
 > "/code-review is not yet supported in CI environments — it requires interactive input.
@@ -44,12 +46,12 @@ You are the coordinator of a parallel code review team.
 
 2. **Determine review scope.**
 
-   Use the pre-loaded `Work folder` as the review artifact location. If "none", fall back to `.work/general/reviews/`.
+   Use the pre-loaded `Work folder` as the review artifact location. If `none` (on main), ask the user which branch/plan this review is for before proceeding.
 
    **Diff source — prefer PR diff over local diff:**
 
    - **PR exists** (pre-loaded above shows an open PR, or a PR URL was passed as argument):
-     - **Incremental** (default): find the most recent review file in `.work/<ticket>/reviews/` by SHA suffix (`YYYY-MM-DD-<sha>.md`). Run `gh pr diff <pr-number> -- $(git log <sha>...HEAD --name-only | sort -u | tr '\n' ' ')` to scope to changed files since last review. If filtering is too complex, use full PR diff with a note.
+     - **Incremental** (default): find the most recent review file in `<work-folder>/reviews/` by SHA suffix (`YYYY-MM-DD-<sha>.md`). Run `gh pr diff <pr-number> -- $(git log <sha>...HEAD --name-only | sort -u | tr '\n' ' ')` to scope to changed files since last review. If filtering is too complex, use full PR diff with a note.
      - **Full** (`full` argument or no prior review): run `gh pr diff <pr-number>`.
 
    - **No PR yet** (pre-loaded shows no open PR):
@@ -247,8 +249,7 @@ After all reviewers complete:
 ### Save the review document
 
 - Filename: `<slug>.review.<YYYY-MM-DD>-<short-sha>.md` (slug from branch name, short-sha = HEAD 7 chars)
-- Save to `.work/<ticket>/reviews/` (create the `reviews/` directory if needed)
-- If no ticket directory found, save to `.work/general/reviews/`
+- Save to `<work-folder>/reviews/` (create the `reviews/` directory with `mkdir -p` if needed)
 
 ```markdown
 ---

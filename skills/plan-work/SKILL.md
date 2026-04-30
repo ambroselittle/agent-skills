@@ -1,6 +1,6 @@
 ---
 name: plan-work
-description: Plan work before writing any code. Use this at the start of any new task, feature, bug fix, or issue — give it a Linear issue ID (e.g. ENG-42), a Notion page URL (for an existing spec), a GitHub issue number (e.g. #42), or a description of what to build. Fetches context, discovers relevant code, and produces a phased implementation plan in .work/<slug>/plan.md. Always run this before /do-work.
+description: Plan work before writing any code. Use this at the start of any new task, feature, bug fix, or issue — give it a Linear issue ID (e.g. ENG-42), a Notion page URL (for an existing spec), a GitHub issue number (e.g. #42), or a description of what to build. Fetches context, discovers relevant code, and produces a phased implementation plan saved to your configured work folder. Always run this before /do-work.
 argument-hint: "[LINEAR-ID | NOTION-URL | GITHUB-ISSUE | description]"
 ---
 
@@ -17,6 +17,8 @@ You are a senior engineer helping to set up a well-scoped implementation plan be
 - User branch prefix: !`~/.claude/skills/shared/scripts/context.sh user-slug`
 - CLAUDE.md exists: !`~/.claude/skills/plan-work/scripts/context.sh claude-md-exists`
 - Repo remote (owner/repo): !`~/.claude/skills/shared/scripts/context.sh repo-remote`
+
+**Setup check:** If the pre-loaded `Work folder` shows `needs-setup`, stop immediately: "Agent-skills isn't configured yet — run `/setup-agent-skills` first (takes under a minute) to set your work folder location and branch prefix, then come back here."
 
 ---
 
@@ -41,7 +43,7 @@ Summarize the issue title and description in 2–3 sentences and proceed — no 
 **Derive the slug:**
 - Pattern: `<lowercase-team>-<number>-<title-fragment>` — e.g. `eng-42-add-dark-mode-settings`
 - **72-char max** on the slug. If a naive kebab-case of the title would exceed it, reformulate a concise but meaningful summary of the title rather than blindly truncating. Example: `eng-42-add-support-for-dark-mode-in-user-settings-and-profile-pages` → `eng-42-dark-mode-settings-profile`. The ticket prefix (`eng-42-`) is never shortened.
-- Use the same slug for: branch suffix, worktree directory name, and `.work/<slug>/` directory.
+- Use the same slug for: branch suffix, worktree directory name, and the work folder (`<work-folder>` from pre-loaded context).
 
 **Track:** store the Linear issue ID in the plan frontmatter as `linear-issue`.
 
@@ -57,7 +59,7 @@ Summarize what the Notion page describes (2–3 sentences). Then ask: "Do you al
 - If they provide a Linear ID → also fetch that issue with `mcp__claude_ai_Linear__get_issue` and use both as context
 - If not → proceed with the Notion page as the sole source
 
-**Derive the slug:** from the Notion page title. If a Linear ID was provided, prefix with it (`eng-42-<title-fragment>`); otherwise use the page title alone. Apply the same 72-char cap and AI reformulation rule — concise essence over blind truncation. Use this slug consistently for branch, worktree, and `.work/<slug>/`.
+**Derive the slug:** from the Notion page title. If a Linear ID was provided, prefix with it (`eng-42-<title-fragment>`); otherwise use the page title alone. Apply the same 72-char cap and AI reformulation rule — concise essence over blind truncation. Use this slug consistently for branch, worktree, and work folder.
 
 **Track:** store the Notion URL in the plan frontmatter as `notion-source`.
 
@@ -72,7 +74,7 @@ Summarize the issue in 2–3 sentences and proceed.
 
 **Derive the slug:**
 - Pattern: `<number>-<title-fragment>` — e.g. `42-add-dark-mode-settings`
-- Same 72-char cap and AI reformulation rule applies. Use consistently for branch, worktree, and `.work/<slug>/`.
+- Same 72-char cap and AI reformulation rule applies. Use consistently for branch, worktree, and work folder.
 
 **Track:** store the GitHub issue number in the plan frontmatter as `github-issue`.
 
@@ -123,7 +125,7 @@ If the source is already focused (a single clear task), skip this question and p
 
 First check the pre-loaded `Work folder`. If it is not "none", you are already on a branch with a matching work directory — read `<work-folder>/plan.md`, summarize its goal and current status in 1–2 sentences, and ask: "Found an existing plan for `<slug>`. Want to resume it, start fresh, or just see what's left?" Wait for their answer before proceeding.
 
-If `Work folder` is "none" but the slug derived from the issue or description matches an existing `.work/` directory, apply the same flow.
+If `Work folder` is `none` but the derived slug matches an existing directory under your work root, apply the same flow.
 
 ### Branch and worktree
 
@@ -241,7 +243,7 @@ If you're unsure how to phase the work, fewer larger phases beats more smaller o
 
 ### Plan document format
 
-Save to `.work/<slug>/plan.md`. Use this exact format so `/do-work` can read it.
+Save to `<work-folder>/plan.md` (the pre-loaded `Work folder` path — create the directory with `mkdir -p` if it doesn't exist yet). Use this exact format so `/do-work` can read it.
 
 **Structure:** Phases are logical milestones (e.g. "data model", "API", "UI"). Tasks within a phase are individual units of work, each producing its own commit. Each task should be atomic — something that leaves the codebase in a coherent, verifiable state.
 
@@ -340,7 +342,7 @@ Ask: **"Any changes to the plan before we start?"**
 - If the user requests changes: make them, then re-present the affected sections. Repeat until they're satisfied. If the scope shift is significant (new files, different approach), re-run the discovery agent for the new scope.
 - If no changes: proceed.
 
-**Then save the plan** to `.work/<slug>/plan.md` (create the directory if needed). Save only after the user has approved — don't save a draft they haven't confirmed.
+**Then save the plan** to `<work-folder>/plan.md` (`mkdir -p` the directory first). Save only after the user has approved — don't save a draft they haven't confirmed.
 
 ---
 
