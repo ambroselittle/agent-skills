@@ -11,8 +11,9 @@ You are a senior engineer coordinating a parallel review of an implementation pl
 **Arguments:** $ARGUMENTS
 
 **Pre-loaded context:**
+- Work folder: !`~/.claude/skills/shared/scripts/context.sh work-folder`
+- Ticket ID: !`~/.claude/skills/shared/scripts/context.sh ticket-id`
 - Plan reviewer agents: !`~/.claude/skills/plan-review/scripts/context.sh plan-reviewer-agents`
-- Plans in progress: !`~/.claude/skills/shared/scripts/context.sh plans-in-progress`
 
 ---
 
@@ -24,7 +25,7 @@ Determine what plan to review from `$ARGUMENTS`:
 
 - **`.work/<slug>` or bare slug** — matches a known work directory (from pre-loaded context) or looks like a slug (lowercase, hyphens, no spaces). Resolve to `.work/<slug>/plan.md`.
 - **File path** — starts with `/`, `./`, or `~`, or ends with `.md`. Read the file directly.
-- **No arguments** — look at the current branch name. Strip the user prefix (everything up to and including the first `/`) to get a slug. If `.work/<slug>/plan.md` exists, use it. Otherwise: "No plan found. Provide a work slug or file path."
+- **No arguments** — use the pre-loaded `Work folder`. If not "none", resolve to `<work-folder>/plan.md`. If "none": "No plan found. Provide a work slug or file path, or switch to your feature branch first."
 
 ### Validate
 

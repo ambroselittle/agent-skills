@@ -13,8 +13,9 @@ You are a senior engineer executing a well-scoped implementation plan. Your job 
 
 **Pre-loaded context:**
 - Current branch: !`~/.claude/skills/shared/scripts/context.sh current-branch`
+- Work folder: !`~/.claude/skills/shared/scripts/context.sh work-folder`
+- Ticket ID: !`~/.claude/skills/shared/scripts/context.sh ticket-id`
 - Uncommitted changes: !`~/.claude/skills/shared/scripts/context.sh uncommitted-changes`
-- Plans in progress: !`~/.claude/skills/shared/scripts/context.sh plans-in-progress`
 - Unpushed commits: !`~/.claude/skills/shared/scripts/context.sh unpushed`
 - Open PR: !`~/.claude/skills/shared/scripts/context.sh open-pr`
 - PR template: !`~/.claude/skills/shared/scripts/context.sh pr-template`
@@ -25,11 +26,10 @@ You are a senior engineer executing a well-scoped implementation plan. Your job 
 
 ### Find the plan
 
-Branch names include a user prefix (e.g. `ambrose/42-add-dark-mode`). Strip everything up to and including the first `/` to get the slug (`42-add-dark-mode`), then match against `.work/` subdirectory names. Also try a substring match if no exact match is found.
+Use the pre-loaded `Work folder` to locate the plan directory. Read `<work-folder>/plan.md`.
 
-Read `.work/<slug>/plan.md`.
-
-- **No plan found**: "No plan found for this branch. Run `/plan-work` to create one, or tell me the path to the right `.work/` directory."
+- **Work folder is "none"** (on main/master or no matching work directory): "No plan found for this branch. Run `/plan-work` to create one, or tell me the slug or path to the right `.work/` directory."
+- **Plan file missing** despite a work folder existing: same message.
 - **`status: complete`**: "This plan is marked complete. Want to re-run a specific phase, or start fresh?"
 - **Uncommitted changes present** (from pre-loaded context): "There are uncommitted changes from a previous run. Want to continue from where things left off, or reset to a clean state?" Wait for their answer — do not make this decision automatically.
 

@@ -38,6 +38,33 @@ case "$1" in
     # Last 5 commits, one line each.
     git log --oneline -5 2>/dev/null || echo "no commits"
     ;;
+  work-folder)
+    # Finds the .work/<slug> directory for the current branch, or "none".
+    # Strips user prefix (e.g. "ambrose/eng-42-foo" → "eng-42-foo"), extracts ticket
+    # token ([A-Z]+-\d+), then scans .work/ for a matching directory.
+    # Falls back to exact slug match if no ticket token found.
+    _branch=$(git branch --show-current 2>/dev/null)
+    case "$_branch" in main|master|"") echo "none"; exit 0 ;; esac
+    _slug="${_branch#*/}"
+    _token=$(echo "$_slug" | grep -oiE '[a-z]+-[0-9]+' | head -1)
+    _found=""
+    if [ -n "$_token" ] && [ -d .work ]; then
+      _found=$(find .work -maxdepth 1 -type d -iname "${_token}-*" 2>/dev/null | sort | head -1)
+      [ -z "$_found" ] && _found=$(find .work -maxdepth 1 -type d -iname "${_token}" 2>/dev/null | head -1)
+    fi
+    if [ -z "$_found" ] && [ -d .work ]; then
+      _found=$(find .work -maxdepth 1 -type d -name "$_slug" 2>/dev/null | head -1)
+    fi
+    [ -n "$_found" ] && echo "$_found" || echo "none"
+    ;;
+  ticket-id)
+    # Extracts the ticket ID from the current branch name (e.g. "ENG-42"), or "none".
+    # Strips user prefix, then matches [a-z]+-[0-9]+ pattern (uppercased on output).
+    _branch=$(git branch --show-current 2>/dev/null)
+    _slug="${_branch#*/}"
+    _ticket=$(echo "$_slug" | grep -oiE '[a-z]+-[0-9]+' | head -1 | tr '[:lower:]' '[:upper:]')
+    [ -n "$_ticket" ] && echo "$_ticket" || echo "none"
+    ;;
   plans-in-progress)
     # Space-separated list of active work slugs (excludes done/), e.g. "issue-42-foo issue-99-bar".
     find .work -maxdepth 3 -name plan.md 2>/dev/null | sed 's|/plan.md$||' | sed 's|^\.work/||' | grep -v '^done' | tr '\n' ' ' || echo "failed to discover"

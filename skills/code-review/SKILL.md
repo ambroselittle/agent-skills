@@ -18,6 +18,8 @@ You are the coordinator of a parallel code review team.
 - CI environment: !`~/.claude/skills/code-review/scripts/context.sh ci-status`
 - HEAD SHA: !`~/.claude/skills/shared/scripts/context.sh head-sha`
 - Current branch: !`~/.claude/skills/shared/scripts/context.sh current-branch`
+- Work folder: !`~/.claude/skills/shared/scripts/context.sh work-folder`
+- Ticket ID: !`~/.claude/skills/shared/scripts/context.sh ticket-id`
 - Open PR: !`~/.claude/skills/shared/scripts/context.sh open-pr`
 - Recent commits: !`~/.claude/skills/shared/scripts/context.sh recent-commits`
 - Reviewer agents found: !`~/.claude/skills/code-review/scripts/context.sh reviewer-agents`
@@ -42,7 +44,7 @@ You are the coordinator of a parallel code review team.
 
 2. **Determine review scope.**
 
-   Find current ticket by matching branch name against `.work/` subdirectory names. If no match, use `.work/general/reviews/`.
+   Use the pre-loaded `Work folder` as the review artifact location. If "none", fall back to `.work/general/reviews/`.
 
    **Diff source — prefer PR diff over local diff:**
 

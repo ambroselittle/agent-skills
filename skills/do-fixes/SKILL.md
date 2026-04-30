@@ -26,6 +26,8 @@ unchecked `[ ]` findings get skipped.
 
 **Pre-loaded context:**
 - Current branch: !`~/.claude/skills/shared/scripts/context.sh current-branch`
+- Work folder: !`~/.claude/skills/shared/scripts/context.sh work-folder`
+- Ticket ID: !`~/.claude/skills/shared/scripts/context.sh ticket-id`
 - HEAD SHA: !`~/.claude/skills/shared/scripts/context.sh head-sha`
 - Open PR: !`~/.claude/skills/shared/scripts/context.sh open-pr`
 - Uncommitted changes: !`~/.claude/skills/shared/scripts/context.sh uncommitted-changes`
@@ -40,10 +42,10 @@ unchecked `[ ]` findings get skipped.
 
 If a path was provided as argument, use it. Otherwise, auto-discover:
 
-1. Match the current branch name against `.work/` subdirectory names (strip user prefix — everything up to and including the first `/` — to get the slug, then match). Also try substring match if no exact match.
-2. Look in `.work/<ticket>/reviews/` for review files (`*.review.*.md`).
+1. Use the pre-loaded `Work folder`. If "none", fall back to `.work/general/reviews/`.
+2. Look in `<work-folder>/reviews/` for review files (`*.review.*.md`).
 3. Use the most recent one (by date in filename).
-4. If no review doc found, fall back to `.work/general/reviews/`.
+4. If no review doc found in the work folder, fall back to `.work/general/reviews/`.
 
 If still no review doc: "No review document found. Run `/code-review` first to generate one."
 
