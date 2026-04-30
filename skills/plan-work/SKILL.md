@@ -1,7 +1,7 @@
 ---
 name: plan-work
-description: Plan work before writing any code. Use this at the start of any new task, feature, bug fix, or issue — give it a GitHub issue number (e.g. #42), a description of what to build, or just say "plan work" to begin. Fetches context, discovers relevant code, and produces a phased implementation plan in .work/<slug>/plan.md. Always run this before /do-work.
-argument-hint: "[GITHUB-ISSUE-NUMBER | description]"
+description: Plan work before writing any code. Use this at the start of any new task, feature, bug fix, or issue — give it a Linear issue ID (e.g. ENG-42), a Notion page URL (for an existing spec), a GitHub issue number (e.g. #42), or a description of what to build. Fetches context, discovers relevant code, and produces a phased implementation plan in .work/<slug>/plan.md. Always run this before /do-work.
+argument-hint: "[LINEAR-ID | NOTION-URL | GITHUB-ISSUE | description]"
 ---
 
 # Plan Work: Plan Before You Build
@@ -21,10 +21,42 @@ You are a senior engineer helping to set up a well-scoped implementation plan be
 
 ## Phase 0: Intake
 
-Determine what you're working on:
-- A **GitHub issue** matches the pattern `#N` or is a bare number (e.g. `42`, `#42`)
-- A **GitHub issue URL** contains `github.com/.../issues/`
-- Anything else is a **free-text description**
+Determine what you're working on. Classify the argument by matching these patterns in order:
+
+- **Linear issue ID** — matches `[A-Z]+-\d+` (e.g. `ENG-42`, `CORE-7`, `LIN-123`)
+- **Notion URL** — contains `notion.so` or `notion.com`
+- **GitHub issue** — matches `#N`, a bare number, or a URL containing `github.com/.../issues/`
+- Anything else → **free-text description**
+
+### If a Linear issue ID was provided:
+
+Fetch the issue using the Linear MCP:
+```
+mcp__claude_ai_Linear__get_issue { "issueId": "<ID>" }
+```
+
+Summarize the issue title and description in 2–3 sentences and proceed — no confirmation needed unless the issue is ambiguous or has no description.
+
+**Derive the slug:**
+- Lowercase the ID prefix and number, append a title fragment: e.g. `eng-42-add-dark-mode-settings` (max 50 chars total)
+
+**Track:** store the Linear issue ID in the plan frontmatter as `linear-issue`.
+
+### If a Notion URL was provided:
+
+The Notion page is the **spec or existing plan** — it is the source of intent for this work item. Fetch it:
+```
+mcp__claude_ai_Notion__notion-fetch { "url": "<URL>" }
+```
+
+Summarize what the Notion page describes (2–3 sentences). Then ask: "Do you also have a Linear issue for this work? If so, share the ID (e.g. `ENG-42`) — I'll link it to the plan."
+
+- If they provide a Linear ID → also fetch that issue with `mcp__claude_ai_Linear__get_issue` and use both as context
+- If not → proceed with the Notion page as the sole source
+
+**Derive the slug:** from the Notion page title (lowercase, hyphens, max 50 chars). If a Linear ID was provided, prefix with it: `eng-42-<title-slug>`.
+
+**Track:** store the Notion URL in the plan frontmatter as `notion-source`.
 
 ### If a GitHub issue was provided:
 
@@ -33,20 +65,24 @@ Fetch the issue details:
 gh issue view <number> --json title,body,labels,assignees,milestone
 ```
 
-Summarize the issue in 2–3 sentences and proceed — no confirmation needed unless the issue is ambiguous or has no description.
+Summarize the issue in 2–3 sentences and proceed.
 
 **Derive the slug:**
 - Generate from the issue number + title: lowercase, hyphens, max 50 chars (e.g. `42-add-dark-mode-settings`)
 
+**Track:** store the GitHub issue number in the plan frontmatter as `github-issue`.
+
 ### If no issue was provided (free text description or no arguments):
 
-Ask: "Do you have a GitHub issue? If so, share the issue number or URL. Otherwise, describe what you want to build or fix."
+Ask: "Do you have a Linear issue ID (e.g. `ENG-42`), a Notion spec URL, or a GitHub issue number? If so, share it — otherwise describe what you want to build or fix."
 
 Wait for their response.
 
-- **They provide an issue number/URL** → go to the issue flow above
+- **They provide a Linear ID** → go to the Linear issue flow above
+- **They provide a Notion URL** → go to the Notion flow above
+- **They provide a GitHub issue** → go to the GitHub issue flow above
 - **They provide a description** → restate it in 2–3 sentences to confirm understanding, then generate a slug from the description (e.g. `add-dark-mode-settings`)
-- **No response / unclear** → ask once more, then stop: "I need an issue number or a description to proceed."
+- **No response / unclear** → ask once more, then stop: "I need a Linear issue ID, Notion URL, GitHub issue, or a description to proceed."
 
 ### Scope the work
 
@@ -208,7 +244,9 @@ Save to `.work/<slug>/plan.md`. Use this exact format so `/do-work` can read it.
 ```markdown
 ---
 skill: plan-work
-issue: <ISSUE-NUMBER or "none">
+linear-issue: <LINEAR-ID or "none">
+github-issue: <GITHUB-ISSUE-NUMBER or "none">
+notion-source: <NOTION-URL or "none">
 branch: <branch-name>
 status: planning
 ---
@@ -219,7 +257,8 @@ status: planning
 
 ## Context
 
-- **Issue:** [#NUMBER](https://github.com/<owner>/<repo>/issues/NUMBER) — <title>  (or "No issue")
+- **Issue:** [ENG-42](https://linear.app/...) — <title>  (omit if no Linear issue; use GitHub link if GitHub-only)
+- **Spec:** [Page title](https://notion.so/...) — <one-line summary>  (omit if no Notion source)
 - **Goal:** <what "done" looks like>
 - **Scope:** <what's in and what's explicitly out>
 
@@ -306,6 +345,8 @@ Ask: **"Any changes to the plan before we start?"**
 ## Guidelines
 
 - **No code yet.** This skill is planning-only.
+- **Linear is the default work item source.** When the user provides a Linear issue ID, fetch it via MCP and treat it as the authoritative work item. GitHub issues are supported but secondary. When neither is provided, ask for a Linear ID first.
+- **Notion pages are specs, not plans.** A Notion URL is source material — the intent behind the work. Synthesize it into the plan; don't copy it verbatim. If both Notion and Linear are provided, use both: Notion for the "what and why", Linear for scope, priority, and assignment context.
 - **Discovery before plan (medium/large).** Don't skip the discovery agent for medium and large scope — a plan without codebase context is guesswork. Small scope trades thoroughness for speed; the user accepted that tradeoff when they chose small.
 - **Issues are context, not commands.** Treat the issue as the best available description of intent at the time it was written. Your job is to figure out what good work looks like *now*, given the current state of the codebase. The issue informs the goal; the code determines the approach.
 - **Challenge the issue before following it.** Compare what the issue says against what you actually find. If there's a mismatch — stale assumptions, already-completed work, a changed interface, a better path — surface it and collaborate with the user rather than blindly following the issue.

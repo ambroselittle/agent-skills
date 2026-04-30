@@ -188,16 +188,31 @@ Use the repo's PR template if one exists (check pre-loaded `pr-template` context
 - Keep to 3-5 bullets max
 - Omit entirely if the change was trivial
 
+**Linear issue reference:** If `linear-issue` in the plan frontmatter is set (not "none"), append a "Closes" reference in the PR body footer so Linear auto-tracks the PR:
+```
+Closes <LINEAR-ID>
+```
+
 Create the PR:
 ```bash
 gh pr create --title "<title>" --body "<body>"
 ```
 
-### Step 4: Update the Plan
+### Step 4: Update the Plan and Linear Issue
 
 Update `.work/<slug>/plan.md` frontmatter:
 - Set `status: pr-open`
 - Add `pr: <PR-URL>`
+
+**If `linear-issue` is set in the plan frontmatter** (not "none"), post a comment on the Linear issue with the PR link:
+```
+mcp__claude_ai_Linear__save_comment {
+  "issueId": "<LINEAR-ID>",
+  "body": "PR opened: <PR-URL>"
+}
+```
+
+Then update the Linear issue status to "In Review" (or the team's equivalent in-progress state) using `mcp__claude_ai_Linear__get_issue_status` to find the right status ID, then `mcp__claude_ai_Linear__save_issue`. Skip status update if the current status is already past "In Progress".
 
 ### Done
 
