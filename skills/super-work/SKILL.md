@@ -1,12 +1,12 @@
 ---
 name: super-work
-description: Open a Superset workspace for a planned work item and launch /do-work inside it. Reads the plan from your work folder, resolves the right repo and project, creates the workspace, and fires up the agent. Run after /plan-work when you're ready to start coding.
+description: Open a Superset workspace for a work item. Discovers context from the current session, branch, or a given Linear ID — creates the workspace on the right repo/branch and switches to it. Run this when you're ready to start coding in Superset.
 argument-hint: "[LINEAR-ID | slug]"
 ---
 
-# Super Work: Plan → Superset Workspace → Do Work
+# Super Work: Launch a Superset Workspace
 
-You are opening a Superset workspace for a work item that has already been planned and is ready to implement.
+You are creating and switching to a Superset workspace for a work item. Your job is to figure out what to work on, set up the workspace on the right repo and branch, and hand off to the user inside Superset.
 
 **Arguments:** $ARGUMENTS
 
@@ -29,17 +29,22 @@ Determine which plan to open a workspace for, in priority order:
 3. **Branch context** — use pre-loaded `Ticket ID` and `Work folder` if not "none".
 4. **Ask** — "What are you working on? Give me a Linear ID or slug."
 
-Once resolved, read the plan at `<work-folder>/plan.md`. If no plan exists: "No plan found. Run `/plan-work <ticket>` first."
+Once resolved, derive the slug:
+- If a plan exists at `<work-folder>/plan.md`, read the `branch` from its frontmatter for the slug.
+- Otherwise derive the slug from the ticket: fetch the Linear issue title with `mcp__claude_ai_Linear__get_issue` and apply the same slug rules as `/plan-work` (lowercase team + number + title fragment, 72-char max).
+- If argument is already a slug (no `[A-Z]+-\d+` pattern), use it directly.
 
 ---
 
-## Phase 1: Identify Repos
+## Phase 1: Identify Target Repo
 
-Scan the plan's phases for `**Repo:**` annotations and collect the unique set.
+If a plan exists, scan its phases for `**Repo:**` annotations:
 
-- **No annotations** (single-repo plan) → one repo: use the current `Repo remote` from pre-loaded context, or the plan's source context if available.
+- **No annotations** → single-repo plan; use the current `Repo remote` from pre-loaded context.
 - **One unique repo** → use it directly.
-- **Multiple repos** → ask: "This plan has work across: [list]. Which repo do you want to open first?" Wait for selection. You'll run `/super-work` again for the others when ready.
+- **Multiple repos** → ask: "This plan has work across: [list]. Which repo do you want to open first?" Run `/super-work` again for the others.
+
+If no plan exists, use the current `Repo remote` from pre-loaded context (or the repo associated with the resolved ticket).
 
 The selected repo is `<target-repo>`.
 
@@ -107,7 +112,20 @@ If a workspace already exists whose name matches the slug (or contains the ticke
 
 ---
 
-## Phase 4: Create the Workspace
+## Phase 4: Confirm Base Branch
+
+Ask the user which branch to base the workspace on:
+
+> "Branch `<user-prefix>/<slug>` will be created from `main`. OK, or branch from somewhere else?"
+
+- **main / OK** → use `main`
+- **Other** → ask for the branch name to use as base
+
+The confirmed base is `<base-branch>`.
+
+---
+
+## Phase 5: Create and Switch Workspace
 
 ```
 mcp__superset__create_workspace {
@@ -116,14 +134,13 @@ mcp__superset__create_workspace {
   "workspaces": [{
     "name": "<slug>",
     "branchName": "<user-prefix>/<slug>",
-    "baseBranch": "main"
+    "baseBranch": "<base-branch>"
   }]
 }
 ```
 
 Capture the returned workspace ID. If creation fails, report the error and stop.
 
-Switch to the new workspace:
 ```
 mcp__superset__switch_workspace {
   "deviceId": "<device-id>",
@@ -131,21 +148,9 @@ mcp__superset__switch_workspace {
 }
 ```
 
----
+Confirm: "Workspace `<slug>` is open — switch to it in Superset to start working."
 
-## Phase 5: Launch Do-Work
-
-```
-mcp__superset__start_agent_session_with_prompt {
-  "deviceId": "<device-id>",
-  "workspaceId": "<workspace-id>",
-  "prompt": "/do-work"
-}
-```
-
-Confirm: "Workspace `<slug>` is open and `/do-work` is running inside it. Switch to it in Superset to watch or take over."
-
-If the plan has remaining repos (multi-repo plan, more phases in other repos):
+If the plan has multiple repos with remaining work:
 > "When you're ready for the next repo (`<next-repo>`), run `/super-work` again."
 
 ---
@@ -155,14 +160,14 @@ If the plan has remaining repos (multi-repo plan, more phases in other repos):
 If any Superset call fails with an auth or connection error:
 
 1. Report what happened
-2. Create the branch locally: `git checkout -b <user-prefix>/<slug>`
-3. Tell the user: "Created branch locally. Re-authenticate Superset (`claude mcp auth superset`) for automatic workspace creation next time. Run `/do-work` manually when ready."
+2. Tell the user: "Re-authenticate Superset (`claude mcp auth superset`) and run `/super-work` again."
 
 ---
 
 ## Guidelines
 
-- **Plan must exist before running this.** `/super-work` is a launcher, not a planner. If there's no plan, direct to `/plan-work`.
-- **One workspace per repo.** For multi-repo plans, open them sequentially — don't batch-create.
+- **A plan is helpful but not required.** A Linear ticket ID alone is enough — slug is derived from the issue title.
+- **One workspace per repo.** For multi-repo work, open them sequentially — run `/super-work` again for each additional repo.
 - **Device and project IDs are cached.** Look them up once, save them, skip the lookup next time.
-- **The work folder is already accessible from any worktree** — it lives outside the repo. No copying needed.
+- **The work folder lives outside the repo** — it's accessible from any worktree. No copying needed.
+- **Don't auto-start agents.** Create the workspace and switch to it. The user drives from there.
