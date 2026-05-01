@@ -39,17 +39,35 @@ Ask:
 
 ---
 
-## Step 3: Write Config
+## Step 3: Discover Superset Device (Optional)
 
-Write `~/.claude/agent-skills.json` with the confirmed values:
+Try to look up the Superset device ID now so `/super-work` never has to ask:
+
+```
+mcp__superset__list_devices {}
+```
+
+- If it succeeds and returns exactly one device → note the `device_id`
+- If multiple devices → ask which to use as the default
+- If it fails or Superset isn't connected → skip silently, `/super-work` will handle it on first use
+
+---
+
+## Step 4: Write Config
+
+Write `~/.claude/agent-skills.json` with all confirmed values:
 
 ```bash
-cat > ~/.claude/agent-skills.json << 'ENDJSON'
-{
-  "user_prefix": "<prefix>",
-  "work_root": "<absolute-path>"
+python3 -c "
+import json, os
+d = {
+  'user_prefix': '<prefix>',
+  'work_root': '<absolute-path>',
 }
-ENDJSON
+# Include device_id if discovered
+# d['device_id'] = '<device-id>'
+json.dump(d, open(os.path.expanduser('~/.claude/agent-skills.json'), 'w'), indent=2)
+"
 ```
 
 Create the work folder if it doesn't exist:
@@ -59,13 +77,14 @@ mkdir -p "<absolute-path>"
 
 ---
 
-## Step 4: Confirm
+## Step 5: Confirm
 
 Show a summary:
 > "Setup complete.
 >
 > - **Work folder:** `<path>` ✓
 > - **Branch prefix:** `<prefix>` ✓
+> - **Superset device:** `<device-name>` ✓  (or "not connected — run `/super-work` to set up later")
 >
 > Run `/plan-work <LINEAR-ID>` to start your first work session."
 

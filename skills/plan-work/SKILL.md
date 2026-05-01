@@ -243,76 +243,23 @@ If you're unsure how to phase the work, fewer larger phases beats more smaller o
 
 ### Plan document format
 
-Save to `<work-folder>/plan.md` (the pre-loaded `Work folder` path — create the directory with `mkdir -p` if it doesn't exist yet). Use this exact format so `/do-work` can read it.
+Save to `<work-folder>/plan.md` (create the directory with `mkdir -p` if it doesn't exist yet).
 
-**Structure:** Phases are logical milestones (e.g. "data model", "API", "UI"). Tasks within a phase are individual units of work, each producing its own commit. Each task should be atomic — something that leaves the codebase in a coherent, verifiable state.
+**Read the full template** at `~/.claude/skills/plan-work/references/plan-template.md` before writing the plan — it has the exact structure that `/do-work`, `/plan-review`, and `/super-work` depend on.
 
-```markdown
----
-skill: plan-work
-linear-issue: <LINEAR-ID or "none">
-github-issue: <GITHUB-ISSUE-NUMBER or "none">
-notion-source: <NOTION-URL or "none">
-branch: <branch-name>
-status: planning
----
+Key structural rules:
+- Phases are logical milestones (data model, API, UI, etc.). Tasks within a phase are individual commits.
+- **Multi-repo work:** add `**Repo:** <owner/repo>` as the first line of any phase that belongs to a repo other than the current one. Omit this line entirely for single-repo work. `/do-work` uses this to filter phases by the repo it's running in; `/super-work` uses it to enumerate which workspaces to open.
+- If the work spans multiple repos and it's not clear from the source material, ask: "Does this touch more than one repo? If so, which ones, and how should the phases split across them?" before drafting.
 
-# Plan: <issue title or brief description>
+### Multi-repo phase detection
 
-> <One-paragraph summary of what this work does and why>
+During synthesis, check whether the work item or discovery findings touch code in more than one repo. Signals:
+- Issue mentions multiple services/apps with separate repos
+- Discovery agent found relevant files in a repo different from the current one
+- Notion spec describes work across distinct systems
 
-## Context
-
-- **Issue:** [ENG-42](https://linear.app/...) — <title>  (omit if no Linear issue; use GitHub link if GitHub-only)
-- **Spec:** [Page title](https://notion.so/...) — <one-line summary>  (omit if no Notion source)
-- **Goal:** <what "done" looks like>
-- **Scope:** <what's in and what's explicitly out>
-
-## Relevant Files
-
-| File | Role |
-|------|------|
-| path/to/file.ts | <why it matters> |
-
-## Phases
-
-### Phase 1: <name>
-
-**Goal:** <what this phase delivers as a whole>
-
-**Tasks:**
-- [ ] `<commit message>` — <what this task does; name the files and what changes>
-- [ ] `<commit message>` — <what this task does>
-
-**Verify (after all tasks in phase):**
-- [ ] <concrete verify step — test command or manual check>
-
----
-
-### Phase 2: <name>
-
-...
-
-## Verification Commands
-
-If command supports it, pass related files--do not run on entire codebase; let PR CI handle that.
-
-- <lint command from CLAUDE.md>
-- <typecheck command from CLAUDE.md>
-- <test command from CLAUDE.md>
-
-## Open Questions
-
-- <anything uncertain that needs answering before or during implementation>
-
-## Out of Scope
-
-- <things that came up in discovery but aren't part of this issue>
-
-## Lessons
-
-<!-- Populated during the work by /do-work. Each entry: what happened, what was learned, where it should go. -->
-```
+If multi-repo: structure phases by repo, each phase annotated with `**Repo:**`. Group all work for a given repo into contiguous phases where possible — don't interleave repos within phases.
 
 ---
 

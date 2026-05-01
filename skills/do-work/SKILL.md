@@ -35,12 +35,22 @@ Use the pre-loaded `Work folder` to locate the plan directory. Read `<work-folde
 - **`status: complete`**: "This plan is marked complete. Want to re-run a specific phase, or start fresh?"
 - **Uncommitted changes present** (from pre-loaded context): "There are uncommitted changes from a previous run. Want to continue from where things left off, or reset to a clean state?" Wait for their answer — do not make this decision automatically.
 
+### Filter phases by repo (multi-repo plans)
+
+Check whether any phases in the plan have a `**Repo:**` annotation. If yes, this is a multi-repo plan:
+
+- Read the current repo from `repo-remote` (pre-loaded context)
+- **Matching phases found** → only run those phases. Note: "Running phases for `<repo>` — [N] phases scoped to this repo."
+- **No matching phases** → stop: "This plan has no work for `<current-repo>`. Available repos in this plan: [list]. Switch to the right repo or run `/super-work` to open a workspace for it."
+
+If no phases have a `**Repo:**` annotation, run all phases (single-repo plan — current repo is assumed).
+
 ### Determine what to implement
 
 Parse `$ARGUMENTS`:
 - `phase N`, `phase N: <name>`, or just a number → run that specific phase, then continue to subsequent phases
 - `<phase name>` → match against phase names in the plan (case-insensitive), then continue forward
-- No arguments → find the first phase that has any unchecked tasks. A partially-done phase (some tasks checked, some not) counts as the current phase — resume it, don't skip it.
+- No arguments → find the first phase (in the filtered set) that has any unchecked tasks. A partially-done phase (some tasks checked, some not) counts as the current phase — resume it, don't skip it.
 - All phases complete → skip to the Finish Line.
 
 Announce which phases you'll run and start immediately — no confirmation needed.
