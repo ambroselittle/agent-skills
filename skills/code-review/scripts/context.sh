@@ -35,7 +35,27 @@ case "$1" in
     printf "selectable: %s\n"  "$(echo $_selectable | xargs)"
     ;;
   work-plan)
-    find .work -maxdepth 2 -name plan.md 2>/dev/null | head -1 | xargs head -30 2>/dev/null
+    # Reads the first 30 lines of the plan for the current branch from configured work_root.
+    _config="$HOME/.claude/agent-skills.json"
+    _work_root=$(python3 -c "
+import json, os, sys
+try:
+  d = json.load(open('$_config'))
+  r = d.get('work_root', '')
+  print(os.path.expanduser(r) if r else '')
+except: pass
+" 2>/dev/null)
+    if [ -z "$_work_root" ]; then exit 0; fi
+    _branch=$(git branch --show-current 2>/dev/null)
+    _slug="${_branch#*/}"
+    _token=$(echo "$_slug" | grep -oiE '[a-z]+-[0-9]+' | head -1)
+    _plan=""
+    if [ -n "$_token" ] && [ -d "$_work_root" ]; then
+      _dir=$(find "$_work_root" -maxdepth 1 -type d -iname "${_token}-*" 2>/dev/null | sort | head -1)
+      [ -n "$_dir" ] && _plan="$_dir/plan.md"
+    fi
+    [ -z "$_plan" ] && _plan="$_work_root/$_slug/plan.md"
+    [ -f "$_plan" ] && head -30 "$_plan" 2>/dev/null
     ;;
   reversed-diff)
     # Produce a git diff with file order reversed for pass-2 seeding.

@@ -13,11 +13,14 @@ You are a senior engineer executing a well-scoped implementation plan. Your job 
 
 **Pre-loaded context:**
 - Current branch: !`~/.claude/skills/shared/scripts/context.sh current-branch`
+- Work folder: !`~/.claude/skills/shared/scripts/context.sh work-folder`
+- Ticket ID: !`~/.claude/skills/shared/scripts/context.sh ticket-id`
 - Uncommitted changes: !`~/.claude/skills/shared/scripts/context.sh uncommitted-changes`
-- Plans in progress: !`~/.claude/skills/shared/scripts/context.sh plans-in-progress`
 - Unpushed commits: !`~/.claude/skills/shared/scripts/context.sh unpushed`
 - Open PR: !`~/.claude/skills/shared/scripts/context.sh open-pr`
 - PR template: !`~/.claude/skills/shared/scripts/context.sh pr-template`
+
+**Setup check:** If the pre-loaded `Work folder` shows `needs-setup`, stop immediately: "Agent-skills isn't configured yet — run `/setup-agent-skills` first, then come back here."
 
 ---
 
@@ -25,20 +28,29 @@ You are a senior engineer executing a well-scoped implementation plan. Your job 
 
 ### Find the plan
 
-Branch names include a user prefix (e.g. `ambrose/42-add-dark-mode`). Strip everything up to and including the first `/` to get the slug (`42-add-dark-mode`), then match against `.work/` subdirectory names. Also try a substring match if no exact match is found.
+Use the pre-loaded `Work folder` to locate the plan directory. Read `<work-folder>/plan.md`.
 
-Read `.work/<slug>/plan.md`.
-
-- **No plan found**: "No plan found for this branch. Run `/plan-work` to create one, or tell me the path to the right `.work/` directory."
+- **Work folder is `none`** (on main/master): "No plan found for this branch. Run `/plan-work` to create one, or switch to your feature branch."
+- **Plan file missing** at `<work-folder>/plan.md`: "Work folder found at `<path>` but no plan.md inside. Run `/plan-work` to create the plan."
 - **`status: complete`**: "This plan is marked complete. Want to re-run a specific phase, or start fresh?"
 - **Uncommitted changes present** (from pre-loaded context): "There are uncommitted changes from a previous run. Want to continue from where things left off, or reset to a clean state?" Wait for their answer — do not make this decision automatically.
+
+### Filter phases by repo (multi-repo plans)
+
+Check whether any phases in the plan have a `**Repo:**` annotation. If yes, this is a multi-repo plan:
+
+- Read the current repo from `repo-remote` (pre-loaded context)
+- **Matching phases found** → only run those phases. Note: "Running phases for `<repo>` — [N] phases scoped to this repo."
+- **No matching phases** → stop: "This plan has no work for `<current-repo>`. Available repos in this plan: [list]. Switch to the right repo or run `/super-work` to open a workspace for it."
+
+If no phases have a `**Repo:**` annotation, run all phases (single-repo plan — current repo is assumed).
 
 ### Determine what to implement
 
 Parse `$ARGUMENTS`:
 - `phase N`, `phase N: <name>`, or just a number → run that specific phase, then continue to subsequent phases
 - `<phase name>` → match against phase names in the plan (case-insensitive), then continue forward
-- No arguments → find the first phase that has any unchecked tasks. A partially-done phase (some tasks checked, some not) counts as the current phase — resume it, don't skip it.
+- No arguments → find the first phase (in the filtered set) that has any unchecked tasks. A partially-done phase (some tasks checked, some not) counts as the current phase — resume it, don't skip it.
 - All phases complete → skip to the Finish Line.
 
 Announce which phases you'll run and start immediately — no confirmation needed.
@@ -136,7 +148,7 @@ If checks fail: fix and re-run once. If still failing: **stop and report** — d
 **Step 2 — Commit:**
 1. Stage only the files that belong to this task — be specific. Don't `git add .` unless you've verified every changed file is part of this task.
 2. Commit with the message from the plan task line.
-3. Update `.work/<slug>/plan.md`: mark the task `[x]`.
+3. Update `<work-folder>/plan.md`: mark the task `[x]`.
 
 After all tasks committed, update the plan:
 - Update phase header to `~~Phase N: <name>~~ ✓`
@@ -177,7 +189,7 @@ Use the repo's PR template if one exists (check pre-loaded `pr-template` context
 - Exception: call out a specific file if it's the primary interface point
 
 **Derive PR body from:**
-- Plan at `.work/<slug>/plan.md` — goal, scope, phases completed
+- Plan at `<work-folder>/plan.md` — goal, scope, phases completed
 - `git log --oneline @{u}..` for commit history
 - Key decisions from plan's Context, Open Questions, and Lessons sections
 
@@ -188,16 +200,31 @@ Use the repo's PR template if one exists (check pre-loaded `pr-template` context
 - Keep to 3-5 bullets max
 - Omit entirely if the change was trivial
 
+**Linear issue reference:** If `linear-issue` in the plan frontmatter is set (not "none"), append a "Closes" reference in the PR body footer so Linear auto-tracks the PR:
+```
+Closes <LINEAR-ID>
+```
+
 Create the PR:
 ```bash
 gh pr create --title "<title>" --body "<body>"
 ```
 
-### Step 4: Update the Plan
+### Step 4: Update the Plan and Linear Issue
 
-Update `.work/<slug>/plan.md` frontmatter:
+Update `<work-folder>/plan.md` frontmatter:
 - Set `status: pr-open`
 - Add `pr: <PR-URL>`
+
+**If `linear-issue` is set in the plan frontmatter** (not "none"), post a comment on the Linear issue with the PR link:
+```
+mcp__claude_ai_Linear__save_comment {
+  "issueId": "<LINEAR-ID>",
+  "body": "PR opened: <PR-URL>"
+}
+```
+
+Then update the Linear issue status to "In Review" (or the team's equivalent in-progress state) using `mcp__claude_ai_Linear__get_issue_status` to find the right status ID, then `mcp__claude_ai_Linear__save_issue`. Skip status update if the current status is already past "In Progress".
 
 ### Done
 

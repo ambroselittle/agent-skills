@@ -1,7 +1,7 @@
 ---
 name: plan-work
-description: Plan work before writing any code. Use this at the start of any new task, feature, bug fix, or issue — give it a GitHub issue number (e.g. #42), a description of what to build, or just say "plan work" to begin. Fetches context, discovers relevant code, and produces a phased implementation plan in .work/<slug>/plan.md. Always run this before /do-work.
-argument-hint: "[GITHUB-ISSUE-NUMBER | description]"
+description: Plan work before writing any code. Use this at the start of any new task, feature, bug fix, or issue — give it a Linear issue ID (e.g. ENG-42), a Notion page URL (for an existing spec), a GitHub issue number (e.g. #42), or a description of what to build. Fetches context, discovers relevant code, and produces a phased implementation plan saved to your configured work folder. Always run this before /do-work.
+argument-hint: "[LINEAR-ID | NOTION-URL | GITHUB-ISSUE | description]"
 ---
 
 # Plan Work: Plan Before You Build
@@ -12,19 +12,56 @@ You are a senior engineer helping to set up a well-scoped implementation plan be
 
 **Pre-loaded context:**
 - Current branch: !`~/.claude/skills/shared/scripts/context.sh current-branch`
-- Plans in progress: !`~/.claude/skills/shared/scripts/context.sh plans-in-progress`
+- Work folder: !`~/.claude/skills/shared/scripts/context.sh work-folder`
+- Ticket ID: !`~/.claude/skills/shared/scripts/context.sh ticket-id`
 - User branch prefix: !`~/.claude/skills/shared/scripts/context.sh user-slug`
 - CLAUDE.md exists: !`~/.claude/skills/plan-work/scripts/context.sh claude-md-exists`
 - Repo remote (owner/repo): !`~/.claude/skills/shared/scripts/context.sh repo-remote`
+
+**Setup check:** If the pre-loaded `Work folder` shows `needs-setup`, stop immediately: "Agent-skills isn't configured yet — run `/setup-agent-skills` first (takes under a minute) to set your work folder location and branch prefix, then come back here."
 
 ---
 
 ## Phase 0: Intake
 
-Determine what you're working on:
-- A **GitHub issue** matches the pattern `#N` or is a bare number (e.g. `42`, `#42`)
-- A **GitHub issue URL** contains `github.com/.../issues/`
-- Anything else is a **free-text description**
+Determine what you're working on. Classify the argument by matching these patterns in order:
+
+- **Linear issue ID** — matches `[A-Z]+-\d+` (e.g. `ENG-42`, `CORE-7`, `LIN-123`)
+- **Notion URL** — contains `notion.so` or `notion.com`
+- **GitHub issue** — matches `#N`, a bare number, or a URL containing `github.com/.../issues/`
+- Anything else → **free-text description**
+
+### If a Linear issue ID was provided:
+
+Fetch the issue using the Linear MCP:
+```
+mcp__claude_ai_Linear__get_issue { "issueId": "<ID>" }
+```
+
+Summarize the issue title and description in 2–3 sentences and proceed — no confirmation needed unless the issue is ambiguous or has no description.
+
+**Derive the slug:**
+- Pattern: `<lowercase-team>-<number>-<title-fragment>` — e.g. `eng-42-add-dark-mode-settings`
+- **72-char max** on the slug. If a naive kebab-case of the title would exceed it, reformulate a concise but meaningful summary of the title rather than blindly truncating. Example: `eng-42-add-support-for-dark-mode-in-user-settings-and-profile-pages` → `eng-42-dark-mode-settings-profile`. The ticket prefix (`eng-42-`) is never shortened.
+- Use the same slug for: branch suffix, worktree directory name, and the work folder (`<work-folder>` from pre-loaded context).
+
+**Track:** store the Linear issue ID in the plan frontmatter as `linear-issue`.
+
+### If a Notion URL was provided:
+
+The Notion page is the **spec or existing plan** — it is the source of intent for this work item. Fetch it:
+```
+mcp__claude_ai_Notion__notion-fetch { "url": "<URL>" }
+```
+
+Summarize what the Notion page describes (2–3 sentences). Then ask: "Do you also have a Linear issue for this work? If so, share the ID (e.g. `ENG-42`) — I'll link it to the plan."
+
+- If they provide a Linear ID → also fetch that issue with `mcp__claude_ai_Linear__get_issue` and use both as context
+- If not → proceed with the Notion page as the sole source
+
+**Derive the slug:** from the Notion page title. If a Linear ID was provided, prefix with it (`eng-42-<title-fragment>`); otherwise use the page title alone. Apply the same 72-char cap and AI reformulation rule — concise essence over blind truncation. Use this slug consistently for branch, worktree, and work folder.
+
+**Track:** store the Notion URL in the plan frontmatter as `notion-source`.
 
 ### If a GitHub issue was provided:
 
@@ -33,20 +70,25 @@ Fetch the issue details:
 gh issue view <number> --json title,body,labels,assignees,milestone
 ```
 
-Summarize the issue in 2–3 sentences and proceed — no confirmation needed unless the issue is ambiguous or has no description.
+Summarize the issue in 2–3 sentences and proceed.
 
 **Derive the slug:**
-- Generate from the issue number + title: lowercase, hyphens, max 50 chars (e.g. `42-add-dark-mode-settings`)
+- Pattern: `<number>-<title-fragment>` — e.g. `42-add-dark-mode-settings`
+- Same 72-char cap and AI reformulation rule applies. Use consistently for branch, worktree, and work folder.
+
+**Track:** store the GitHub issue number in the plan frontmatter as `github-issue`.
 
 ### If no issue was provided (free text description or no arguments):
 
-Ask: "Do you have a GitHub issue? If so, share the issue number or URL. Otherwise, describe what you want to build or fix."
+Ask: "Do you have a Linear issue ID (e.g. `ENG-42`), a Notion spec URL, or a GitHub issue number? If so, share it — otherwise describe what you want to build or fix."
 
 Wait for their response.
 
-- **They provide an issue number/URL** → go to the issue flow above
+- **They provide a Linear ID** → go to the Linear issue flow above
+- **They provide a Notion URL** → go to the Notion flow above
+- **They provide a GitHub issue** → go to the GitHub issue flow above
 - **They provide a description** → restate it in 2–3 sentences to confirm understanding, then generate a slug from the description (e.g. `add-dark-mode-settings`)
-- **No response / unclear** → ask once more, then stop: "I need an issue number or a description to proceed."
+- **No response / unclear** → ask once more, then stop: "I need a Linear issue ID, Notion URL, GitHub issue, or a description to proceed."
 
 ### Scope the work
 
@@ -81,9 +123,9 @@ If the source is already focused (a single clear task), skip this question and p
 
 ### Check for an existing plan
 
-Look at the pre-loaded work directories. If one matches the slug:
-- Read `.work/<slug>/plan.md`
-- Tell the user: "Found an existing plan for `<slug>`. Want to resume it, or start fresh?" Wait for their answer before proceeding.
+First check the pre-loaded `Work folder`. If it is not "none", you are already on a branch with a matching work directory — read `<work-folder>/plan.md`, summarize its goal and current status in 1–2 sentences, and ask: "Found an existing plan for `<slug>`. Want to resume it, start fresh, or just see what's left?" Wait for their answer before proceeding.
+
+If `Work folder` is `none` but the derived slug matches an existing directory under your work root, apply the same flow.
 
 ### Branch and worktree
 
@@ -201,73 +243,23 @@ If you're unsure how to phase the work, fewer larger phases beats more smaller o
 
 ### Plan document format
 
-Save to `.work/<slug>/plan.md`. Use this exact format so `/do-work` can read it.
+Save to `<work-folder>/plan.md` (create the directory with `mkdir -p` if it doesn't exist yet).
 
-**Structure:** Phases are logical milestones (e.g. "data model", "API", "UI"). Tasks within a phase are individual units of work, each producing its own commit. Each task should be atomic — something that leaves the codebase in a coherent, verifiable state.
+**Read the full template** at `~/.claude/skills/plan-work/references/plan-template.md` before writing the plan — it has the exact structure that `/do-work`, `/plan-review`, and `/super-work` depend on.
 
-```markdown
----
-skill: plan-work
-issue: <ISSUE-NUMBER or "none">
-branch: <branch-name>
-status: planning
----
+Key structural rules:
+- Phases are logical milestones (data model, API, UI, etc.). Tasks within a phase are individual commits.
+- **Multi-repo work:** add `**Repo:** <owner/repo>` as the first line of any phase that belongs to a repo other than the current one. Omit this line entirely for single-repo work. `/do-work` uses this to filter phases by the repo it's running in; `/super-work` uses it to enumerate which workspaces to open.
+- If the work spans multiple repos and it's not clear from the source material, ask: "Does this touch more than one repo? If so, which ones, and how should the phases split across them?" before drafting.
 
-# Plan: <issue title or brief description>
+### Multi-repo phase detection
 
-> <One-paragraph summary of what this work does and why>
+During synthesis, check whether the work item or discovery findings touch code in more than one repo. Signals:
+- Issue mentions multiple services/apps with separate repos
+- Discovery agent found relevant files in a repo different from the current one
+- Notion spec describes work across distinct systems
 
-## Context
-
-- **Issue:** [#NUMBER](https://github.com/<owner>/<repo>/issues/NUMBER) — <title>  (or "No issue")
-- **Goal:** <what "done" looks like>
-- **Scope:** <what's in and what's explicitly out>
-
-## Relevant Files
-
-| File | Role |
-|------|------|
-| path/to/file.ts | <why it matters> |
-
-## Phases
-
-### Phase 1: <name>
-
-**Goal:** <what this phase delivers as a whole>
-
-**Tasks:**
-- [ ] `<commit message>` — <what this task does; name the files and what changes>
-- [ ] `<commit message>` — <what this task does>
-
-**Verify (after all tasks in phase):**
-- [ ] <concrete verify step — test command or manual check>
-
----
-
-### Phase 2: <name>
-
-...
-
-## Verification Commands
-
-If command supports it, pass related files--do not run on entire codebase; let PR CI handle that.
-
-- <lint command from CLAUDE.md>
-- <typecheck command from CLAUDE.md>
-- <test command from CLAUDE.md>
-
-## Open Questions
-
-- <anything uncertain that needs answering before or during implementation>
-
-## Out of Scope
-
-- <things that came up in discovery but aren't part of this issue>
-
-## Lessons
-
-<!-- Populated during the work by /do-work. Each entry: what happened, what was learned, where it should go. -->
-```
+If multi-repo: structure phases by repo, each phase annotated with `**Repo:**`. Group all work for a given repo into contiguous phases where possible — don't interleave repos within phases.
 
 ---
 
@@ -297,7 +289,7 @@ Ask: **"Any changes to the plan before we start?"**
 - If the user requests changes: make them, then re-present the affected sections. Repeat until they're satisfied. If the scope shift is significant (new files, different approach), re-run the discovery agent for the new scope.
 - If no changes: proceed.
 
-**Then save the plan** to `.work/<slug>/plan.md` (create the directory if needed). Save only after the user has approved — don't save a draft they haven't confirmed.
+**Then save the plan** to `<work-folder>/plan.md` (`mkdir -p` the directory first). Save only after the user has approved — don't save a draft they haven't confirmed.
 
 ---
 
@@ -306,6 +298,8 @@ Ask: **"Any changes to the plan before we start?"**
 ## Guidelines
 
 - **No code yet.** This skill is planning-only.
+- **Linear is the default work item source.** When the user provides a Linear issue ID, fetch it via MCP and treat it as the authoritative work item. GitHub issues are supported but secondary. When neither is provided, ask for a Linear ID first.
+- **Notion pages are specs, not plans.** A Notion URL is source material — the intent behind the work. Synthesize it into the plan; don't copy it verbatim. If both Notion and Linear are provided, use both: Notion for the "what and why", Linear for scope, priority, and assignment context.
 - **Discovery before plan (medium/large).** Don't skip the discovery agent for medium and large scope — a plan without codebase context is guesswork. Small scope trades thoroughness for speed; the user accepted that tradeoff when they chose small.
 - **Issues are context, not commands.** Treat the issue as the best available description of intent at the time it was written. Your job is to figure out what good work looks like *now*, given the current state of the codebase. The issue informs the goal; the code determines the approach.
 - **Challenge the issue before following it.** Compare what the issue says against what you actually find. If there's a mismatch — stale assumptions, already-completed work, a changed interface, a better path — surface it and collaborate with the user rather than blindly following the issue.

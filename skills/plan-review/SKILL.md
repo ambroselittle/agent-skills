@@ -1,6 +1,6 @@
 ---
 name: plan-review
-description: Review an implementation plan with specialized parallel agents. Accepts a .work/<slug>, a local file path. Use after /plan-work produces a plan, or on any plan document you want expert review of.
+description: Review an implementation plan with specialized parallel agents. Accepts a work slug, a full path, or no argument (auto-discovers from current branch). Use after /plan-work produces a plan, or on any plan document you want expert review of.
 argument-hint: "[WORK-SLUG | FILE-PATH]"
 ---
 
@@ -11,8 +11,11 @@ You are a senior engineer coordinating a parallel review of an implementation pl
 **Arguments:** $ARGUMENTS
 
 **Pre-loaded context:**
+- Work folder: !`~/.claude/skills/shared/scripts/context.sh work-folder`
+- Ticket ID: !`~/.claude/skills/shared/scripts/context.sh ticket-id`
 - Plan reviewer agents: !`~/.claude/skills/plan-review/scripts/context.sh plan-reviewer-agents`
-- Plans in progress: !`~/.claude/skills/shared/scripts/context.sh plans-in-progress`
+
+**Setup check:** If `Work folder` shows `needs-setup`, stop: "Run `/setup-agent-skills` first to configure your work folder, then come back."
 
 ---
 
@@ -22,9 +25,9 @@ Determine what plan to review from `$ARGUMENTS`:
 
 ### Input detection
 
-- **`.work/<slug>` or bare slug** — matches a known work directory (from pre-loaded context) or looks like a slug (lowercase, hyphens, no spaces). Resolve to `.work/<slug>/plan.md`.
+- **Bare slug** — looks like a slug (lowercase, hyphens, no spaces). Resolve to `<work-folder>/plan.md` using the configured work root.
 - **File path** — starts with `/`, `./`, or `~`, or ends with `.md`. Read the file directly.
-- **No arguments** — look at the current branch name. Strip the user prefix (everything up to and including the first `/`) to get a slug. If `.work/<slug>/plan.md` exists, use it. Otherwise: "No plan found. Provide a work slug or file path."
+- **No arguments** — use the pre-loaded `Work folder`. If not "none", resolve to `<work-folder>/plan.md`. If "none": "No plan found. Provide a work slug or file path, or switch to your feature branch first."
 
 ### Validate
 
@@ -81,8 +84,8 @@ Wait for all reviewers to complete.
 
 ## Phase 2: Synthesize and Present (Stepwise, Dialogic)
 
-Collect all findings from all reviewers. Save the full findings to disk (in `.work/<slug>/reviews/`
-as `<slug>.plan-review.<YYYY-MM-DD>.md`) for reference and session recovery. Then present findings
+Collect all findings from all reviewers. Save the full findings to disk (in `<work-folder>/reviews/`
+as `<slug>.plan-review.<YYYY-MM-DD>.md`, creating the directory with `mkdir -p` if needed) for reference and session recovery. Then present findings
 to the user **one category at a time** — don't dump everything at once.
 
 ### Step 1: MISMATCHES — Present first, resolve before moving on
