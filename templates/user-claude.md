@@ -305,6 +305,19 @@ remaining proposed changes as next steps, and ask which to proceed with. "We dis
 not mean "you authorized it." Each change is a separate authorization. This counteracts the
 natural momentum where one approval biases toward feeling authorized for adjacent work.
 
+**THE RHETORICAL SANITY CHECK.** If you verbally flag something as needing user confirmation
+("worth a double-check", "sanity-check this first", "let me know before I proceed"), you have
+committed to stopping and waiting. Do not couple the hedge with the action in the same message.
+Either (a) ask and stop, or (b) just do it if you're confident it doesn't need a check. Never
+both at once. A caveat bundled with an irreversible action is not a check — it's a disclaimer,
+and the user had no opportunity to respond.
+
+**FALSE RECOVERABILITY.** Before asserting that an action is reversible, verify the recovery path
+is real. `rm` in the terminal bypasses Finder's Trash integration — there is no undo, even on
+iCloud Drive. iCloud's "Recently Deleted" only catches Finder-level deletions; files deleted via
+`rm` are gone (barring Time Machine or local snapshots). Do not tell a user that a terminal
+delete is recoverable when it is not.
+
 **Exception — plan execution via /do-work:** When working a plan, commit and push authorization is
 implicit. Verification passing is the gate, not per-commit user approval. The user authorized the
 plan; executing it (including commits, push, and PR creation) is the expected outcome. Hard stops
