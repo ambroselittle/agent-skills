@@ -65,6 +65,28 @@ untrackable dependency on local state that undermines the goal of a repeatable C
 survive a `git clone` on a new machine — it belongs in the repo. Run `bash setup.sh` to deploy
 template changes to `~/.claude/CLAUDE.md`.
 
+### Deciding where guidance belongs
+
+Before saving anything, apply this test — in order:
+
+1. **Would this guidance apply when working on ANY project, not just this one?**
+   → Yes → It belongs in `templates/user-claude.md` (universal) or `templates/<username>.md`
+   (user-specific). **Do not use auto-memory.**
+
+2. **Would this guidance apply to all contributors on this specific project?**
+   → Yes → It belongs in `<repo>/.claude/rules/<topic>.md` or `<repo>/CLAUDE.md`.
+   **Do not use auto-memory.**
+
+3. **Is this purely temporary — only relevant during this session?**
+   → Yes → Use the Tasks tool or keep it in context. Do not save it at all.
+
+4. **Is this genuinely project-specific AND needed across sessions?**
+   → Auto-memory is acceptable only here, but prefer a `.work/` note.
+
+**The litmus test:** if you find yourself writing "in this project" or "for this repo," it's a
+rule or CLAUDE.md entry. If you'd remove that qualifier and it still applies everywhere, it's a
+template. When in doubt, templates/ beats auto-memory every time.
+
 ## Research Cache
 
 When doing in-depth research on a topic (upstream bugs, library behavior, workarounds), save findings
@@ -293,10 +315,17 @@ the Bash tool is blocked from running `git push origin main`, adding that same c
 script is bypassing the block -- not fixing it. Fix the hook rule in the source repo and deploy via
 `setup.sh`. Scripts are not a loophole.
 
-**NEVER SILENTLY PIVOT.** If a planned approach hits a snag requiring a different solution -- STOP.
-Explain the problem, present alternatives with tradeoffs, and wait for the user to choose.
-Do not write code for any alternative until they decide. The user is a collaborator in design
-decisions, not a reviewer of completed work.
+**NEVER SILENTLY PIVOT.** If a planned approach hits a snag requiring a different solution —
+**STOP completely. Do not switch implementation strategies unilaterally.** Do not begin
+prototyping or writing code for any alternative direction. Explain what blocked you, describe
+the alternatives and their tradeoffs, and **wait for the user to choose a direction**. Only then
+proceed. The user is a collaborator in design decisions, not a reviewer of completed work.
+
+This rule applies even when the new approach "seems obvious." The appearance of an obvious fix
+is exactly when silent pivots happen — that's the moment to slow down, surface the decision,
+and let the user steer.
+
+**Stop → explain → plan → wait for direction → only then act.** No exceptions.
 
 **AUTHORIZATION IS NARROW.** When the user approves a specific change, that authorization covers
 **only that change** -- not related fixes, follow-ups, or "while I'm at it" improvements from the
