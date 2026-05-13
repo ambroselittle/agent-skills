@@ -45,7 +45,11 @@ status: planning
 
 **Tasks:**
 - [ ] `<commit message>` — <what this task does; name the files and what changes>
+- [ ] `test: <commit message>` — <tests for the above: which behaviors, success path, failure paths>
 - [ ] `<commit message>` — <what this task does>
+- [ ] `test: <commit message>` — <tests for the above>
+
+Note: test tasks belong *within* the phase that introduces the code, not in a final phase. A standalone "write tests" phase at the end is a planning smell.
 
 **Verify (after all tasks in phase):**
 - [ ] <concrete verify step — test command or manual check>

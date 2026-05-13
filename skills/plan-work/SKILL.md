@@ -237,7 +237,8 @@ Synthesize the issue context and discovery findings into a phased implementation
 Each phase must be:
 - **Committable** — leaves the codebase in a working, verifiable state
 - **Testable** — has a concrete verify step (a test command, a manual check, a specific assertion)
-- **Focused** — one logical concern (data model, API layer, UI, tests, migration, etc.)
+- **Focused** — one logical concern (data model, API layer, UI, migration, etc.)
+- **Self-contained tests** — tests for code introduced in this phase are tasks *within this phase*, not deferred to a later phase. A standalone "write tests" or "add tests" phase at the end of the plan is a red flag — fold those tasks into the phase that introduces the code.
 
 If you're unsure how to phase the work, fewer larger phases beats more smaller ones.
 
@@ -305,4 +306,5 @@ Ask: **"Any changes to the plan before we start?"**
 - **Challenge the issue before following it.** Compare what the issue says against what you actually find. If there's a mismatch — stale assumptions, already-completed work, a changed interface, a better path — surface it and collaborate with the user rather than blindly following the issue.
 - **Propose alternatives when you see them.** If discovery reveals a clearly better approach, raise it. Present tradeoffs, not a verdict. The user decides.
 - **Be specific in tasks.** "Update `src/models/user.ts` to add `darkMode: boolean`" is useful. "Add dark mode support" is not.
+- **Tests belong with the code.** Every phase that introduces behavior must include test tasks for that behavior in the same phase — not in a dedicated "add tests" phase at the end. A paired test task looks like: "test: `createUser` — covers success, duplicate email, validation error." Standalone test phases are a planning smell: tests get cut when time pressure hits.
 - **One open question beats one wrong assumption.** Surface uncertainty rather than resolving it silently.
