@@ -58,8 +58,8 @@ untrackable dependency on local state that undermines the goal of a repeatable C
 | Project-wide conventions, rules, standards | `<repo>/.claude/rules/<topic>.md` |
 | Project orientation (structure, build, test) | `<repo>/CLAUDE.md` |
 | In-progress work, task breakdown | Tasks tool (current session only) |
-| Implementation plans | `.work/<slug>/plan.md` (gitignored) |
-| Active bug / short-lived project state | Auto-memory is acceptable, but prefer a note in `.work/` |
+| Implementation plans | `<work-folder>/<slug>/plan.md` — work folder is set in `~/.claude/agent-skills.json` (`work_root`) |
+| Active bug / short-lived project state | Auto-memory is acceptable, but prefer a note in your work folder |
 
 **Almost nothing should go into auto-memory.** If it's a pattern, preference, or lesson that should
 survive a `git clone` on a new machine — it belongs in the repo. Run `bash setup.sh` to deploy
@@ -72,11 +72,13 @@ to `~/.agent-skills/research/<topic-slug>.md`. Before researching a topic, check
 exists there — it may already have the answer or save significant effort. Update stale research when
 you discover new information.
 
-## .work/ Plans Are Scaffolding
+## Work Folder Plans
 
-- Gitignore `.work/` directories — do not commit implementation plans
-- PRs are the record of what was done and why (git blame → PR → ticket)
-- The PR creation step (in /do-work) captures key decisions in the PR description
+Plans live outside the repo in your configured work folder (`~/.claude/agent-skills.json` → `work_root`, defaulting to `~/Work`). This keeps them alive across branch deletions and accessible from any repo.
+
+- **Keep plans current as work progresses.** A plan that reflects reality lets any new agent session pick up right where the last one left off — no re-discovery, no surprises about what's done or not. Update phase and task status as you complete them, not just at the end.
+- PRs are the permanent record of *what was done and why* (git blame → PR → ticket). Plans are the *working state* — update them, don't treat them as archival.
+- The PR creation step (in /do-work) captures key decisions in the PR description.
 
 ## Working with git/gh
 
