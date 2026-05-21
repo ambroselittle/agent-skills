@@ -200,3 +200,16 @@ def test_rdme_cli_allowed(rule):
     assert (
         evaluate(_bash("result=$(npx rdme docs upload --key=$KEY)"), [rule])["decision"] == "allow"
     )
+
+
+def test_rsync_local(rule):
+    """rsync between local directories → allow."""
+    assert evaluate(_bash("rsync -a --delete src/ dest/"), [rule])["decision"] == "allow"
+
+
+def test_rsync_with_flags(rule):
+    """rsync with verbose and progress flags → allow."""
+    assert (
+        evaluate(_bash("rsync -avz --progress /tmp/build/ /tmp/deploy/"), [rule])["decision"]
+        == "allow"
+    )

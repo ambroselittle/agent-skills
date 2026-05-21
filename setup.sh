@@ -5,7 +5,11 @@
 
 set -euo pipefail
 
-clear
+# Only clear when invoked without flags (the default full setup).
+# Subcommands like --install-wtf-worker or --help shouldn't wipe terminal scrollback.
+if [ $# -eq 0 ]; then
+  clear
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="$HOME/.claude"
@@ -13,6 +17,46 @@ CLAUDE_SKILLS_DIR="$CLAUDE_DIR/skills"
 CLAUDE_SETTINGS="$CLAUDE_DIR/settings.json"
 CLAUDE_MD="$CLAUDE_DIR/CLAUDE.md"
 HOOKS_DIR="$CLAUDE_DIR/hooks"
+
+# --------------------------------------------------------------------------- #
+# Subcommands — opt-in side installs that short-circuit the normal setup     #
+# --------------------------------------------------------------------------- #
+
+case "${1:-}" in
+  --install-wtf-worker)
+    exec "$SCRIPT_DIR/scripts/wtf-worker-install.sh" install "${2:-}"
+    ;;
+  --uninstall-wtf-worker)
+    exec "$SCRIPT_DIR/scripts/wtf-worker-install.sh" uninstall
+    ;;
+  --help|-h)
+    cat <<USAGE
+Usage: setup.sh [flag]
+
+Default (no flags): idempotent setup — links skills, installs hooks,
+merges permissions, registers MCP servers, and updates CLAUDE.md.
+
+Flags:
+  --install-wtf-worker [--test]    Install the WTF worker launchd job.
+                                   --test fires an immediate run and
+                                   tails the log.
+  --uninstall-wtf-worker           Uninstall the WTF worker launchd job.
+  --no-clear                       Skip the terminal clear at setup start
+                                   (useful when invoked from another script).
+  --help, -h                       Show this message.
+USAGE
+    exit 0
+    ;;
+  --no-clear)
+    ;;
+  "")
+    ;;
+  *)
+    printf "Unknown flag: %s\n" "$1" >&2
+    printf "Run 'bash setup.sh --help' for usage.\n" >&2
+    exit 1
+    ;;
+esac
 
 # --------------------------------------------------------------------------- #
 # UX helpers                                                                  #
@@ -125,6 +169,14 @@ _should_link_skill() {
   done
   return 1
 }
+
+# Clean up stale symlinks (from renamed or deleted skills)
+while IFS= read -r -d '' target; do
+  if [[ -L "$target" && ! -e "$target" ]]; then
+    rm -f "$target"
+    ok "removed stale symlink: $(basename "$target")"
+  fi
+done < <(find "$CLAUDE_SKILLS_DIR" -maxdepth 1 -type l -print0 2>/dev/null)
 
 _linked=0
 _skipped=0

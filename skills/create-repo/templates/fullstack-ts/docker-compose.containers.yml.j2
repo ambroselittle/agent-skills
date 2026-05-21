@@ -1,0 +1,36 @@
+# Container stack override — runs API and web in Docker alongside the database.
+# Use this to verify containerized behavior locally before deploying.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.containers.yml up --build
+#
+# Web: http://localhost:3000
+# API: http://localhost:3001
+# GraphQL: http://localhost:3001/api/graphql (fullstack-graphql only)
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    ports:
+      - "${API_PORT:-3001}:3001"
+    environment:
+      PORT: "3001"
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/{{ project_name }}_dev?sslmode=disable"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "${WEB_PORT:-3000}:80"
+    environment:
+      API_HOST: "http://api:3001"
+    depends_on:
+      - api
+    restart: unless-stopped

@@ -1,0 +1,38 @@
+FROM node:22-alpine AS base
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+
+# Prune monorepo to only what the API needs
+FROM base AS pruner
+WORKDIR /app
+RUN pnpm add -g turbo
+COPY . .
+RUN turbo prune @{{ scope }}/api --docker
+
+# Build — single stage so pnpm workspace links are consistent
+FROM base AS builder
+WORKDIR /app
+COPY --from=pruner /app/out/json/ .
+COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
+RUN pnpm install --frozen-lockfile
+COPY --from=pruner /app/out/full/ .
+RUN pnpm turbo build --filter=@{{ scope }}/api
+
+# Runtime — lean image with only built output
+FROM node:22-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
+COPY --from=builder /app/packages/db/dist ./packages/db/dist
+COPY --from=builder /app/packages/db/package.json ./packages/db/package.json
+COPY --from=builder /app/packages/types/dist ./packages/types/dist
+COPY --from=builder /app/packages/types/package.json ./packages/types/package.json
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/apps/api/node_modules ./apps/api/node_modules
+COPY --from=builder /app/packages/db/node_modules ./packages/db/node_modules
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+EXPOSE 3001
+CMD ["node", "apps/api/dist/index.js"]

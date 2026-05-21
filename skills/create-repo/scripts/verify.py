@@ -22,6 +22,19 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.request import urlopen
 
+MAX_ERROR_LEN = 4000
+
+
+def truncate_error(text: str, limit: int = MAX_ERROR_LEN) -> str:
+    """Truncate long error output, keeping head and tail so the actual error is visible."""
+    if len(text) <= limit:
+        return text
+    # Keep first 1/3 and last 2/3 — the useful error is usually at the end
+    head_len = limit // 3
+    tail_len = limit - head_len
+    marker = "\n\n... (truncated — showing first and last lines) ...\n\n"
+    return text[:head_len] + marker + text[-tail_len:]
+
 
 @dataclass
 class StepResult:
@@ -72,15 +85,13 @@ def run_step(
             # Combine stderr and stdout — tools like turbo put their own
             # error wrapper on stderr while the actual child error is on stdout.
             error = combined if combined else f"Exit code {proc.returncode}"
-            # Truncate long error output
-            if len(error) > 2000:
-                error = error[:2000] + "\n... (truncated)"
+            error = truncate_error(error)
             return StepResult(name=name, passed=False, duration_s=elapsed, error=error)
         if fail_on_output:
             for pattern in fail_on_output:
                 m = re.search(pattern, combined)
                 if m:
-                    snippet = combined[:2000] + ("\n... (truncated)" if len(combined) > 2000 else "")
+                    snippet = truncate_error(combined)
                     return StepResult(
                         name=name,
                         passed=False,
@@ -454,8 +465,7 @@ def verify_node(
                         if e2e_proc.returncode != 0:
                             e2e_log.seek(0)
                             error = e2e_log.read().strip()
-                            if len(error) > 2000:
-                                error = error[:2000] + "\n... (truncated)"
+                            error = truncate_error(error)
                             step = StepResult(e2e_name, False, e2e_elapsed, error)
                         else:
                             step = StepResult(e2e_name, True, e2e_elapsed)
@@ -734,9 +744,7 @@ def verify_fullstack_python(
                     e2e_elapsed = time.monotonic() - e2e_start
                     if e2e_proc.returncode != 0:
                         e2e_log.seek(0)
-                        error = e2e_log.read().strip()
-                        if len(error) > 2000:
-                            error = error[:2000] + "\n... (truncated)"
+                        error = truncate_error(e2e_log.read().strip())
                         step = StepResult("e2e tests (web)", False, e2e_elapsed, error)
                     else:
                         step = StepResult("e2e tests (web)", True, e2e_elapsed)

@@ -23,6 +23,11 @@ This is a pnpm monorepo managed with Turborepo.
 2. `pnpm db:push` — Push database schema
 3. `pnpm start` — Start Postgres + dev servers
 
+## Docker
+
+- `docker compose up` — Start Postgres only (dev workflow)
+- `docker compose -f docker-compose.yml -f docker-compose.containers.yml up --build` — Start full container stack (API + web + Postgres), mirrors production
+
 ## Conventions
 
 - Strict TypeScript (`strict: true`)

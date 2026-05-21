@@ -379,8 +379,9 @@ def _run_setup_step(
         if proc.returncode != 0:
             parts = [s for s in (proc.stderr.strip(), proc.stdout.strip()) if s]
             error = "\n".join(parts) if parts else f"Exit code {proc.returncode}"
-            if len(error) > 2000:
-                error = error[:2000] + "\n... (truncated)"
+            from scripts.verify import truncate_error
+
+            error = truncate_error(error)
             return SetupStepResult(name=name, passed=False, duration_s=elapsed, error=error)
         return SetupStepResult(name=name, passed=True, duration_s=elapsed)
     except subprocess.TimeoutExpired:

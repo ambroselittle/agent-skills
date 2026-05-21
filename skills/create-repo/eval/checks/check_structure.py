@@ -231,7 +231,9 @@ def _check_node_ts_common(project_dir: Path, checks: list[CheckResult]) -> None:
             CheckResult(
                 "biome noUnusedImports is error",
                 no_unused == "error",
-                None if no_unused == "error" else f"noUnusedImports is '{no_unused}', expected 'error'",
+                None
+                if no_unused == "error"
+                else f"noUnusedImports is '{no_unused}', expected 'error'",
             )
         )
 
@@ -657,7 +659,8 @@ def _check_swift_ts(project_dir: Path, checks: list[CheckResult]) -> None:
         CheckResult(
             "file: *.xcworkspace/contents.xcworkspacedata",
             has_workspace and workspace_data is not None and workspace_data.exists(),
-            None if (has_workspace and workspace_data and workspace_data.exists())
+            None
+            if (has_workspace and workspace_data and workspace_data.exists())
             else "Missing pre-created Xcode workspace at repo root",
         )
     )

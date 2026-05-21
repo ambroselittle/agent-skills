@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  launchd job for the WTF worker. Installed/uninstalled via
+  `bash setup.sh --install-wtf-worker` / `--uninstall-wtf-worker`, which
+  substitutes {{REPO_ROOT}} and {{HOME}} and copies the result to
+  ~/Library/LaunchAgents/com.ambroselittle.wtf-worker.plist.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.ambroselittle.wtf-worker</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>{{REPO_ROOT}}/scripts/wtf-worker.sh</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>{{HOME}}</string>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:{{HOME}}/.local/bin</string>
+    <!-- macOS TCC blocks launchd from iCloud-synced paths, which breaks
+         users whose ~/.gitconfig is a symlink into ~/Library/Mobile Documents.
+         The installer snapshots the resolved gitconfig into a launchd-readable
+         location and points GIT_CONFIG_GLOBAL here. -->
+    <key>GIT_CONFIG_GLOBAL</key>
+    <string>{{HOME}}/.agent-skills/wtf-worker.gitconfig</string>
+  </dict>
+
+  <!--
+    Runs every 2 hours between 9am and 11pm local time (8 fires/day).
+    launchd queues missed fires when the Mac is asleep and runs them on wake.
+  -->
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Hour</key><integer>9</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>11</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>13</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>15</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>17</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>19</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>21</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>23</integer><key>Minute</key><integer>0</integer></dict>
+  </array>
+
+  <!-- launchd writes raw stdout/stderr here; the worker script also logs to
+       its own file at ~/Library/Logs/wtf-worker.log. -->
+  <key>StandardOutPath</key>
+  <string>{{HOME}}/Library/Logs/wtf-worker.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>{{HOME}}/Library/Logs/wtf-worker.err.log</string>
+
+  <!-- Don't fire at load — only on the scheduled intervals. Use
+       `launchctl start com.ambroselittle.wtf-worker` for a manual smoke test. -->
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>

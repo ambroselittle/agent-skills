@@ -52,7 +52,7 @@ def test_boundary_pipe_with_flags(rule):
 
 def test_boundary_bash_script_file_allowed(rule):
     """Running a bash script from disk is NOT matched — no pipe involved."""
-    result = evaluate(_bash("bash .work/tmp/setup.sh"), [rule])
+    result = evaluate(_bash("bash scripts/setup.sh"), [rule])
     assert result["decision"] == "proceed"
 
 

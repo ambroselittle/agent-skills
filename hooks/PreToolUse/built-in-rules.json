@@ -3,6 +3,7 @@
   "allow": [
     "Bash(~/.claude/skills/*/scripts/*.sh)",
     "Bash(~/.claude/skills/*/scripts/*.sh *)",
+    "Bash(rsync *)",
     "Read",
     "Write",
     "Edit",

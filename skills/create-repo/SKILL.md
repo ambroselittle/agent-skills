@@ -31,6 +31,7 @@ This is a hard stop — do not proceed, do not attempt to install it yourself, d
 The repo home finder results are pre-loaded below. Use them for the Location question.
 
 - Repo home: !`~/.claude/skills/create-repo/scripts/context.sh repo-home`
+- Available templates: !`~/.claude/skills/create-repo/scripts/context.sh list-templates`
 
 If the result is empty or `{}`, fall back to `./<project-name>` and `~/Code/<project-name>` as location options.
 
@@ -326,7 +327,7 @@ Then report:
 > Quick start copied to clipboard — paste in a terminal to jump in. (Starts Postgres + dev servers in one command.)
 >
 > Next steps:
-> - Run `/start-work` to plan your first feature
+> - Run `/plan-work` to plan your first feature
 > - The starter includes a basic health check — start building from there
 > - Tests run with `pnpm test` (Vitest/pytest depending on template)"
 
@@ -334,7 +335,7 @@ Then report:
 
 ## Step 9: Template Improvement Report
 
-If any fixes were needed during verification (Step 6) — e.g., a dependency version introduced a breaking change that the templates don't account for — write a summary of template changes needed to `.work/create-repo-template-fixes/plan.md` in the agent-skills repo. Include:
+If any fixes were needed during verification (Step 6) — e.g., a dependency version introduced a breaking change that the templates don't account for — write a summary of template changes needed to `<work-folder>/create-repo-template-fixes/plan.md` under your configured `work_root` (from `~/.claude/agent-skills.json`, defaulting to `~/Work`). Include:
 - What broke and why (dependency version change, config format change, etc.)
 - Exact file changes needed in the templates
 - Whether the fix should be deterministic (template/script change) or kept as AI-handled

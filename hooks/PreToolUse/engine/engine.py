@@ -43,6 +43,37 @@ def _get_rule_overrides(config: dict | None, rule_id: str | None) -> dict | None
     return None
 
 
+def _branch_matches_allowed(payload: dict, allowed_branches: list[str]) -> bool:
+    """Check if a git push's target branch matches at least one allowed pattern.
+
+    Mirrors `_path_matches_allowed` but for branch-based rules (git-push-direct,
+    git-force-push). Only applies to Bash tool calls containing a `git push`;
+    returns False for other payloads so the outer deny stands.
+
+    If the push omits a branch (e.g. `git push` with a tracking branch), the
+    branch can't be confirmed, so this returns False — consistent with the
+    git-push-direct matcher's "don't assume the worst" stance.
+    """
+    from fnmatch import fnmatch
+
+    from operations.common import _command, _is_bash, _split_subcommands
+    from operations.git import _extract_push_branch, _is_git_subcommand
+
+    if not _is_bash(payload):
+        return False
+
+    command = _command(payload)
+    for tokens in _split_subcommands(command):
+        if not _is_git_subcommand(tokens, "push"):
+            continue
+        branch = _extract_push_branch(tokens)
+        if branch is None:
+            continue
+        if any(fnmatch(branch, p) for p in allowed_branches):
+            return True
+    return False
+
+
 def _path_matches_allowed(
     payload: dict, allowed_paths: list[str], repo_root: str, cwd: str
 ) -> bool:
@@ -170,9 +201,15 @@ def evaluate(payload: dict, rules: list, repo_root: str | None = None) -> dict:
             # Check for per-repo override
             rule_id = rule_ref.get("id") if rule_ref else None
             overrides = _get_rule_overrides(repo_config, rule_id)
-            if overrides and "allowedPaths" in overrides:
-                if _path_matches_allowed(payload, overrides["allowedPaths"], repo_root or "", cwd):
-                    continue  # Skip this deny — path is allowed by repo config
+            if overrides:
+                if "allowedPaths" in overrides:
+                    if _path_matches_allowed(
+                        payload, overrides["allowedPaths"], repo_root or "", cwd
+                    ):
+                        continue  # Skip this deny — path is allowed by repo config
+                if "allowedBranches" in overrides:
+                    if _branch_matches_allowed(payload, overrides["allowedBranches"]):
+                        continue  # Skip this deny — branch is allowed by repo config
             return {"decision": "deny", "reason": reason}
     for action, reason, _rule_ref in decisions:
         if action == "ask":

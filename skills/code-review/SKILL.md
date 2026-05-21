@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Review a pull request with multi-pass parallel specialized agents. Presents findings for user review — run /apply-review-fixes afterward to apply fixes. Merges repo-specific reviewers (`.claude/agents/reviewers/`) with built-in reviewers — repo overrides built-in on name collision. Always-on agents (security, devdocs) run regardless of diff. Default is incremental (commits since last review); use `full` for the entire PR.
+description: Review a pull request with multi-pass parallel specialized agents. Presents findings in-session for opt-out review — default is to fix everything. Merges repo-specific reviewers (`.claude/agents/reviewers/`) with built-in reviewers — repo overrides built-in on name collision. Always-on agents (security, devdocs) run regardless of diff. Default is incremental (commits since last review); use `full` for the entire PR.
 argument-hint: "[full | pr-url]"
 context: fork
 ---
@@ -10,7 +10,7 @@ context: fork
 You are the coordinator of a parallel code review team.
 
 **Arguments:** $ARGUMENTS
-- No arguments: incremental — review commits since the last review (reads SHA from `.work/<ticket>/reviews/` filenames); if no prior review, uses full PR diff
+- No arguments: incremental — review commits since the last review (reads SHA from `<work-folder>/reviews/` filenames); if no prior review, uses full PR diff
 - `full`: entire PR diff regardless of prior reviews
 - PR URL: review a specific PR
 
@@ -18,12 +18,16 @@ You are the coordinator of a parallel code review team.
 - CI environment: !`~/.claude/skills/code-review/scripts/context.sh ci-status`
 - HEAD SHA: !`~/.claude/skills/shared/scripts/context.sh head-sha`
 - Current branch: !`~/.claude/skills/shared/scripts/context.sh current-branch`
+- Work folder: !`~/.claude/skills/shared/scripts/context.sh work-folder`
+- Ticket ID: !`~/.claude/skills/shared/scripts/context.sh ticket-id`
 - Open PR: !`~/.claude/skills/shared/scripts/context.sh open-pr`
 - Recent commits: !`~/.claude/skills/shared/scripts/context.sh recent-commits`
 - Reviewer agents found: !`~/.claude/skills/code-review/scripts/context.sh reviewer-agents`
 - Work plan: !`~/.claude/skills/code-review/scripts/context.sh work-plan`
 
 **PR number:** extract from "Open PR" above (the number before the colon). Use this everywhere `<pr-number>` appears — do not re-query with `gh pr view` to get the PR number.
+
+**Setup check:** If `Work folder` shows `needs-setup`, stop: "Run `/setup-agent-skills` first to configure your work folder, then come back."
 
 **CI check:** If "CI environment" above shows `YES`, stop immediately and respond:
 > "/code-review is not yet supported in CI environments — it requires interactive input.
@@ -42,12 +46,12 @@ You are the coordinator of a parallel code review team.
 
 2. **Determine review scope.**
 
-   Find current ticket by matching branch name against `.work/` subdirectory names. If no match, use `.work/general/reviews/`.
+   Use the pre-loaded `Work folder` as the review artifact location. If `none` (on main), ask the user which branch/plan this review is for before proceeding.
 
    **Diff source — prefer PR diff over local diff:**
 
    - **PR exists** (pre-loaded above shows an open PR, or a PR URL was passed as argument):
-     - **Incremental** (default): find the most recent review file in `.work/<ticket>/reviews/` by SHA suffix (`YYYY-MM-DD-<sha>.md`). Run `gh pr diff <pr-number> -- $(git log <sha>...HEAD --name-only | sort -u | tr '\n' ' ')` to scope to changed files since last review. If filtering is too complex, use full PR diff with a note.
+     - **Incremental** (default): find the most recent review file in `<work-folder>/reviews/` by SHA suffix (`YYYY-MM-DD-<sha>.md`). Run `gh pr diff <pr-number> -- $(git log <sha>...HEAD --name-only | sort -u | tr '\n' ' ')` to scope to changed files since last review. If filtering is too complex, use full PR diff with a note.
      - **Full** (`full` argument or no prior review): run `gh pr diff <pr-number>`.
 
    - **No PR yet** (pre-loaded shows no open PR):
@@ -240,13 +244,12 @@ After all reviewers complete:
 7. Sort by severity: BLOCKER > ISSUE > SUGGESTION > NIT.
 8. Within each severity level, group by file or theme.
 9. Flag conflicts — if reviewers disagree, note both views and mark for user decision.
-10. Collect `[NOTE]` outputs into the `## Informational Notes` section as **unchecked** `[ ]` items — no ref IDs. Unchecked means the coordinator doesn't recommend action, but the user can check one to include it when running `/apply-review-fixes`.
+10. Collect `[NOTE]` outputs into the `## Informational Notes` section as **unchecked** `[ ]` items — no ref IDs. Unchecked means the coordinator doesn't recommend action, but the user can check one to include it when running `/do-fixes`.
 
 ### Save the review document
 
 - Filename: `<slug>.review.<YYYY-MM-DD>-<short-sha>.md` (slug from branch name, short-sha = HEAD 7 chars)
-- Save to `.work/<ticket>/reviews/` (create the `reviews/` directory if needed)
-- If no ticket directory found, save to `.work/general/reviews/`
+- Save to `<work-folder>/reviews/` (create the `reviews/` directory with `mkdir -p` if needed)
 
 ```markdown
 ---
@@ -257,7 +260,7 @@ instruction: |
   This is a code-review report. High-confidence findings are pre-checked [x] (opt-out model).
   Lower-confidence findings are pre-unchecked [ ] (opt-in model) — the reviewer decides whether
   to act on them.
-  To apply fixes, run `/apply-review-fixes`. It will fix all [x] checked findings and skip
+  To apply fixes, run `/do-fixes`. It will fix all [x] checked findings and skip
   any unchecked [ ] ones. User **Instructions** on each finding take priority over reviewer
   suggestions.
 ---
@@ -306,13 +309,35 @@ instruction: |
 [Space for user to add overall notes or context]
 ```
 
-Present the review to the user. Walk through highlights. Ask them to:
-- Uncheck `[ ]` any findings to skip
-- Add specific guidance in the `**Instructions:**` field on any finding
-- Run `/apply-review-fixes` when ready for fixes
+### Present findings in-session (dialogic)
 
-*Full auto mode:* if the session was started with "full auto", immediately run `/apply-review-fixes`
-after presenting the review instead of waiting.
+The review doc is saved — now present findings conversationally. The user stays in the dialog
+interface; they should not need to open or edit the review document.
+
+**Default: fix everything.** Present findings as an opt-out list, not opt-in.
+
+Walk through findings by severity (blockers first, then issues, then suggestions, nits last).
+For each finding, give a concise summary using its reference number:
+
+> **F1 [BLOCKER]** Missing auth check on /api/admin endpoint — `src/routes/admin.ts:42`
+> **F2 [ISSUE]** Unclosed database connection in error path — `src/db/query.ts:88`
+> **F3 [SUGGESTION]** Extract duplicate validation logic — `src/handlers/create.ts:15,55`
+
+After presenting all findings:
+
+> "I'll fix all of these. Anything you want to opt out of, or change the approach on?
+> (e.g., 'skip F3' or 'for F2, use a try/finally instead')"
+
+**Handling user responses:**
+- "skip F3" → uncheck F3 in the review doc
+- "change F2 to use try/finally" → add `**Instructions:** Use try/finally instead` to F2 in the review doc
+- "looks good" / "go ahead" / no objections → proceed with all findings checked
+
+Update the review doc on disk with any user changes, then proceed to `/do-fixes`
+(or tell the user to run `/do-fixes` to apply).
+
+*Full auto mode:* if the session was started with "full auto", present the findings summary,
+then immediately proceed to `/do-fixes` without waiting for opt-outs.
 
 ---
 

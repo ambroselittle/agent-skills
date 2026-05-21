@@ -44,12 +44,13 @@ def test_run_step_timeout():
 
 
 def test_run_step_truncates_long_errors():
-    long_error = "x" * 3000
+    long_error = "x" * 6000
     with patch(
         "scripts.verify.subprocess.run", return_value=_mock_run(returncode=1, stderr=long_error)
     ):
         result = run_step("failing", ["cmd"], Path("/tmp"))
-    assert len(result.error) < 2100  # 2000 + truncation message
+    assert len(result.error) < 4200  # MAX_ERROR_LEN + marker text
+    assert "truncated" in result.error
 
 
 # --- VerifyResult ---

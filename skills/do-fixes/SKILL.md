@@ -1,22 +1,35 @@
 ---
-name: apply-review-fixes
-description: Apply fixes from a code review. Reads the review doc, fixes checked findings, verifies, commits, pushes, and posts the PR summary comment. Run after reviewing /code-review findings.
+name: do-fixes
+description: Apply fixes from a review. Detects the most recent review artifact and applies checked findings — currently supports code-review output. Verifies, commits, pushes, and posts the PR summary comment.
 argument-hint: "[review-doc-path]"
 depends-on: code-review
 context: fork
 ---
 
-# Apply Review Fixes: Fix, Verify, and Publish
+# Do Fixes: Apply Review Findings
 
-You are executing fixes from a completed code review. The review document contains findings with
-checkboxes — checked `[x]` findings get fixed, unchecked `[ ]` findings get skipped.
+You are applying fixes from a completed review. This skill detects the most recent review artifact
+and applies the appropriate fixes.
 
 **Arguments:** $ARGUMENTS
 - No arguments: auto-discover the most recent review doc for this branch
 - Path: use the specified review doc
 
+### Context Detection
+
+Scan `<work-folder>/reviews/` for the most recent review artifact:
+- **`*.review.*.md`** (code-review output) → apply code fixes using the flow below
+- *(Future: plan-review artifacts → apply plan improvements)*
+
+The review document contains findings with checkboxes — checked `[x]` findings get fixed,
+unchecked `[ ]` findings get skipped.
+
+**Setup check:** If the pre-loaded `Work folder` shows `needs-setup`, stop: "Run `/setup-agent-skills` first to configure your work folder, then come back."
+
 **Pre-loaded context:**
 - Current branch: !`~/.claude/skills/shared/scripts/context.sh current-branch`
+- Work folder: !`~/.claude/skills/shared/scripts/context.sh work-folder`
+- Ticket ID: !`~/.claude/skills/shared/scripts/context.sh ticket-id`
 - HEAD SHA: !`~/.claude/skills/shared/scripts/context.sh head-sha`
 - Open PR: !`~/.claude/skills/shared/scripts/context.sh open-pr`
 - Uncommitted changes: !`~/.claude/skills/shared/scripts/context.sh uncommitted-changes`
@@ -31,10 +44,10 @@ checkboxes — checked `[x]` findings get fixed, unchecked `[ ]` findings get sk
 
 If a path was provided as argument, use it. Otherwise, auto-discover:
 
-1. Match the current branch name against `.work/` subdirectory names (strip user prefix — everything up to and including the first `/` — to get the slug, then match). Also try substring match if no exact match.
-2. Look in `.work/<ticket>/reviews/` for review files (`*.review.*.md`).
+1. Use the pre-loaded `Work folder`. If `none` (on main), ask the user which branch this review is for.
+2. Look in `<work-folder>/reviews/` for review files (`*.review.*.md`).
 3. Use the most recent one (by date in filename).
-4. If no review doc found, fall back to `.work/general/reviews/`.
+4. If no review doc found: "No review document found. Run `/code-review` first to generate one."
 
 If still no review doc: "No review document found. Run `/code-review` first to generate one."
 
@@ -180,7 +193,7 @@ Update with `gh pr edit <pr-number> --body "<updated-body>"`.
 
 First, re-read the review document from disk — your in-context copy may be stale after parallel fix agents updated it:
 ```bash
-cat .work/<ticket>/reviews/<review-filename>.md
+cat <work-folder>/reviews/<review-filename>.md
 ```
 
 Then spawn a sub-agent (`model: sonnet`) with the following:

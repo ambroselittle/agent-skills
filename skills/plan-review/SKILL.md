@@ -1,6 +1,6 @@
 ---
 name: plan-review
-description: Review an implementation plan with specialized parallel agents. Accepts a .work/<slug>, a local file path. Use after /start-work produces a plan, or on any plan document you want expert review of.
+description: Review an implementation plan with specialized parallel agents. Accepts a work slug, a full path, or no argument (auto-discovers from current branch). Use after /plan-work produces a plan, or on any plan document you want expert review of.
 argument-hint: "[WORK-SLUG | FILE-PATH]"
 ---
 
@@ -11,8 +11,11 @@ You are a senior engineer coordinating a parallel review of an implementation pl
 **Arguments:** $ARGUMENTS
 
 **Pre-loaded context:**
+- Work folder: !`~/.claude/skills/shared/scripts/context.sh work-folder`
+- Ticket ID: !`~/.claude/skills/shared/scripts/context.sh ticket-id`
 - Plan reviewer agents: !`~/.claude/skills/plan-review/scripts/context.sh plan-reviewer-agents`
-- Plans in progress: !`~/.claude/skills/shared/scripts/context.sh plans-in-progress`
+
+**Setup check:** If `Work folder` shows `needs-setup`, stop: "Run `/setup-agent-skills` first to configure your work folder, then come back."
 
 ---
 
@@ -22,9 +25,9 @@ Determine what plan to review from `$ARGUMENTS`:
 
 ### Input detection
 
-- **`.work/<slug>` or bare slug** — matches a known work directory (from pre-loaded context) or looks like a slug (lowercase, hyphens, no spaces). Resolve to `.work/<slug>/plan.md`.
+- **Bare slug** — looks like a slug (lowercase, hyphens, no spaces). Resolve to `<work-folder>/plan.md` using the configured work root.
 - **File path** — starts with `/`, `./`, or `~`, or ends with `.md`. Read the file directly.
-- **No arguments** — look at the current branch name. Strip the user prefix (everything up to and including the first `/`) to get a slug. If `.work/<slug>/plan.md` exists, use it. Otherwise: "No plan found. Provide a work slug or file path."
+- **No arguments** — use the pre-loaded `Work folder`. If not "none", resolve to `<work-folder>/plan.md`. If "none": "No plan found. Provide a work slug or file path, or switch to your feature branch first."
 
 ### Validate
 
@@ -79,45 +82,62 @@ Wait for all reviewers to complete.
 
 ---
 
-## Phase 2: Synthesize Findings
+## Phase 2: Synthesize and Present (Stepwise, Dialogic)
 
-Collect all findings from all reviewers and apply the synthesis rules from the finding format:
+Collect all findings from all reviewers. Save the full findings to disk (in `<work-folder>/reviews/`
+as `<slug>.plan-review.<YYYY-MM-DD>.md`, creating the directory with `mkdir -p` if needed) for reference and session recovery. Then present findings
+to the user **one category at a time** — don't dump everything at once.
 
-### MISMATCHES — Stop and surface
+### Step 1: MISMATCHES — Present first, resolve before moving on
 
-If any MISMATCH findings exist, list each clearly:
-- What the plan says
-- What the code/reality shows
-- Which reviewer flagged it
+If any MISMATCH findings exist, present them:
 
-Ask the user to confirm direction on each mismatch before proceeding. Do not apply other changes until mismatches are resolved or acknowledged.
-
-### IMPROVEMENTS — Incorporate
-
-For each IMPROVEMENT finding, describe the change you'd make to the plan. Present all improvements as a batch:
-
-> "The reviewers suggested these improvements:
+> "**Mismatches found** — the plan conflicts with what's actually in the code:
 >
-> 1. [change] — suggested by [reviewer]
-> 2. [change] — suggested by [reviewer]
+> **M1.** [What the plan says] vs. [what the code shows] — flagged by [reviewer]
+> **M2.** ...
 >
-> Want me to apply these to the plan?"
+> These need to be resolved before we proceed. What's the right direction for each?"
 
-If the user approves (or selects specific ones), update the plan document in place. Add a `## Changes from Review` section at the end of the plan listing what changed and which reviewer suggested it.
+Wait for the user to address each mismatch. Update the plan accordingly.
 
-### ALTERNATIVES — Present
+If no mismatches: "**Mismatches:** clean — no conflicts between the plan and codebase."
 
-For each ALTERNATIVE finding, add it to an `## Alternatives Considered` section in the plan. Format: the alternative approach, its tradeoffs vs. the current direction, and which reviewer surfaced it.
+### Step 2: IMPROVEMENTS — Present next
 
-Present this section to the user — they decide whether to adopt, combine, or proceed as-is.
+> "**Improvements** — the reviewers found better approaches:
+>
+> **I1.** [change] — suggested by [reviewer]
+> **I2.** [change] — suggested by [reviewer]
+>
+> I'll apply all of these unless you want to skip any. (e.g., 'skip I2')"
+
+Apply approved improvements to the plan. Add a `## Changes from Review` section listing what
+changed and which reviewer suggested it.
+
+If no improvements: "**Improvements:** none — the plan's approach looks solid."
+
+### Step 3: ALTERNATIVES — Present last
+
+> "**Alternatives** — worth considering but not necessarily better:
+>
+> **A1.** [approach] — tradeoffs: [vs current]. Flagged by [reviewer]
+>
+> These are added to the plan's Alternatives Considered section for reference.
+> Want to adopt any of these instead of the current approach?"
+
+Add to the plan's `## Alternatives Considered` section regardless of user decision.
+
+If no alternatives: "**Alternatives:** none flagged."
 
 ### Clean review
 
-If all three categories come back clean across all reviewers, say so: "All reviewers returned clean — no mismatches, improvements, or alternatives flagged. The plan looks solid."
+If all three categories come back clean: "All reviewers returned clean — no mismatches,
+improvements, or alternatives flagged. The plan looks solid."
 
 ---
 
-**Next step:** Review complete. If changes were applied to the plan, continue with `/hack` to start implementing.
+**Next step:** Review complete. Continue with `/do-work` to start implementing.
 
 ## Guidelines
 
