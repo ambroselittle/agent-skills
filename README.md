@@ -53,7 +53,7 @@ These skills form a pipeline from idea to merged PR:
 
 | Skill | What it does |
 | --- | --- |
-| `/plan-work` | Takes a GitHub issue or description, discovers relevant code, and produces a phased implementation plan in `.work/<slug>/plan.md`. Unlike Claude's built-in plans, these persist to disk and survive across sessions. |
+| `/plan-work` | Takes a GitHub issue or description, discovers relevant code, and produces a phased implementation plan in `<work-folder>/<slug>/plan.md` (under your configured `work_root`, defaulting to `~/Work`). Unlike Claude's built-in plans, these persist to disk and survive across sessions and branch deletions. |
 | `/plan-review` | Runs parallel specialized agents (architecture, completeness, security, testing) over the plan before a line of code is written. Presents findings stepwise by category for in-session discussion. Auto-runs for large plans. |
 | `/do-work` | Implements work from a plan end-to-end — coordinates sub-agents, verifies, commits per task, pushes, and opens a PR when done. No confirmation gates; hard stops only for genuine blockers. |
 | `/code-review` | Multi-pass parallel review with specialized agents. Two-pass approach (normal + reversed diff) for higher recall. Presents findings in-session with opt-out model — default is to fix everything. |

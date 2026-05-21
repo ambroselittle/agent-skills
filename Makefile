@@ -17,13 +17,6 @@ init: ## Install deps, link skills & hooks, sync envs
 	@cd skills/deploy-aws && uv run playwright install chromium --quiet 2>/dev/null || true
 	@printf "\033[36mRunning setup...\033[0m\n"
 	@./setup.sh $(if $(filter 0,$(CLEAR)),--no-clear,)
-	@main_repo=$$(git rev-parse --git-common-dir | sed 's|/\.git$$||'); \
-	if [ "$$main_repo" = "$$(pwd)" ]; then \
-		true; \
-	elif [ -d "$$main_repo/.work" ]; then \
-		rsync -a --delete "$$main_repo/.work/" .work/; \
-		echo "Copied .work/ from $$main_repo"; \
-	fi
 	@$(MAKE) --no-print-directory help
 
 ## Testing

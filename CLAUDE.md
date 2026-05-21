@@ -118,7 +118,7 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on push to PR branches and main
 make init
 ```
 
-This installs `uv` if missing, syncs Python environments (hooks + create-repo), runs `setup.sh` to link skills and hooks, and copies `.work/` for worktrees. Run it once after cloning, or after switching to a new worktree.
+This installs `uv` if missing, syncs Python environments (hooks + create-repo), and runs `setup.sh` to link skills and hooks. Run it once after cloning, or after switching to a new worktree.
 
 ## setup.sh
 

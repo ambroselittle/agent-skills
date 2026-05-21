@@ -335,7 +335,7 @@ Then report:
 
 ## Step 9: Template Improvement Report
 
-If any fixes were needed during verification (Step 6) — e.g., a dependency version introduced a breaking change that the templates don't account for — write a summary of template changes needed to `.work/create-repo-template-fixes/plan.md` in the agent-skills repo. Include:
+If any fixes were needed during verification (Step 6) — e.g., a dependency version introduced a breaking change that the templates don't account for — write a summary of template changes needed to `<work-folder>/create-repo-template-fixes/plan.md` under your configured `work_root` (from `~/.claude/agent-skills.json`, defaulting to `~/Work`). Include:
 - What broke and why (dependency version change, config format change, etc.)
 - Exact file changes needed in the templates
 - Whether the fix should be deterministic (template/script change) or kept as AI-handled

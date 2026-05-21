@@ -45,9 +45,7 @@ def _force_push_main_deny_rule():
 def _write_repo_config(repo, rules):
     config_dir = repo / ".agent-skills"
     config_dir.mkdir(parents=True, exist_ok=True)
-    (config_dir / "config.json").write_text(
-        json.dumps({"hooks": {"PreToolUse": {"rules": rules}}})
-    )
+    (config_dir / "config.json").write_text(json.dumps({"hooks": {"PreToolUse": {"rules": rules}}}))
 
 
 def test_override_allows_denied_path(tmp_path):
@@ -211,9 +209,7 @@ def test_override_allows_denied_push_to_main(tmp_path):
     _repo_config_cache.clear()
 
     repo = tmp_path / "myrepo"
-    _write_repo_config(
-        repo, [{"rule": "block-push-main", "allowedBranches": ["main"]}]
-    )
+    _write_repo_config(repo, [{"rule": "block-push-main", "allowedBranches": ["main"]}])
 
     payload = _payload("Bash", {"command": "git push -u origin main"})
     result = evaluate(payload, [_push_main_deny_rule()], repo_root=str(repo))
@@ -225,9 +221,7 @@ def test_override_allows_force_push_to_main(tmp_path):
     _repo_config_cache.clear()
 
     repo = tmp_path / "myrepo"
-    _write_repo_config(
-        repo, [{"rule": "block-force-push-main", "allowedBranches": ["main"]}]
-    )
+    _write_repo_config(repo, [{"rule": "block-force-push-main", "allowedBranches": ["main"]}])
 
     payload = _payload("Bash", {"command": "git push --force origin main"})
     result = evaluate(payload, [_force_push_main_deny_rule()], repo_root=str(repo))
@@ -239,9 +233,7 @@ def test_override_does_not_affect_other_denied_branch(tmp_path):
     _repo_config_cache.clear()
 
     repo = tmp_path / "myrepo"
-    _write_repo_config(
-        repo, [{"rule": "block-push-main", "allowedBranches": ["main"]}]
-    )
+    _write_repo_config(repo, [{"rule": "block-push-main", "allowedBranches": ["main"]}])
 
     payload = _payload("Bash", {"command": "git push origin master"})
     result = evaluate(payload, [_push_main_deny_rule()], repo_root=str(repo))
@@ -285,9 +277,7 @@ def test_allowed_branches_with_no_explicit_branch_still_denies(tmp_path):
     _repo_config_cache.clear()
 
     repo = tmp_path / "myrepo"
-    _write_repo_config(
-        repo, [{"rule": "block-push-main", "allowedBranches": ["main"]}]
-    )
+    _write_repo_config(repo, [{"rule": "block-push-main", "allowedBranches": ["main"]}])
 
     # A push without a branch arg — the deny rule won't match this anyway,
     # but we want to confirm the override doesn't spuriously proceed.
@@ -309,18 +299,11 @@ def test_allowed_paths_and_branches_coexist(tmp_path):
         ],
     )
 
-    read_payload = _payload(
-        "Read", {"file_path": str(repo / ".eval-runs" / "x" / ".env")}
-    )
-    assert (
-        evaluate(read_payload, [_env_deny_rule()], repo_root=str(repo))["decision"]
-        == "proceed"
-    )
+    read_payload = _payload("Read", {"file_path": str(repo / ".eval-runs" / "x" / ".env")})
+    assert evaluate(read_payload, [_env_deny_rule()], repo_root=str(repo))["decision"] == "proceed"
 
     push_payload = _payload("Bash", {"command": "git push origin main"})
     assert (
-        evaluate(push_payload, [_push_main_deny_rule()], repo_root=str(repo))[
-            "decision"
-        ]
+        evaluate(push_payload, [_push_main_deny_rule()], repo_root=str(repo))["decision"]
         == "proceed"
     )
