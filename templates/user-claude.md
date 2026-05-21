@@ -81,7 +81,7 @@ Before saving anything, apply this test — in order:
    → Yes → Use the Tasks tool or keep it in context. Do not save it at all.
 
 4. **Is this genuinely project-specific AND needed across sessions?**
-   → Auto-memory is acceptable only here, but prefer a `.work/` note.
+   → Auto-memory is acceptable only here, but prefer a note in your configured work folder.
 
 **The litmus test:** if you find yourself writing "in this project" or "for this repo," it's a
 rule or CLAUDE.md entry. If you'd remove that qualifier and it still applies everywhere, it's a
