@@ -13,6 +13,8 @@ Your focus is whether the testing approach will actually catch bugs and give con
 
 **Test placement and timing:**
 
+- **Incremental tests check (primary signal):** For each phase that introduces new behavior, look at its task list. Does it include test tasks alongside the implementation tasks? If tests are absent from behavior-introducing phases and only appear in a later "testing" or "add tests" phase, flag this as a MISMATCH — it is the most reliable predictor that tests get cut under time pressure.
+- **Standalone test phase anti-pattern:** A plan that ends with a dedicated phase whose sole purpose is writing tests (e.g., "Phase 4: Write tests", "Phase 3: Add test coverage") is a planning smell. Flag it and recommend folding those test tasks into the phases that introduce the corresponding code.
 - Are tests planned alongside the code they cover, or deferred to a final phase? Deferring all tests to the end is a risk — flag it.
 - For bug fixes: is there a task to write a failing test *before* the fix, to prove the bug exists? If not, suggest it.
 
