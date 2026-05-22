@@ -11,6 +11,7 @@ You are creating and switching to a Superset workspace for a work item. Your job
 **Arguments:** $ARGUMENTS
 
 **Pre-loaded context:**
+
 - Ticket ID (from branch): !`~/.claude/skills/shared/scripts/context.sh ticket-id`
 - Work folder (from branch): !`~/.claude/skills/shared/scripts/context.sh work-folder`
 - User branch prefix: !`~/.claude/skills/shared/scripts/context.sh user-slug`
@@ -30,13 +31,22 @@ Determine which plan to open a workspace for, in priority order:
 4. **Ask** — "What are you working on? Give me a Linear ID or slug."
 
 Once resolved, derive the slug:
+
 - If a plan exists at `<work-folder>/plan.md`, read the `branch` from its frontmatter for the slug.
-- Otherwise derive the slug from the ticket: fetch the Linear issue title with `mcp__claude_ai_Linear__get_issue` and apply the same slug rules as `/plan-work` (lowercase team + number + title fragment, 72-char max).
+- Otherwise derive the slug from the ticket: fetch the Linear issue title with `mcp__claude_ai_Linear__get_issue` and apply the same slug rule as `/plan-work` — concise 2–4 keyword fragment that reads like a tag (drop articles, prepositions, filler verbs); pattern is `<lowercase-team>-<number>-<fragment>`; 70-char hard cap on the full slug. The ticket prefix is never shortened.
 - If argument is already a slug (no `[A-Z]+-\d+` pattern), use it directly.
 
 ---
 
-## Phase 1: Identify Target Repo
+## Phase 1: Mark the Linear Ticket "In Progress"
+
+Skip this phase entirely if no Linear ticket is involved (slug-only / plan-only path). Otherwise, transition the ticket so teammates can see you've picked it up.
+
+Read `~/.claude/skills/shared/references/linear-mark-in-progress.md` and follow it precisely. It covers state-check, per-team status resolution + caching to `linear_team_statuses.<TEAM>.in-progress` in `~/.claude/agent-skills.json`, and the API transition. On any Linear API failure, report and continue — don't block workspace creation.
+
+---
+
+## Phase 2: Identify Target Repo
 
 If a plan exists, scan its phases for `**Repo:**` annotations:
 
@@ -50,20 +60,23 @@ The selected repo is `<target-repo>`.
 
 ---
 
-## Phase 2: Resolve Device and Project IDs
+## Phase 3: Resolve Device and Project IDs
 
 ### Device ID
 
 Read `device_id` from `~/.claude/agent-skills.json`.
 
 If not present:
+
 ```
 mcp__superset__list_devices {}
 ```
+
 - One device → use it automatically
 - Multiple → ask which to use
 
 Save `device_id` to `~/.claude/agent-skills.json`:
+
 ```bash
 python3 -c "
 import json, os
@@ -79,12 +92,15 @@ json.dump(d, open(path, 'w'), indent=2)
 Read `projects` map from `~/.claude/agent-skills.json` — keyed by repo remote (e.g. `loancrate/web`).
 
 If `<target-repo>` is not in the map:
+
 ```
 mcp__superset__list_projects { "deviceId": "<device-id>" }
 ```
+
 Match by name or path against `<target-repo>`. If ambiguous, ask the user to pick.
 
 Save to config:
+
 ```bash
 python3 -c "
 import json, os
@@ -97,7 +113,7 @@ json.dump(d, open(path, 'w'), indent=2)
 
 ---
 
-## Phase 3: Check for Existing Workspace
+## Phase 4: Check for Existing Workspace
 
 ```
 mcp__superset__list_workspaces { "deviceId": "<device-id>" }
@@ -107,12 +123,12 @@ If a workspace already exists whose name matches the slug (or contains the ticke
 
 > "A workspace `<name>` already exists for this ticket. Switch to it instead of creating a new one?"
 
-- **Yes** → use `mcp__superset__switch_workspace` and skip to Phase 5
+- **Yes** → use `mcp__superset__switch_workspace` and skip to Phase 6 (confirm)
 - **No** → continue
 
 ---
 
-## Phase 4: Confirm Base Branch
+## Phase 5: Confirm Base Branch
 
 Ask the user which branch to base the workspace on:
 
@@ -125,7 +141,7 @@ The confirmed base is `<base-branch>`.
 
 ---
 
-## Phase 5: Create and Switch Workspace
+## Phase 6: Create and Switch Workspace
 
 ```
 mcp__superset__create_workspace {
@@ -151,6 +167,7 @@ mcp__superset__switch_workspace {
 Confirm: "Workspace `<slug>` is open — switch to it in Superset to start working."
 
 If the plan has multiple repos with remaining work:
+
 > "When you're ready for the next repo (`<next-repo>`), run `/super-work` again."
 
 ---
