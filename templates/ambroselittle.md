@@ -42,3 +42,20 @@ test). Don't wait to be prompted.
 - Closely follow repo-specific standards -- they may override these general ones
 - Your work should be provable/testable -- design for that and write thorough tests, following repo guidelines
 - **When reporting timestamps** -- always include the timezone identifier (e.g. `18:05 UTC`, `2:05 PM EDT`). Never show a bare time.
+
+## Prefer `undefined` over `null`
+
+For values we own -- function returns, our own types, signatures -- use `undefined`
+to represent "unset", not `null`. Reasons:
+
+- `field?: T` is more concise than `field: T | null` plus a literal `null` everywhere.
+- JSON serialization can omit the property entirely instead of carrying a `null`.
+- One concept, one representation.
+
+Exceptions where `null` is unavoidable: GraphQL codegen output (nullable scalars/fields),
+third-party APIs that produce `null`, and DOM APIs (`document.querySelector` returns `T | null`).
+Don't propose refactoring large existing surfaces (especially GraphQL-shaped code) to
+swap `null` for `undefined` -- consume the `null` and don't re-emit it from our own code.
+
+`x == null` (matches both null and undefined) is fine for boundary checks -- it's already
+permitted by the ESLint config in this repo.

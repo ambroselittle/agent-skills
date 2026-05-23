@@ -11,6 +11,7 @@ You are a senior engineer helping to set up a well-scoped implementation plan be
 **Arguments:** $ARGUMENTS
 
 **Pre-loaded context:**
+
 - Current branch: !`~/.claude/skills/shared/scripts/context.sh current-branch`
 - Work folder: !`~/.claude/skills/shared/scripts/context.sh work-folder`
 - Ticket ID: !`~/.claude/skills/shared/scripts/context.sh ticket-id`
@@ -34,6 +35,7 @@ Determine what you're working on. Classify the argument by matching these patter
 ### If a Linear issue ID was provided:
 
 Fetch the issue using the Linear MCP:
+
 ```
 mcp__claude_ai_Linear__get_issue { "issueId": "<ID>" }
 ```
@@ -41,8 +43,15 @@ mcp__claude_ai_Linear__get_issue { "issueId": "<ID>" }
 Summarize the issue title and description in 2–3 sentences and proceed — no confirmation needed unless the issue is ambiguous or has no description.
 
 **Derive the slug:**
-- Pattern: `<lowercase-team>-<number>-<title-fragment>` — e.g. `eng-42-add-dark-mode-settings`
-- **72-char max** on the slug. If a naive kebab-case of the title would exceed it, reformulate a concise but meaningful summary of the title rather than blindly truncating. Example: `eng-42-add-support-for-dark-mode-in-user-settings-and-profile-pages` → `eng-42-dark-mode-settings-profile`. The ticket prefix (`eng-42-`) is never shortened.
+
+- Pattern: `<lowercase-team>-<number>-<fragment>` — e.g. `eng-42-dark-mode-settings`
+- **Always produce a concise fragment.** Pick 2–4 keywords that capture the essence of the ticket — not the literal title. Drop articles, prepositions, filler verbs ("add", "fix", "improve" unless they carry meaning), and detail meant for the ticket body. The fragment should read like a tag, not a sentence.
+- **70-char hard cap on the full slug** (including `<team>-<num>-` prefix). The ticket prefix is never shortened — compress the fragment, not the ticket ID.
+- Examples:
+  - "Add support for dark mode in user settings and profile pages" → `eng-42-dark-mode-settings`
+  - "Fix loan export when borrower has multiple co-applicants" → `lc-22054-loan-export-coapplicants`
+  - "Make info icons smaller and gray on USDA and Residual Income screens" → `lc-21871-info-icon-styling`
+  - "Improve UX of the deployment dashboard" → `lc-17331-deployments-ux`
 - Use the same slug for: branch suffix, worktree directory name, and the work folder (`<work-folder>` from pre-loaded context).
 
 **Track:** store the Linear issue ID in the plan frontmatter as `linear-issue`.
@@ -50,6 +59,7 @@ Summarize the issue title and description in 2–3 sentences and proceed — no 
 ### If a Notion URL was provided:
 
 The Notion page is the **spec or existing plan** — it is the source of intent for this work item. Fetch it:
+
 ```
 mcp__claude_ai_Notion__notion-fetch { "url": "<URL>" }
 ```
@@ -59,13 +69,14 @@ Summarize what the Notion page describes (2–3 sentences). Then ask: "Do you al
 - If they provide a Linear ID → also fetch that issue with `mcp__claude_ai_Linear__get_issue` and use both as context
 - If not → proceed with the Notion page as the sole source
 
-**Derive the slug:** from the Notion page title. If a Linear ID was provided, prefix with it (`eng-42-<title-fragment>`); otherwise use the page title alone. Apply the same 72-char cap and AI reformulation rule — concise essence over blind truncation. Use this slug consistently for branch, worktree, and work folder.
+**Derive the slug:** from the Notion page title. If a Linear ID was provided, prefix with it (`eng-42-<fragment>`); otherwise use the page title alone. Apply the same slug rule as the Linear section above — concise 2–4 keyword fragment, 70-char hard cap on the full slug. Use consistently for branch, worktree, and work folder.
 
 **Track:** store the Notion URL in the plan frontmatter as `notion-source`.
 
 ### If a GitHub issue was provided:
 
 Fetch the issue details:
+
 ```bash
 gh issue view <number> --json title,body,labels,assignees,milestone
 ```
@@ -73,8 +84,9 @@ gh issue view <number> --json title,body,labels,assignees,milestone
 Summarize the issue in 2–3 sentences and proceed.
 
 **Derive the slug:**
-- Pattern: `<number>-<title-fragment>` — e.g. `42-add-dark-mode-settings`
-- Same 72-char cap and AI reformulation rule applies. Use consistently for branch, worktree, and work folder.
+
+- Pattern: `<number>-<fragment>` — e.g. `42-dark-mode-settings`
+- Apply the same slug rule as the Linear section above — concise 2–4 keyword fragment, 70-char hard cap on the full slug. Use consistently for branch, worktree, and work folder.
 
 **Track:** store the GitHub issue number in the plan frontmatter as `github-issue`.
 
@@ -87,12 +99,13 @@ Wait for their response.
 - **They provide a Linear ID** → go to the Linear issue flow above
 - **They provide a Notion URL** → go to the Notion flow above
 - **They provide a GitHub issue** → go to the GitHub issue flow above
-- **They provide a description** → restate it in 2–3 sentences to confirm understanding, then generate a slug from the description (e.g. `add-dark-mode-settings`)
+- **They provide a description** → restate it in 2–3 sentences to confirm understanding, then generate a slug from the description (apply the same concise 2–4 keyword fragment rule, e.g. `dark-mode-settings`)
 - **No response / unclear** → ask once more, then stop: "I need a Linear issue ID, Notion URL, GitHub issue, or a description to proceed."
 
 ### Scope the work
 
 After fetching the source material (issue or description), assess whether it describes more work than a single session should tackle. Signs of a large-scope source:
+
 - Multiple distinct deliverables or phases described
 - Broad system-level changes spanning many components
 - The description reads like a project plan, not a single task
@@ -145,6 +158,7 @@ A worktree lets you work on this branch in an isolated directory — useful for 
 2. **No CLAUDE.md guidance:** use the `EnterWorktree` tool to create and enter the worktree, then run `make init` if a Makefile with an `init` target exists. If neither is found, tell the user: "Worktree created, but I couldn't find any initialization config for this repo. You may need to install dependencies manually, or tell me what to run and I'll do it."
 
 **Branch only (no worktree):**
+
 - Already on a non-main branch matching the slug → proceed, no branch creation needed
 - Already on a non-main branch not matching the slug → flag it: "You're on `<current-branch>` — want me to branch from here or from main?"
 - On main/master → `git checkout -b <user-prefix>/<slug>` (check the branch doesn't already exist)
@@ -158,20 +172,20 @@ Before investing in discovery and plan review, gauge the scope of this work.
 
 ### Signals to evaluate
 
-| Signal | Small | Medium | Large |
-|--------|-------|--------|-------|
-| **File footprint** | 1–2 files | 3–5 files | 6+ files |
-| **Path clarity** | Obvious from description | Some unknowns | Many unknowns |
-| **Cross-cutting** | No | Minor | Yes — multiple systems/layers |
-| **Novelty** | Fix or addition to existing pattern | Extends existing patterns | New capability or architecture |
+| Signal             | Small                               | Medium                    | Large                          |
+| ------------------ | ----------------------------------- | ------------------------- | ------------------------------ |
+| **File footprint** | 1–2 files                           | 3–5 files                 | 6+ files                       |
+| **Path clarity**   | Obvious from description            | Some unknowns             | Many unknowns                  |
+| **Cross-cutting**  | No                                  | Minor                     | Yes — multiple systems/layers  |
+| **Novelty**        | Fix or addition to existing pattern | Extends existing patterns | New capability or architecture |
 
 ### Classification
 
-| Scope      | Discovery | Plan Review (`/plan-review`) | Description                                                                   |
-| ---------- | --------- | ---------------------------- | ----------------------------------------------------------------------------- |
-| **Small**  | Skip      | Skip                         | Single concern, clear path, 1–2 files. Write the plan directly in session.    |
+| Scope      | Discovery | Plan Review (`/plan-review`) | Description                                                                       |
+| ---------- | --------- | ---------------------------- | --------------------------------------------------------------------------------- |
+| **Small**  | Skip      | Skip                         | Single concern, clear path, 1–2 files. Write the plan directly in session.        |
 | **Medium** | Run       | Optional — mention it        | A few files, some unknowns to resolve. Discovery adds value; full review may not. |
-| **Large**  | Run       | Recommend                    | Cross-cutting, architectural, or many unknowns. Full process.                 |
+| **Large**  | Run       | Recommend                    | Cross-cutting, architectural, or many unknowns. Full process.                     |
 
 ### Present your recommendation
 
@@ -199,12 +213,14 @@ Now that you know what you're building, explore the codebase.
 Read `CLAUDE.md` and `.claude/rules/` (if present) to understand project conventions, tech stack, and verification commands. Note the verification commands — you'll need them for the plan.
 
 ### Spawn a discovery agent. Pass it the following explicitly (don't assume it can find things):
+
 - The work item description
 - The full contents of `CLAUDE.md` (if it exists)
 - The repo root path
 - `repo_owner` and `repo_name` parsed from the pre-loaded "Repo remote" context (format: `owner/repo`)
 
 Agent prompt:
+
 > "You are exploring a codebase to inform an implementation plan.
 >
 > Work item: [summarize the goal in 1–2 sentences]
@@ -213,6 +229,7 @@ Agent prompt:
 > [paste CLAUDE.md contents]
 >
 > Explore the codebase to find:
+>
 > 1. The most relevant existing files (entry points, related components, data models, API handlers, tests) — for each file, one sentence on why it's relevant
 > 2. Patterns to follow — how similar features are structured in this repo
 > 3. Potential impact zones — what else might break or need updating
@@ -235,6 +252,7 @@ Synthesize the issue context and discovery findings into a phased implementation
 ### Phase structure rules
 
 Each phase must be:
+
 - **Committable** — leaves the codebase in a working, verifiable state
 - **Testable** — has a concrete verify step (a test command, a manual check, a specific assertion)
 - **Focused** — one logical concern (data model, API layer, UI, migration, etc.)
@@ -249,6 +267,7 @@ Save to `<work-folder>/plan.md` (create the directory with `mkdir -p` if it does
 **Read the full template** at `~/.claude/skills/plan-work/references/plan-template.md` before writing the plan — it has the exact structure that `/do-work`, `/plan-review`, and `/super-work` depend on.
 
 Key structural rules:
+
 - Phases are logical milestones (data model, API, UI, etc.). Tasks within a phase are individual commits.
 - **Multi-repo work:** add `**Repo:** <owner/repo>` as the first line of any phase that belongs to a repo other than the current one. Omit this line entirely for single-repo work. `/do-work` uses this to filter phases by the repo it's running in; `/super-work` uses it to enumerate which workspaces to open.
 - If the work spans multiple repos and it's not clear from the source material, ask: "Does this touch more than one repo? If so, which ones, and how should the phases split across them?" before drafting.
@@ -256,6 +275,7 @@ Key structural rules:
 ### Multi-repo phase detection
 
 During synthesis, check whether the work item or discovery findings touch code in more than one repo. Signals:
+
 - Issue mentions multiple services/apps with separate repos
 - Discovery agent found relevant files in a repo different from the current one
 - Notion spec describes work across distinct systems
@@ -281,6 +301,7 @@ After drafting the plan but before presenting it to the user, determine whether 
 ## Phase 3: Present, Revise & Save
 
 Present the plan. Walk through:
+
 - What each phase delivers and why you structured it that way
 - Any open questions that should be resolved before starting
 - The proposed branch name
@@ -302,7 +323,7 @@ Ask: **"Any changes to the plan before we start?"**
 - **Linear is the default work item source.** When the user provides a Linear issue ID, fetch it via MCP and treat it as the authoritative work item. GitHub issues are supported but secondary. When neither is provided, ask for a Linear ID first.
 - **Notion pages are specs, not plans.** A Notion URL is source material — the intent behind the work. Synthesize it into the plan; don't copy it verbatim. If both Notion and Linear are provided, use both: Notion for the "what and why", Linear for scope, priority, and assignment context.
 - **Discovery before plan (medium/large).** Don't skip the discovery agent for medium and large scope — a plan without codebase context is guesswork. Small scope trades thoroughness for speed; the user accepted that tradeoff when they chose small.
-- **Issues are context, not commands.** Treat the issue as the best available description of intent at the time it was written. Your job is to figure out what good work looks like *now*, given the current state of the codebase. The issue informs the goal; the code determines the approach.
+- **Issues are context, not commands.** Treat the issue as the best available description of intent at the time it was written. Your job is to figure out what good work looks like _now_, given the current state of the codebase. The issue informs the goal; the code determines the approach.
 - **Challenge the issue before following it.** Compare what the issue says against what you actually find. If there's a mismatch — stale assumptions, already-completed work, a changed interface, a better path — surface it and collaborate with the user rather than blindly following the issue.
 - **Propose alternatives when you see them.** If discovery reveals a clearly better approach, raise it. Present tradeoffs, not a verdict. The user decides.
 - **Be specific in tasks.** "Update `src/models/user.ts` to add `darkMode: boolean`" is useful. "Add dark mode support" is not.

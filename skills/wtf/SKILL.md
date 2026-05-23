@@ -8,6 +8,16 @@ argument-hint: "<what went wrong>"
 
 When the user catches you doing something wrong, they type `/wtf <what went wrong>`. This skill persists the correction so an autonomous worker can classify and fix it later. The skill returns in <1s; the GitHub backlog update happens in the background.
 
+## Repo override (check first)
+
+Before doing anything else, check whether the current repo provides its own `/wtf` skill. Walk up from `$PWD` until you find a `.git` directory — that's the repo root. If `<repo-root>/.claude/skills/wtf/SKILL.md` exists:
+
+1. Read that file.
+2. Follow its instructions instead of the rest of this skill, treating the user's argument verbatim as: `$ARGUMENTS`.
+3. Stop — do not fall through to the default behavior below.
+
+This lets repos route WTF captures to team- or project-specific destinations (different backlog repo, different sanitization rules, etc.). When no repo-local skill is present, continue with the default behavior.
+
 **Arguments:** `$ARGUMENTS` — free-form description of what went wrong. The user's raw reaction is good; no need to sanitize.
 
 ## Step 1: Capture locally (synchronous)
