@@ -1,12 +1,12 @@
 ---
 name: super-work
-description: Open a Superset workspace for a work item. Discovers context from the current session, branch, or a given Linear ID — creates the workspace on the right repo/branch and switches to it. Run this when you're ready to start coding in Superset.
+description: Open a Superset workspace for a work item. Discovers context from the current session, branch, or a given Linear ID — creates the workspace on the right repo/branch. Run this when you're ready to start coding in Superset.
 argument-hint: "[LINEAR-ID | slug]"
 ---
 
 # Super Work: Launch a Superset Workspace
 
-You are creating and switching to a Superset workspace for a work item. Your job is to figure out what to work on, set up the workspace on the right repo and branch, and hand off to the user inside Superset.
+You are creating a Superset workspace for a work item. Your job is to figure out what to work on, set up the workspace on the right repo and branch, and hand off to the user to open it in the Superset desktop app.
 
 **Arguments:** $ARGUMENTS
 
@@ -16,8 +16,22 @@ You are creating and switching to a Superset workspace for a work item. Your job
 - Work folder (from branch): !`~/.claude/skills/shared/scripts/context.sh work-folder`
 - User branch prefix: !`~/.claude/skills/shared/scripts/context.sh user-slug`
 - Repo remote: !`~/.claude/skills/shared/scripts/context.sh repo-remote`
+- Superset CLI: !`command -v superset >/dev/null 2>&1 && (superset hosts list --quiet >/dev/null 2>&1 && echo "ready" || echo "needs-login") || echo "not-installed"`
 
-**Setup check:** If `Work folder` shows `needs-setup`, stop: "Run `/setup-agent-skills` first to configure your work folder, then come back."
+**Setup checks (in order):**
+
+1. If `Work folder` shows `needs-setup`, stop: "Run `/setup-agent-skills` first to configure your work folder, then come back."
+
+2. If `Superset CLI` shows `not-installed`, stop: "The Superset CLI isn't installed. Install it with:
+
+   ```
+   brew tap superset-sh/tap
+   brew install superset-sh/tap/superset
+   ```
+
+   Then re-run `/super-work`."
+
+3. If `Superset CLI` shows `needs-login`, stop: "Superset CLI is installed but not authenticated. Run `superset auth login` (or set `SUPERSET_API_KEY`), then re-run `/super-work`."
 
 ---
 
@@ -60,29 +74,31 @@ The selected repo is `<target-repo>`.
 
 ---
 
-## Phase 3: Resolve Device and Project IDs
+## Phase 3: Resolve Host and Project IDs
 
-### Device ID
+All Superset calls run through the `superset` CLI. The CLI emits JSON automatically when invoked from a Claude Code session, so no `--json` flag is needed — but adding it never hurts and makes intent explicit.
 
-Read `device_id` from `~/.claude/agent-skills.json`.
+### Host ID
+
+Read `host_id` from `~/.claude/agent-skills.json`. (Older configs may have `device_id` — ignore it and create a fresh `host_id`.)
 
 If not present:
 
-```
-mcp__superset__list_devices {}
+```bash
+superset hosts list --json
 ```
 
-- One device → use it automatically
-- Multiple → ask which to use
+- One host → use it automatically
+- Multiple → ask which to use (match on name)
 
-Save `device_id` to `~/.claude/agent-skills.json`:
+Save `host_id` to `~/.claude/agent-skills.json`:
 
 ```bash
 python3 -c "
 import json, os
 path = os.path.expanduser('~/.claude/agent-skills.json')
 d = json.load(open(path))
-d['device_id'] = '<device-id>'
+d['host_id'] = '<host-id>'
 json.dump(d, open(path, 'w'), indent=2)
 "
 ```
@@ -93,11 +109,11 @@ Read `projects` map from `~/.claude/agent-skills.json` — keyed by repo remote 
 
 If `<target-repo>` is not in the map:
 
-```
-mcp__superset__list_projects { "deviceId": "<device-id>" }
+```bash
+superset projects list --json
 ```
 
-Match by name or path against `<target-repo>`. If ambiguous, ask the user to pick.
+Match by name or path against `<target-repo>` (parse JSON with `jq`). If ambiguous, ask the user to pick.
 
 Save to config:
 
@@ -115,16 +131,19 @@ json.dump(d, open(path, 'w'), indent=2)
 
 ## Phase 4: Check for Existing Workspace
 
+```bash
+superset workspaces list --host "<host-id>" --json
 ```
-mcp__superset__list_workspaces { "deviceId": "<device-id>" }
-```
 
-If a workspace already exists whose name matches the slug (or contains the ticket token):
+Parse the JSON and look for a workspace whose name matches the slug (or contains the ticket token).
 
-> "A workspace `<name>` already exists for this ticket. Switch to it instead of creating a new one?"
+If one exists:
 
-- **Yes** → use `mcp__superset__switch_workspace` and skip to Phase 6 (confirm)
-- **No** → continue
+> "A workspace `<name>` already exists for this ticket. Open it in Superset instead of creating a new one."
+
+Stop here — the user opens the existing workspace from the Superset desktop app.
+
+Otherwise, continue to Phase 5.
 
 ---
 
@@ -141,30 +160,21 @@ The confirmed base is `<base-branch>`.
 
 ---
 
-## Phase 6: Create and Switch Workspace
+## Phase 6: Create Workspace
 
-```
-mcp__superset__create_workspace {
-  "deviceId": "<device-id>",
-  "projectId": "<project-id>",
-  "workspaces": [{
-    "name": "<slug>",
-    "branchName": "<user-prefix>/<slug>",
-    "baseBranch": "<base-branch>"
-  }]
-}
+```bash
+superset workspaces create \
+  --host "<host-id>" \
+  --project "<project-id>" \
+  --name "<slug>" \
+  --branch "<user-prefix>/<slug>" \
+  --base-branch "<base-branch>" \
+  --json
 ```
 
-Capture the returned workspace ID. If creation fails, report the error and stop.
+Capture the returned workspace ID from the JSON output. If creation fails (non-zero exit), report the error verbatim and stop.
 
-```
-mcp__superset__switch_workspace {
-  "deviceId": "<device-id>",
-  "workspaceId": "<workspace-id>"
-}
-```
-
-Confirm: "Workspace `<slug>` is open — switch to it in Superset to start working."
+Confirm: "Workspace `<slug>` created — open it in the Superset desktop app to start working."
 
 If the plan has multiple repos with remaining work:
 
@@ -172,12 +182,13 @@ If the plan has multiple repos with remaining work:
 
 ---
 
-## Fallback: Superset Unavailable
+## Fallback: CLI errors
 
-If any Superset call fails with an auth or connection error:
+If any `superset` call exits non-zero, surface the error message and the suggested fix:
 
-1. Report what happened
-2. Tell the user: "Re-authenticate Superset (`claude mcp auth superset`) and run `/super-work` again."
+- `Not logged in` → "Run `superset auth login` (or set `SUPERSET_API_KEY`) and re-run `/super-work`."
+- Connection / network errors → "Couldn't reach Superset. Check `superset status` and your network, then re-run `/super-work`."
+- Anything else → report the full error and stop. Don't retry or guess.
 
 ---
 
@@ -185,6 +196,6 @@ If any Superset call fails with an auth or connection error:
 
 - **A plan is helpful but not required.** A Linear ticket ID alone is enough — slug is derived from the issue title.
 - **One workspace per repo.** For multi-repo work, open them sequentially — run `/super-work` again for each additional repo.
-- **Device and project IDs are cached.** Look them up once, save them, skip the lookup next time.
+- **Host and project IDs are cached.** Look them up once, save them, skip the lookup next time.
 - **The work folder lives outside the repo** — it's accessible from any worktree. No copying needed.
-- **Don't auto-start agents.** Create the workspace and switch to it. The user drives from there.
+- **Don't auto-start agents.** Create the workspace and hand off. The user opens it in the Superset desktop app and drives from there.
