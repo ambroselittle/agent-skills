@@ -314,17 +314,20 @@ The script handles: `git init`, staging, initial commit with stack description, 
 
 Mark all tasks completed.
 
-Report results, then give the user a quick-start command. On macOS, pipe it to `pbcopy` so it's ready to paste:
-
-Copy the start command to clipboard (adapts by template):
-- TS templates: `echo "cd <output-dir> && pnpm start" | pbcopy`
-- Python templates: `echo "cd <output-dir> && just start" | pbcopy`
+Report results, then give the user a quick-start command **printed in its own fenced code block,
+exactly as it should be pasted** (adapts by template — TS: `cd <output-dir> && pnpm start`;
+Python: `cd <output-dir> && just start`). Don't pipe it to `pbcopy` — the printed block is the
+delivery.
 
 Then report:
 
 > "Your `<project-name>` is ready. Everything builds, tests pass, and the first commit is pushed.
 >
-> Quick start copied to clipboard — paste in a terminal to jump in. (Starts Postgres + dev servers in one command.)
+> Quick start (starts Postgres + dev servers in one command):
+>
+> ```
+> cd <output-dir> && pnpm start
+> ```
 >
 > Next steps:
 > - Run `/plan-work` to plan your first feature

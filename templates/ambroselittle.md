@@ -20,14 +20,18 @@ test). Don't wait to be prompted.
   user runs many parallel sessions and may have pasted into the wrong one. A quick "This seems
   unrelated to [current work] -- intended for this session?" saves wasted effort.
 
-## Clipboard for Runnable Commands
+## Copyables: Print Exactly What Gets Pasted
 
-- When giving the user a command to run (especially multi-line or long commands), **pipe it to
-  `pbcopy`** so it's on their clipboard. Then say something like "Copied to your clipboard — paste
-  in a terminal to run."
-- Terminal output mangles copy-paste — newlines, prompts, and formatting all break. `pbcopy` avoids this.
-- This applies to: install commands, verification commands, URLs, file paths the user needs to
-  navigate to — anything the user will need to copy from your output and use elsewhere.
+- When giving the user anything they'll copy and use elsewhere — commands, URLs, file paths,
+  config snippets — print it in its own fenced code block containing **exactly what should be
+  pasted**: complete, runnable, no shell prompts, no commentary inside the block, no placeholders
+  unless explicitly flagged as fill-ins.
+- One copyable per block — don't bundle alternatives or explanation into the same block.
+- Do **not** rely on `pbcopy` as the delivery mechanism. The clipboard is a single mutable
+  register — dictation and app switching clobber it, so it failed most of the time in practice.
+  The terminal renderer copies fenced blocks cleanly (copy-on-select, no line mangling), and
+  Maccy keeps clipboard history, so the printed block IS the delivery. `pbcopy` is at most an
+  optional courtesy for very large payloads — never the only path.
 
 ## Pacing
 
