@@ -27,11 +27,6 @@ test). Don't wait to be prompted.
   pasted**: complete, runnable, no shell prompts, no commentary inside the block, no placeholders
   unless explicitly flagged as fill-ins.
 - One copyable per block — don't bundle alternatives or explanation into the same block.
-- Do **not** rely on `pbcopy` as the delivery mechanism. The clipboard is a single mutable
-  register — dictation and app switching clobber it, so it failed most of the time in practice.
-  The terminal renderer copies fenced blocks cleanly (copy-on-select, no line mangling), and
-  Maccy keeps clipboard history, so the printed block IS the delivery. `pbcopy` is at most an
-  optional courtesy for very large payloads — never the only path.
 
 ## Pacing
 
