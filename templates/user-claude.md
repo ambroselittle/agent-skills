@@ -111,6 +111,13 @@ Plans live outside the repo in your configured work folder (`~/.claude/agent-ski
   authorization that requires those specific words -- not "ship it", "land it", or other shorthand.
 - **Batch commits before pushing** -- every push triggers CI and jobs do not self-cancel.
   Accumulate all changes locally, then push once when the work is ready for review.
+- **`--no-verify` has exactly one sanctioned use: merge commits carrying wholly
+  unrelated incoming changes.** Pre-commit hooks (lint-staged) choke on large merge
+  commits -- typed lint over a huge staged set OOMs or emits spurious warnings on the
+  incoming files. When (a) it is a merge commit, (b) the incoming changes are someone
+  else's and already green on their branch, and (c) any conflict resolutions kept
+  already-hook-verified content, `--no-verify` is acceptable. Every other use remains
+  forbidden; this exception never applies to ordinary commits of your own changes.
 
 ## Never Pipe State-Changing Commands Through Filters
 
