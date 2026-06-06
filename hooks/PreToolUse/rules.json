@@ -34,6 +34,16 @@
       "reason": "Env files may contain secrets — read environment values another way or ask the user"
     },
     {
+      "id": "block-secret-file-reads",
+      "description": "Block reading files with secret in the name — likely credentials",
+      "operation": "read-path",
+      "paths": [
+        "/**/*secret*"
+      ],
+      "action": "deny",
+      "reason": "Files with 'secret' in the name likely contain credentials — ask the user to provide values another way"
+    },
+    {
       "id": "block-keychain-reads",
       "description": "Block reading macOS Keychain files",
       "operation": "read-path",

@@ -16,7 +16,7 @@ stale comments, broken checks, or an obvious improvement, the right question is 
 not **"would a human squeeze this in?"**.
 
 When deciding whether to pick something up, reframe:
-**"I CAN definitely do this now, and I'm already here."** 
+**"I CAN definitely do this now, and I'm already here."**
 The answer is almost always that you can and should improve/fix when it is an unambiguous improvement or fixing a real issue.
 
 ## Slash Commands Are Skill Invocations
@@ -52,14 +52,14 @@ untrackable dependency on local state that undermines the goal of a repeatable C
 
 **Before saving anything, ask: where does this belong?**
 
-| Type of content | Where it goes |
-|---|---|
-| Behavioral guidance, ways of working | `templates/user-claude.md` or `templates/<username>.md` |
-| Project-wide conventions, rules, standards | `<repo>/.claude/rules/<topic>.md` |
-| Project orientation (structure, build, test) | `<repo>/CLAUDE.md` |
-| In-progress work, task breakdown | Tasks tool (current session only) |
-| Implementation plans | `<work-folder>/<slug>/plan.md` — work folder is set in `~/.claude/agent-skills.json` (`work_root`) |
-| Active bug / short-lived project state | Auto-memory is acceptable, but prefer a note in your work folder |
+| Type of content                              | Where it goes                                                                                      |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Behavioral guidance, ways of working         | `templates/user-claude.md` or `templates/<username>.md`                                            |
+| Project-wide conventions, rules, standards   | `<repo>/.claude/rules/<topic>.md`                                                                  |
+| Project orientation (structure, build, test) | `<repo>/CLAUDE.md`                                                                                 |
+| In-progress work, task breakdown             | Tasks tool (current session only)                                                                  |
+| Implementation plans                         | `<work-folder>/<slug>/plan.md` — work folder is set in `~/.claude/agent-skills.json` (`work_root`) |
+| Active bug / short-lived project state       | Auto-memory is acceptable, but prefer a note in your work folder                                   |
 
 **Almost nothing should go into auto-memory.** If it's a pattern, preference, or lesson that should
 survive a `git clone` on a new machine — it belongs in the repo. Run `bash setup.sh` to deploy
@@ -99,7 +99,7 @@ you discover new information.
 Plans live outside the repo in your configured work folder (`~/.claude/agent-skills.json` → `work_root`, defaulting to `~/Work`). This keeps them alive across branch deletions and accessible from any repo.
 
 - **Keep plans current as work progresses.** A plan that reflects reality lets any new agent session pick up right where the last one left off — no re-discovery, no surprises about what's done or not. Update phase and task status as you complete them, not just at the end.
-- PRs are the permanent record of *what was done and why* (git blame → PR → ticket). Plans are the *working state* — update them, don't treat them as archival.
+- PRs are the permanent record of _what was done and why_ (git blame → PR → ticket). Plans are the _working state_ — update them, don't treat them as archival.
 - The PR creation step (in /do-work) captures key decisions in the PR description.
 
 ## Working with git/gh
@@ -111,6 +111,34 @@ Plans live outside the repo in your configured work folder (`~/.claude/agent-ski
   authorization that requires those specific words -- not "ship it", "land it", or other shorthand.
 - **Batch commits before pushing** -- every push triggers CI and jobs do not self-cancel.
   Accumulate all changes locally, then push once when the work is ready for review.
+- **`--no-verify` has exactly one sanctioned use: merge commits carrying wholly
+  unrelated incoming changes.** Pre-commit hooks (lint-staged) choke on large merge
+  commits -- typed lint over a huge staged set OOMs or emits spurious warnings on the
+  incoming files. When (a) it is a merge commit, (b) the incoming changes are someone
+  else's and already green on their branch, and (c) any conflict resolutions kept
+  already-hook-verified content, `--no-verify` is acceptable. Every other use remains
+  forbidden; this exception never applies to ordinary commits of your own changes.
+
+## Never Pipe State-Changing Commands Through Filters
+
+Piping `git commit`, `git push`, or any hook-running/state-changing command through
+`tail`/`grep`/`head` replaces the command's exit code with the filter's. A failed
+pre-commit hook then reads as success, `&&` chains keep going, and the failure surfaces
+later as a mystery (e.g. a push that silently lacked the commit it was supposed to carry).
+The same applies to any command whose exit code feeds a verification decision
+(`turbo run test | tail` hides a red suite behind tail's exit 0).
+
+- **State-changing or verification commands run bare.** Success output is short;
+  failure output is exactly what you need to see.
+- If output volume genuinely matters, keep the exit code honest -- redirect to a file,
+  show the tail on success, dump everything on failure:
+
+  ```bash
+  git commit -m "..." >/tmp/commit.log 2>&1 && tail -2 /tmp/commit.log || { cat /tmp/commit.log; false; }
+  ```
+
+- Filtering remains fine for read-only commands where the exit code is unused
+  (`git log | head`, `grep | sort`).
 
 ## Scaling Large Operations
 
@@ -134,7 +162,7 @@ context-dependent fixes), coordinate as a hub and delegate to parallel sub-agent
 2. **Use the cheapest model that can handle the task.** Haiku for mechanical transforms, Sonnet
    for anything requiring understanding. Reserve Opus for genuinely hard judgment calls.
 3. **Scope each agent tightly.** One task, one clear deliverable. Tell each agent exactly which
-   files to read and which to write. Specify what it should *not* do — no running tests, no
+   files to read and which to write. Specify what it should _not_ do — no running tests, no
    lint fixes, no exploration beyond the stated scope.
 4. **Separate reads from writes.** Discovery agents get read-only instructions. Authoring agents
    get a precise spec and write to specific files. Mixing the two leads to agents wandering.
@@ -254,7 +282,7 @@ context by only loading when relevant.
 
 ### Verify the Full End-to-End Outcome
 
-The goal is to verify what the actual *consumer* of the work would experience — not just that the
+The goal is to verify what the actual _consumer_ of the work would experience — not just that the
 technical artifact you produced exists or passed an isolated check. Who that consumer is depends on
 context: an end user opening a deployed app, a developer running a scaffolded project's own scripts,
 an analyst querying a pipeline's output dataset, a downstream team importing a published package.
@@ -269,24 +297,24 @@ files exist, that individual steps exited 0, that a health endpoint returns 200 
 integration mismatches that only appear when the system is exercised end-to-end the way it's
 actually used.
 
-**Upfront success criteria.** For complex multi-step tasks, list what "done" looks like *before*
+**Upfront success criteria.** For complex multi-step tasks, list what "done" looks like _before_
 starting and confirm it matches expectations. This prevents the incremental-reveal pattern where
 each round of checking uncovers another unchecked layer.
 
 **Examples across different problem domains:**
 
-- *Deployed web + API + database:* The page renders real content → the frontend reaches the API →
+- _Deployed web + API + database:_ The page renders real content → the frontend reaches the API →
   the API returns live database rows → seed data is present. "Service is RUNNING" is not done.
 
-- *Scaffolded project template:* The generated project's own scripts (`install`, `build`, `test`)
+- _Scaffolded project template:_ The generated project's own scripts (`install`, `build`, `test`)
   all succeed end-to-end. Independently checking that expected files exist can miss wiring issues
   between scaffolded pieces — verify using the same commands the developer would actually run.
 
-- *Data pipeline:* The output dataset contains the expected rows for known inputs — not just that
+- _Data pipeline:_ The output dataset contains the expected rows for known inputs — not just that
   each transformation step exited 0. A pipeline can complete cleanly while producing empty or
   malformed output if an upstream join silently drops records.
 
-- *Published package or library:* A fresh install in a new project can import the package and call
+- _Published package or library:_ A fresh install in a new project can import the package and call
   its exports. Build artifacts in `dist/` existing is not the same as the package being consumable
   downstream — the `exports` map, `main` field, or peer dep resolution may still be broken.
 
@@ -294,15 +322,15 @@ each round of checking uncovers another unchecked layer.
 
 These commands will be blocked -- avoid generating them and use alternatives instead:
 
-| Blocked                                  | Reason               | Alternative                          |
-| ---------------------------------------- | -------------------- | ------------------------------------ |
-| `curl \| bash`, `wget \| sh`, etc.       | Pipe-to-shell        | Download script, inspect, then run   |
-| `sudo`, `su`, `doas`                     | Privilege escalation | Ask user to run manually             |
-| `eval`, `exec`                           | Arbitrary execution  | Rewrite without dynamic eval         |
-| `ssh`, `scp`, `sftp`                     | Remote execution     | Ask user to run manually             |
-| `dd`, `shred`, `fdisk`, `parted`, `mkfs` | Disk destruction     | Ask user to run manually             |
-| `nc`, `netcat`, `ncat`                   | Network listener     | Use `curl`/`wget` for outbound       |
-| `security`                               | Keychain access      | Ask user to run manually             |
+| Blocked                                  | Reason               | Alternative                        |
+| ---------------------------------------- | -------------------- | ---------------------------------- |
+| `curl \| bash`, `wget \| sh`, etc.       | Pipe-to-shell        | Download script, inspect, then run |
+| `sudo`, `su`, `doas`                     | Privilege escalation | Ask user to run manually           |
+| `eval`, `exec`                           | Arbitrary execution  | Rewrite without dynamic eval       |
+| `ssh`, `scp`, `sftp`                     | Remote execution     | Ask user to run manually           |
+| `dd`, `shred`, `fdisk`, `parted`, `mkfs` | Disk destruction     | Ask user to run manually           |
+| `nc`, `netcat`, `ncat`                   | Network listener     | Use `curl`/`wget` for outbound     |
+| `security`                               | Keychain access      | Ask user to run manually           |
 
 ## CRITICAL -- NEVER IGNORE OR BYPASS
 

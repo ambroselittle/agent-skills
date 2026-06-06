@@ -38,7 +38,13 @@ def normalize_path(path: str, cwd: str | None = None) -> str:
     return os.path.abspath(expanded)
 
 
-def matches_path_pattern(file_path: str, pattern: str, repo_root: str | None, cwd: str) -> bool:
+def matches_path_pattern(
+    file_path: str,
+    pattern: str,
+    repo_root: str | None,
+    cwd: str,
+    ignore_case: bool = True,
+) -> bool:
     """
     Match a file path against a rule pattern.
 
@@ -47,20 +53,26 @@ def matches_path_pattern(file_path: str, pattern: str, repo_root: str | None, cw
 
     Unanchored patterns (**/.env, *.key):
       Resolved relative to repo_root (or cwd if not in a repo).
+
+    Matching is case-insensitive by default — macOS filesystems are
+    case-insensitive, so `.ENV` and `.env` are the same file and exact-case
+    matching would be a bypass vector. Rules opt out with "case-sensitive": true,
+    which arrives here as ignore_case=False.
     """
     resolved = normalize_path(file_path, cwd)
 
     if pattern.startswith("~"):
-        expanded = str(Path(pattern).expanduser())
-        return _glob_match(resolved, expanded)
+        full_pattern = str(Path(pattern).expanduser())
+    elif pattern.startswith("/"):
+        full_pattern = pattern
+    else:
+        base = repo_root or cwd
+        if not base:
+            return False
+        full_pattern = str(Path(base) / pattern)
 
-    if pattern.startswith("/"):
-        return _glob_match(resolved, pattern)
-
-    base = repo_root or cwd
-    if not base:
-        return False
-    full_pattern = str(Path(base) / pattern)
+    if ignore_case:
+        return _glob_match(resolved.lower(), full_pattern.lower())
     return _glob_match(resolved, full_pattern)
 
 
