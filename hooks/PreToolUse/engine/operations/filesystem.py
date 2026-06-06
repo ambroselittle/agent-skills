@@ -76,12 +76,21 @@ def _python_open_paths(command: str) -> list[str]:
     return re.findall(r"""open\s*\(\s*['"]([^'"]+)['"]""", command)
 
 
+def _rule_ignore_case(rule: dict) -> bool:
+    """Path matching is case-insensitive unless the rule sets "case-sensitive": true."""
+    return not rule.get("case-sensitive", False)
+
+
 def _any_path_matches(
-    paths: list[str], rule_paths: list[str], repo_root: str | None, cwd: str
+    paths: list[str],
+    rule_paths: list[str],
+    repo_root: str | None,
+    cwd: str,
+    ignore_case: bool = True,
 ) -> bool:
     for p in paths:
         for pattern in rule_paths:
-            if matches_path_pattern(p, pattern, repo_root, cwd):
+            if matches_path_pattern(p, pattern, repo_root, cwd, ignore_case=ignore_case):
                 return True
     return False
 
@@ -90,10 +99,11 @@ def matches_read_path(payload: dict, rule: dict, repo_root: str | None, cwd: str
     tool_name = payload.get("tool_name", "")
     tool_input = payload.get("tool_input", {})
     rule_paths = rule.get("paths", [])
+    ignore_case = _rule_ignore_case(rule)
 
     if tool_name == "Read":
         fp = tool_input.get("file_path", "")
-        return _any_path_matches([fp], rule_paths, repo_root, cwd)
+        return _any_path_matches([fp], rule_paths, repo_root, cwd, ignore_case)
 
     if tool_name == "Bash":
         command = tool_input.get("command", "")
@@ -111,7 +121,7 @@ def matches_read_path(payload: dict, rule: dict, repo_root: str | None, cwd: str
         for m in re.finditer(r"<\s*([^\s;|&<>]+)", command):
             candidates.append(m.group(1))
 
-        return _any_path_matches(candidates, rule_paths, repo_root, cwd)
+        return _any_path_matches(candidates, rule_paths, repo_root, cwd, ignore_case)
 
     return False
 
@@ -120,14 +130,15 @@ def matches_write_path(payload: dict, rule: dict, repo_root: str | None, cwd: st
     tool_name = payload.get("tool_name", "")
     tool_input = payload.get("tool_input", {})
     rule_paths = rule.get("paths", [])
+    ignore_case = _rule_ignore_case(rule)
 
     if tool_name == "Edit":
         fp = tool_input.get("file_path", "")
-        return _any_path_matches([fp], rule_paths, repo_root, cwd)
+        return _any_path_matches([fp], rule_paths, repo_root, cwd, ignore_case)
 
     if tool_name == "Write":
         fp = tool_input.get("file_path", "")
-        return _any_path_matches([fp], rule_paths, repo_root, cwd)
+        return _any_path_matches([fp], rule_paths, repo_root, cwd, ignore_case)
 
     if tool_name == "Bash":
         command = tool_input.get("command", "")
@@ -148,7 +159,7 @@ def matches_write_path(payload: dict, rule: dict, repo_root: str | None, cwd: st
 
         candidates.extend(_redirect_targets(command))
 
-        return _any_path_matches(candidates, rule_paths, repo_root, cwd)
+        return _any_path_matches(candidates, rule_paths, repo_root, cwd, ignore_case)
 
     return False
 
@@ -182,7 +193,7 @@ def matches_write_content(payload: dict, rule: dict, repo_root: str | None, cwd:
     else:
         return False
 
-    if not _any_path_matches([fp], rule_paths, repo_root, cwd):
+    if not _any_path_matches([fp], rule_paths, repo_root, cwd, _rule_ignore_case(rule)):
         return False
 
     for pattern in content_patterns:
@@ -210,4 +221,4 @@ def matches_delete_path(payload: dict, rule: dict, repo_root: str | None, cwd: s
         if cmd in _DELETE_COMMANDS:
             candidates.extend(_path_args(tokens))
 
-    return _any_path_matches(candidates, rule_paths, repo_root, cwd)
+    return _any_path_matches(candidates, rule_paths, repo_root, cwd, _rule_ignore_case(rule))

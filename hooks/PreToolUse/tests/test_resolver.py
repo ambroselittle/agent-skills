@@ -145,6 +145,31 @@ def test_unanchored_envrc_matches():
 
 
 # ---------------------------------------------------------------------------
+# matches_path_pattern: case sensitivity
+# ---------------------------------------------------------------------------
+
+
+def test_case_insensitive_by_default():
+    """Matching ignores case by default — .ENV is the same file as .env on macOS."""
+    assert matches_path_pattern(f"{REPO}/.ENV", "**/.env", REPO, "") is True
+
+
+def test_case_insensitive_pattern_side():
+    """Case-insensitivity applies to the pattern side too."""
+    assert matches_path_pattern(f"{REPO}/secrets.yaml", "**/*SECRET*", REPO, "") is True
+
+
+def test_case_insensitive_mixed_case():
+    assert matches_path_pattern(f"{REPO}/SeCrEtS.txt", "/**/*secret*", REPO, "") is True
+
+
+def test_case_sensitive_opt_out():
+    """ignore_case=False restores exact-case matching."""
+    assert matches_path_pattern(f"{REPO}/.ENV", "**/.env", REPO, "", ignore_case=False) is False
+    assert matches_path_pattern(f"{REPO}/.env", "**/.env", REPO, "", ignore_case=False) is True
+
+
+# ---------------------------------------------------------------------------
 # normalize_path: cwd-aware resolution
 # ---------------------------------------------------------------------------
 

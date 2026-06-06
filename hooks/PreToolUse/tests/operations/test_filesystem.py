@@ -199,3 +199,47 @@ class TestCompoundCommands:
     def test_safe_compound_no_match(self):
         p = bash("git status && echo done")
         assert matches_read_path(p, self.SSH_RULE, None, REPO) is False
+
+
+# ---------------------------------------------------------------------------
+# Case sensitivity: insensitive by default, "case-sensitive": true opts out
+# ---------------------------------------------------------------------------
+
+
+class TestCaseSensitivity:
+    SECRET_RULE = {
+        "paths": ["/**/*secret*"],
+        "action": "deny",
+    }
+
+    SECRET_RULE_SENSITIVE = {
+        "paths": ["/**/*secret*"],
+        "case-sensitive": True,
+        "action": "deny",
+    }
+
+    def test_read_matches_other_casing_by_default(self):
+        p = read_tool(f"{REPO}/ClientSECRET.json")
+        assert matches_read_path(p, self.SECRET_RULE, REPO, REPO) is True
+
+    def test_bash_read_matches_other_casing_by_default(self):
+        p = bash(f"cat {REPO}/PROD_Secrets.txt")
+        assert matches_read_path(p, self.SECRET_RULE, REPO, REPO) is True
+
+    def test_case_sensitive_rule_requires_exact_case(self):
+        p = read_tool(f"{REPO}/ClientSECRET.json")
+        assert matches_read_path(p, self.SECRET_RULE_SENSITIVE, REPO, REPO) is False
+
+    def test_case_sensitive_rule_still_matches_exact_case(self):
+        p = read_tool(f"{REPO}/client-secret.json")
+        assert matches_read_path(p, self.SECRET_RULE_SENSITIVE, REPO, REPO) is True
+
+    def test_write_matches_other_casing_by_default(self):
+        rule = {"paths": [f"{HOME}/.ssh/*"], "action": "deny"}
+        p = write_tool(f"{HOME}/.SSH/id_rsa")
+        assert matches_write_path(p, rule, None, REPO) is True
+
+    def test_delete_matches_other_casing_by_default(self):
+        rule = {"paths": [f"{HOME}/.ssh/*"], "action": "deny"}
+        p = bash(f"rm {HOME}/.SSH/id_rsa")
+        assert matches_delete_path(p, rule, None, REPO) is True

@@ -34,6 +34,13 @@ Rules in `rules.json` match by either:
 - **`operation`** — a named operation handler (e.g. `read-path`, `git-force-push`, `bash-safe`)
 - **`pattern`** — a regex matched against Bash commands or file paths
 
+### Path matching is case-insensitive by default
+
+macOS filesystems are case-insensitive — `.ENV` and `.env` are the same file — so exact-case
+matching would let casing bypass every path-based rule. All `paths` globs on filesystem
+operations (`read-path`, `write-path`, `write-content`, `delete-path`) therefore match
+case-insensitively. A rule can opt out with `"case-sensitive": true`.
+
 ## Adding a New Rule
 
 1. Add the rule to `rules.json` with a unique `description`
