@@ -33,7 +33,22 @@
     "CronCreate",
     "CronDelete",
     "CronList",
-    "mcp__*"
+    "mcp__claude_ai_Atlassian_Rovo",
+    "mcp__claude_ai_Figma",
+    "mcp__claude_ai_Fireflies",
+    "mcp__claude_ai_Gmail",
+    "mcp__claude_ai_Google_Calendar",
+    "mcp__claude_ai_Google_Drive",
+    "mcp__claude_ai_Linear",
+    "mcp__claude_ai_Notion",
+    "mcp__claude_ai_Pylon",
+    "mcp__claude_ai_Slack",
+    "mcp__claude_ai_monday_com",
+    "mcp__datadog",
+    "mcp__playwright",
+    "mcp__posthog",
+    "mcp__superset",
+    "mcp__unblocked"
   ],
   "deny": [
     "Bash(sudo *)",
@@ -43,5 +58,6 @@
     "Bash(rm -r ~*)"
   ],
   "removed": [
+    "mcp__*"
   ]
 }
