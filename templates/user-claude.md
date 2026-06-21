@@ -172,6 +172,27 @@ context-dependent fixes), coordinate as a hub and delegate to parallel sub-agent
 6. **Keep your own context clean.** The point of delegation is that agent results stay out of
    your main context. Summarize outcomes; don't paste raw output back into the conversation.
 
+## Long-Running Background Waits — Never Die Silently
+
+When waiting on anything long-running in the background — CI deploys, load tests, builds,
+remote jobs — a single change-only monitor is a trap. If it emits nothing (no match, a stalled
+poll, a dead auth token, or it only fires on state _changes_ so a long stall looks identical to
+silence), the session goes quiet and can sit dead for the entire unattended window. The
+recurring, expensive failure is coming back hours later to find nothing happened.
+
+**Always arm long waits belt-and-suspenders:**
+
+1. **Primary monitor** — emits on each meaningful transition, AND a **heartbeat every ~10 min
+   even when nothing changes**, AND goes _loud_ after repeated poll failures (dead auth/network)
+   instead of going quiet, AND self-exits with a `RE-ARM` marker shortly before its tool timeout
+   rather than being killed silently.
+2. **Independent failsafe** — a _separate_, dependency-minimal `persistent` monitor that pings on
+   a fixed cadence (~20 min) regardless of the primary's health, so even total primary-process
+   death still wakes the session. Each tick carries a best-effort status.
+
+A monitor that only notifies on change is indistinguishable from a hung or misconfigured one —
+both are silent. Prefer Monitor heartbeats over scheduled wakeups outside an explicit loop.
+
 ## Code Organization
 
 - Discover and follow existing patterns when possible
