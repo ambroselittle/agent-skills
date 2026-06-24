@@ -119,26 +119,38 @@ Plans live outside the repo in your configured work folder (`~/.claude/agent-ski
   already-hook-verified content, `--no-verify` is acceptable. Every other use remains
   forbidden; this exception never applies to ordinary commits of your own changes.
 
-## Never Pipe State-Changing Commands Through Filters
+## Never Mask Exit Codes — Capture Output to a File, Then Inspect
 
-Piping `git commit`, `git push`, or any hook-running/state-changing command through
-`tail`/`grep`/`head` replaces the command's exit code with the filter's. A failed
-pre-commit hook then reads as success, `&&` chains keep going, and the failure surfaces
-later as a mystery (e.g. a push that silently lacked the commit it was supposed to carry).
-The same applies to any command whose exit code feeds a verification decision
-(`turbo run test | tail` hides a red suite behind tail's exit 0).
+Two failure modes have repeatedly hidden real failures from me (a red build read
+as green, a failed hook read as success). Same root cause, same fix.
 
-- **State-changing or verification commands run bare.** Success output is short;
-  failure output is exactly what you need to see.
-- If output volume genuinely matters, keep the exit code honest -- redirect to a file,
-  show the tail on success, dump everything on failure:
+1. **Exit-code masking.** Piping a state-changing/verification command through
+   `tail`/`grep`/`head` -- or chaining `; echo …` / `&& tail` after it -- replaces
+   the command's exit code with the filter's (or the trailing command's). `turbo
+   run test | tail` hides a red suite behind tail's exit 0; `&&` chains keep going;
+   a push silently lacks the commit it was meant to carry. Worst with backgrounded
+   commands, where the harness reports whatever ran *last* -- so an appended
+   `echo`/`tail` makes a failure look like success.
+2. **Slice blindness.** Viewing only a `tail`/`head`/`grep` slice means a failure
+   *outside* the slice is never seen at all.
+
+**The rule: redirect full output to a tmp file, run the real command bare so its
+own exit code stands, then inspect the file deliberately.**
+
+- Run bare with redirection only -- nothing appended -- so the reported exit code
+  (foreground or background) is the command's own:
 
   ```bash
-  git commit -m "..." >/tmp/commit.log 2>&1 && tail -2 /tmp/commit.log || { cat /tmp/commit.log; false; }
+  turbo run build >/tmp/build.log 2>&1     # reported exit IS turbo's
   ```
 
-- Filtering remains fine for read-only commands where the exit code is unused
-  (`git log | head`, `grep | sort`).
+- Then inspect the file: confirm the exit code, grep for the **failure** signature
+  (not only the success one), and read more of the file whenever anything is
+  ambiguous. The full output is on disk -- nothing is lost and I can always go back.
+- Don't trust a backgrounded command's "completed" signal alone -- read the log's
+  summary/exit line before calling it green.
+- Filtering inline stays fine for genuinely read-only lookups whose exit code is
+  unused (`git log | head`, `grep | sort`).
 
 ## Scaling Large Operations
 
