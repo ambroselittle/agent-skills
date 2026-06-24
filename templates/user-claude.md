@@ -164,6 +164,14 @@ transient. This is faster, cheaper on tokens, and less error-prone than N indivi
 Same principle for discovery: if the task is "find all X matching Y," a script with `glob`/`grep`
 beats spawning agents.
 
+**Audit every hit after a blanket find/replace.** A naive substring replace (e.g.
+`app-review` → `review-app`) also rewrites every token that merely *contains* the string --
+real filesystem paths (`terraform/app-review/`), identifiers, env-var infixes, proper nouns --
+silently breaking them. Before trusting the result, grep the diff for the new token and classify
+each hit: intended vocabulary vs. a path/identifier that must stay unchanged. Prefer
+word-boundary or context-scoped patterns over bare substring replacement, and scope the script
+to the files you actually mean to touch.
+
 ### Intelligent bulk work — fan out to sub-agents
 
 When the work requires judgment (authoring tests, writing documentation, reviewing code, applying
