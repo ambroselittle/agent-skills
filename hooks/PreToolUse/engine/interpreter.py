@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from resolver import resolve_repo_root
 
-from engine import evaluate
+from engine import evaluate, load_user_local_rules
 
 HOOK_RULES_PATH = Path(__file__).parent.parent / "hook-rules.json"
 
@@ -29,7 +29,7 @@ def main() -> None:
     payload = json.loads(sys.stdin.read())
     cwd = payload.get("cwd", "")
 
-    rules = load_hook_rules()
+    rules = load_hook_rules() + load_user_local_rules()
     repo_root = resolve_repo_root(cwd)
 
     result = evaluate(payload, rules, repo_root=repo_root)
