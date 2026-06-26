@@ -32,6 +32,32 @@ def _load_repo_config(repo_root: str | None) -> dict | None:
     return config
 
 
+USER_LOCAL_RULES_PATH = os.path.expanduser("~/.agent-skills/local-rules.json")
+
+
+def load_user_local_rules(path: str = USER_LOCAL_RULES_PATH) -> list:
+    """Load additive PreToolUse rules from a personal, machine-local overlay.
+
+    Lets a user enforce private rules (e.g. org- or employer-specific blocks)
+    without committing them to the shared agent-skills repo. The file mirrors
+    the .agent-skills/config.json shape:
+    {"hooks": {"PreToolUse": {"rules": [ <full rule objects> ]}}}.
+    Each entry is a complete rule (pattern/operation + action + reason) and is
+    merged into the global rule set, so deny/ask/allow priority applies as usual.
+
+    Fails open (returns []) when the file is absent or malformed — a broken
+    personal overlay must never break every tool call, matching the fail-open
+    posture of _load_repo_config and the entry script.
+    """
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return []
+    rules = data.get("hooks", {}).get("PreToolUse", {}).get("rules", [])
+    return rules if isinstance(rules, list) else []
+
+
 def _get_rule_overrides(config: dict | None, rule_id: str | None) -> dict | None:
     """Get per-repo overrides for a specific rule by id."""
     if config is None or rule_id is None:

@@ -31,6 +31,7 @@ All rules are evaluated against every tool call. The highest-priority match wins
 ## Rule Types
 
 Rules in `rules.json` match by either:
+
 - **`operation`** — a named operation handler (e.g. `read-path`, `git-force-push`, `bash-safe`)
 - **`pattern`** — a regex matched against Bash commands or file paths
 
@@ -49,6 +50,36 @@ case-insensitively. A rule can opt out with `"case-sensitive": true`.
 4. Run `uvx pytest hooks/PreToolUse/tests/` — the convention checker will catch missing tests
 
 Slug derivation: lowercase, hyphens, truncated at first `—` or `(`.
+
+## Personal machine-local overlay
+
+`~/.agent-skills/local-rules.json` is a personal, uncommitted source of
+**additive** rules, merged into the global set at evaluation time
+(`load_user_local_rules` in `engine.py`, wired in `interpreter.py`). Use it for
+private rules — e.g. org- or employer-specific command blocks — that should not
+live in this shared repo. The file mirrors the per-repo override shape, but its
+entries are full rule objects rather than relax-only overrides:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": {
+      "rules": [
+        {
+          "id": "lc-block-prod-aws-profile",
+          "pattern": "(?:--profile[=\\s]+|AWS_PROFILE=)production-",
+          "action": "deny",
+          "reason": "prod access is human-initiated only"
+        }
+      ]
+    }
+  }
+}
+```
+
+Overlay rules are exempt from the `rules.json` convention checker (they are not
+in this repo) and fail open if the file is absent or malformed. Distinct from
+the per-repo `.agent-skills/config.json`, which only _relaxes_ existing denies.
 
 ## Testing
 
