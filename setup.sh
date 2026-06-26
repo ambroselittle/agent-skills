@@ -436,11 +436,16 @@ else
 fi
 
 # --------------------------------------------------------------------------- #
-# 5. Disable Claude session-URL commit/PR trailer                             #
+# 5. Disable Claude auto-attribution (commit/PR trailers + session URL)        #
 # --------------------------------------------------------------------------- #
 
-section "Disabling Claude session-URL attribution"
+section "Disabling Claude auto-attribution"
 
+# We append our own trailers manually (see ~/.claude/CLAUDE.md), so turn off
+# Claude Code's auto-attribution entirely to avoid duplicates:
+#   attribution.sessionUrl = false  → drop the session-URL line
+#   attribution.commit      = ""     → no auto commit trailer
+#   attribution.pr          = ""     → no auto PR trailer
 python3 - "$CLAUDE_SETTINGS" <<'PYEOF'
 import json
 import sys
@@ -455,14 +460,18 @@ except (FileNotFoundError, json.JSONDecodeError):
 
 attribution = settings.setdefault("attribution", {})
 
-if attribution.get("sessionUrl") is False:
-    print("  \033[2m· Session-URL trailer already disabled\033[0m")
+desired = {"sessionUrl": False, "commit": "", "pr": ""}
+if all(attribution.get(k) == v for k, v in desired.items()):
+    print("  \033[2m· Auto-attribution already disabled\033[0m")
 else:
-    attribution["sessionUrl"] = False
+    attribution.update(desired)
     with open(settings_path, "w") as f:
         json.dump(settings, f, indent=2)
         f.write("\n")
-    print("  \033[32m✓\033[0m Session-URL trailer disabled (attribution.sessionUrl=false)")
+    print(
+        "  \033[32m✓\033[0m Auto-attribution disabled "
+        "(sessionUrl=false, commit=\"\", pr=\"\")"
+    )
 PYEOF
 
 # --------------------------------------------------------------------------- #
