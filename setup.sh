@@ -319,7 +319,66 @@ else
 fi
 
 # --------------------------------------------------------------------------- #
-# 3. Merge built-in rules into settings.json permissions                      #
+# 3. Install Notification hook (macOS only)                                   #
+# --------------------------------------------------------------------------- #
+
+if [[ "$(uname)" == "Darwin" ]]; then
+  section "Installing Notification hook"
+
+  notify_source_dir="$SCRIPT_DIR/hooks/Notification"
+
+  if [[ -f "$notify_source_dir/notify-attention.sh" ]]; then
+    cp "$notify_source_dir/notify-attention.sh" "$HOOKS_DIR/notify-attention.sh"
+    cp "$notify_source_dir/focus-claude-session.sh" "$HOOKS_DIR/focus-claude-session.sh"
+    chmod +x "$HOOKS_DIR/notify-attention.sh" "$HOOKS_DIR/focus-claude-session.sh"
+    ok "Entry point → $HOOKS_DIR/notify-attention.sh"
+
+    if ! command -v terminal-notifier >/dev/null 2>&1; then
+      warn "terminal-notifier not installed (brew install terminal-notifier); hook will no-op until it is"
+    fi
+
+    # Ensure hook is registered in settings.json
+    python3 - "$CLAUDE_SETTINGS" <<'PYEOF'
+import json
+import sys
+
+settings_path = sys.argv[1]
+hook_command = "~/.claude/hooks/notify-attention.sh"
+
+try:
+    with open(settings_path) as f:
+        settings = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    settings = {}
+
+hooks = settings.setdefault("hooks", {})
+notification = hooks.setdefault("Notification", [])
+
+already = any(
+    hook_command in h.get("command", "")
+    for entry in notification
+    for h in entry.get("hooks", [])
+)
+
+if not already:
+    notification.append({
+        "hooks": [{"type": "command", "command": hook_command}]
+    })
+    with open(settings_path, "w") as f:
+        json.dump(settings, f, indent=2)
+        f.write("\n")
+    print("  \033[32m✓\033[0m Hook registered in settings.json")
+else:
+    print("  \033[2m· Hook already registered in settings.json\033[0m")
+PYEOF
+
+  else
+    warn "$notify_source_dir/notify-attention.sh not found, skipping"
+  fi
+fi
+
+# --------------------------------------------------------------------------- #
+# 4. Merge built-in rules into settings.json permissions                      #
 # --------------------------------------------------------------------------- #
 
 section "Merging permissions"
@@ -377,7 +436,37 @@ else
 fi
 
 # --------------------------------------------------------------------------- #
-# 4. Register MCP servers                                                     #
+# 5. Disable Claude session-URL commit/PR trailer                             #
+# --------------------------------------------------------------------------- #
+
+section "Disabling Claude session-URL attribution"
+
+python3 - "$CLAUDE_SETTINGS" <<'PYEOF'
+import json
+import sys
+
+settings_path = sys.argv[1]
+
+try:
+    with open(settings_path) as f:
+        settings = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    settings = {}
+
+attribution = settings.setdefault("attribution", {})
+
+if attribution.get("sessionUrl") is False:
+    print("  \033[2m· Session-URL trailer already disabled\033[0m")
+else:
+    attribution["sessionUrl"] = False
+    with open(settings_path, "w") as f:
+        json.dump(settings, f, indent=2)
+        f.write("\n")
+    print("  \033[32m✓\033[0m Session-URL trailer disabled (attribution.sessionUrl=false)")
+PYEOF
+
+# --------------------------------------------------------------------------- #
+# 6. Register MCP servers                                                     #
 # --------------------------------------------------------------------------- #
 
 section "Registering MCP servers"
@@ -408,7 +497,7 @@ _register_mcp() {
 _register_mcp "playwright" "@playwright/mcp" -- npx @playwright/mcp@latest
 
 # --------------------------------------------------------------------------- #
-# 5. Upsert <agent-skills-guidance> block in CLAUDE.md                        #
+# 7. Upsert <agent-skills-guidance> block in CLAUDE.md                        #
 # --------------------------------------------------------------------------- #
 
 section "Updating CLAUDE.md"
@@ -471,7 +560,7 @@ else
 fi
 
 # --------------------------------------------------------------------------- #
-# 6. Install CLI scripts                                                      #
+# 8. Install CLI scripts                                                      #
 # --------------------------------------------------------------------------- #
 
 section "Installing CLI scripts"
