@@ -291,6 +291,25 @@ After the immediate fix is done, proactively offer a systemic improvement: a rul
 template update, a test to add. Don't wait to be asked. Frame it as "here's how we prevent this"
 not "here's why I failed."
 
+## Don't Hard-Wrap Text You Post or Hand Off
+
+Text you generate for the user to paste — or that you post on their behalf — into a
+service that soft-wraps (GitHub PRs/issues/comments, Linear, Notion, Slack, email,
+chat) must NOT contain manual mid-paragraph line breaks. Write each paragraph as one
+continuous line and let the destination wrap it. Hard-wrapping at a fixed column
+fights the renderer, produces ragged, awkwardly broken text, and makes the content
+harder to edit and re-flow. This is a readability and manageability issue, not an
+aesthetic preference — and it applies equally when you post the text yourself.
+
+Keep line breaks only where the format needs them: between paragraphs (blank line),
+list items, table rows, headings, and inside fenced code blocks.
+
+**The one exception is a source file in a repo that defines a line-length convention**
+(e.g. a codebase whose lint or pre-commit caps comment/code width, or a doc that is
+already prose-wrapped). There, match the surrounding convention — consistency with the
+file wins, and wrapping proactively is correct. Everywhere else, default to no manual
+wrapping.
+
 ## CLAUDE.md vs .claude/rules/
 
 Use a clear separation between orientation and directives:
