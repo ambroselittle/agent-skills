@@ -79,15 +79,15 @@ FALLBACK_VERSIONS = {
     "graphql_codegen_typescript_operations": "5.0.9",
     "graphql_typed_document_node_core": "3.2.0",
     # Python packages (api-python, fullstack-python)
-    "fastapi": "0.115.12",
-    "sqlmodel": "0.0.24",
-    "sqlalchemy": "2.0.40",
-    "pydantic": "2.11.4",
-    "uvicorn": "0.34.3",
-    "alembic": "1.15.2",
-    "pytest": "8.4.1",
+    "fastapi": "0.139.0",
+    "sqlmodel": "0.0.39",
+    "sqlalchemy": "2.0.51",
+    "pydantic": "2.13.4",
+    "uvicorn": "0.51.0",
+    "alembic": "1.18.5",
+    "pytest": "9.1.1",
     "httpx": "0.28.1",
-    "ruff": "0.11.12",
+    "ruff": "0.15.21",
 }
 
 
