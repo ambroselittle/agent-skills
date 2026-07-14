@@ -1,4 +1,4 @@
-.PHONY: init test test-hooks test-create-repo test-scaffolds scaffold list-repo-templates lint format format-check check help
+.PHONY: init test test-hooks test-message-display test-create-repo test-scaffolds scaffold list-repo-templates lint format format-check check help
 
 ## Setup & daily use
 help: ## Show available commands
@@ -20,11 +20,15 @@ init: ## Install deps, link skills & hooks, sync envs
 	@$(MAKE) --no-print-directory help
 
 ## Testing
-test: test-hooks test-create-repo ## Run all fast tests (~30s)
+test: test-hooks test-message-display test-create-repo ## Run all fast tests (~30s)
 
-test-hooks: ## Run hook engine tests (~415 tests)
+test-hooks: ## Run PreToolUse hook engine tests (~415 tests)
 	@printf "\033[36mTesting hook engine...\033[0m\n"
 	@cd hooks/PreToolUse && uvx pytest tests/ -q
+
+test-message-display: ## Run MessageDisplay phrase-swap tests
+	@printf "\033[36mTesting phrase swap...\033[0m\n"
+	@cd hooks/MessageDisplay && uvx pytest tests/ -q
 
 test-create-repo: ## Run create-repo unit/structural tests
 	@printf "\033[36mTesting create-repo...\033[0m\n"

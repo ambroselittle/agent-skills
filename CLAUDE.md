@@ -17,7 +17,9 @@ skills/                # Skill definitions (SKILL.md + supporting files)
   ├── make-skill/         # Interactive skill creator
   └── shared/             # Reusable agents, scripts (context.sh, get-diff.sh), references
 hooks/
-  └── PreToolUse/      # Rule-based allow/deny engine for tool calls
+  ├── PreToolUse/      # Rule-based allow/deny engine for tool calls
+  ├── MessageDisplay/  # Swaps tired phrases out of Claude's on-screen text
+  └── Notification/    # macOS attention banners (click to focus the session)
 templates/             # CLAUDE.md guidance templates for ~/.claude/CLAUDE.md
 setup.sh               # Idempotent installer: links skills, installs hooks, registers MCP
 ```
@@ -46,6 +48,10 @@ The rest of SKILL.md is the AI orchestrator prompt — phases, steps, and instru
 - `agents/` — sub-agent definitions spawned by the skill
 - `scripts/` — shell/Python utilities called by the skill
 - `CLAUDE.md` — area-specific conventions (read this when working in that skill)
+
+## Phrase swap (hooks/MessageDisplay/)
+
+`swap.py` rewrites phrases in Claude's streaming text before it hits the screen — `load-bearing` → `important`. Display-only: the transcript and the model's context keep the original wording. Word list in `phrases.json`; personal additions in `~/.agent-skills/local-phrases.json`. See `hooks/MessageDisplay/CLAUDE.md`.
 
 ## Hook engine (hooks/PreToolUse/)
 
@@ -90,6 +96,11 @@ All Python projects use **uv** and **pytest**.
 ### Hook engine (~415 tests, <1s)
 ```bash
 cd hooks/PreToolUse && uvx pytest tests/ -v
+```
+
+### Phrase swap (~23 tests, <1s)
+```bash
+cd hooks/MessageDisplay && uvx pytest tests/ -v
 ```
 
 ### create-repo unit + structural eval (~55 tests, <1s)

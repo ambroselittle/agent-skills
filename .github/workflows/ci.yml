@@ -19,6 +19,9 @@ jobs:
       - name: Hook engine tests
         run: cd hooks/PreToolUse && uvx pytest tests/ -v
 
+      - name: Phrase swap tests
+        run: cd hooks/MessageDisplay && uvx pytest tests/ -v
+
       - name: create-repo tests (unit + structural eval)
         run: cd skills/create-repo && uv run pytest tests/ -v -m "not e2e"
 
