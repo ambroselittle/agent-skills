@@ -20,8 +20,8 @@ If you want Claude to actually stop *producing* a phrase, that's a prompt change
 
 ```
 swap.py          # The whole hook: reads a delta on stdin, prints the replacement
-phrases.json     # Shipped word list ("swaps"), plus off-by-default "suggestions"
-tests/           # uvx pytest tests/
+phrases.json     # The shipped word list ("swaps")
+tests/           # run via `make test-hooks` from the repo root
 ```
 
 There is deliberately **no bash entry point** here, unlike `PreToolUse/` and
@@ -67,13 +67,14 @@ and a `null` value turns a shipped phrase off:
 ```json
 {
   "swaps": {
-    "seam": "boundary",
+    "circle back": "revisit",
     "delve": null
   }
 }
 ```
 
-This mirrors `~/.agent-skills/local-rules.json` for the PreToolUse engine.
+That adds a phrase of your own and turns off a shipped one. This mirrors
+`~/.agent-skills/local-rules.json` for the PreToolUse engine.
 
 Matching is case-insensitive, on word boundaries, and flexible across spaces and
 hyphens — `load-bearing` also catches `load bearing`. Capitalization and apostrophe
@@ -90,7 +91,7 @@ drop-in replacement in every sentence, leave it out.
 Run the tests, then `bash setup.sh` to deploy — never edit `~/.claude/hooks/` directly.
 
 ```bash
-make test-message-display
+make test-hooks
 bash setup.sh
 ```
 

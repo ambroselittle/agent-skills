@@ -9,12 +9,7 @@
     "absolutely correct": "right",
     "honest take": "take",
     "delve into": "dig into",
-    "delve": "dig"
-  },
-
-  "//suggestions": "Ignored by the hook — a shortlist to copy into 'swaps' (or your local file) if these grate on you too. Left off by default because each one has a legitimate use: 'seam' is a term of art, 'leverage' has a noun sense, and 'robust' is sometimes just the right word.",
-
-  "suggestions": {
+    "delve": "dig",
     "seam": "boundary",
     "seamlessly": "cleanly",
     "robust": "solid",

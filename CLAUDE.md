@@ -93,15 +93,11 @@ Each template has a `template.json` declaring its platform (a string like `"pyth
 
 All Python projects use **uv** and **pytest**.
 
-### Hook engine (~415 tests, <1s)
+### Hooks (~440 tests, <1s)
 ```bash
-cd hooks/PreToolUse && uvx pytest tests/ -v
+make test-hooks
 ```
-
-### Phrase swap (~23 tests, <1s)
-```bash
-cd hooks/MessageDisplay && uvx pytest tests/ -v
-```
+Runs every `hooks/*/tests` suite — the PreToolUse rule engine and the MessageDisplay phrase swap.
 
 ### create-repo unit + structural eval (~55 tests, <1s)
 ```bash
