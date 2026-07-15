@@ -22,9 +22,14 @@ init: ## Install deps, link skills & hooks, sync envs
 ## Testing
 test: test-hooks test-create-repo ## Run all fast tests (~30s)
 
-test-hooks: ## Run hook engine tests (~415 tests)
-	@printf "\033[36mTesting hook engine...\033[0m\n"
-	@cd hooks/PreToolUse && uvx pytest tests/ -q
+test-hooks: ## Run every hook's tests (all hooks/*/tests suites)
+	@printf "\033[36mTesting hooks...\033[0m\n"
+	@for suite in hooks/*/tests; do \
+		[ -d "$$suite" ] || continue; \
+		hook="$${suite%/tests}"; \
+		printf "\033[2m  %s\033[0m\n" "$$hook"; \
+		( cd "$$hook" && uvx pytest tests/ -q ) || exit 1; \
+	done
 
 test-create-repo: ## Run create-repo unit/structural tests
 	@printf "\033[36mTesting create-repo...\033[0m\n"

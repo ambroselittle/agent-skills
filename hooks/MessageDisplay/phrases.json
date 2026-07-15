@@ -1,0 +1,21 @@
+{
+  "//": "Phrases swapped out of Claude's on-screen text. Display-only — the transcript and the model's context keep the original wording. Keys are matched case-insensitively, on word boundaries, across any run of spaces or hyphens ('load-bearing' also catches 'load bearing'). Capitalization of the match carries over to the replacement. Add your own in ~/.agent-skills/local-phrases.json (same shape) — it overrides these, and a null value turns one off.",
+
+  "swaps": {
+    "load-bearing": "important",
+    "you're absolutely right": "you're right",
+    "you're absolutely correct": "you're right",
+    "absolutely right": "right",
+    "absolutely correct": "right",
+    "honest take": "take",
+    "delve into": "dig into",
+    "delve": "dig",
+    "seam": "boundary",
+    "seamlessly": "cleanly",
+    "robust": "solid",
+    "leverage": "use",
+    "surgical": "targeted",
+    "the crux": "the core",
+    "worth noting": "worth saying"
+  }
+}

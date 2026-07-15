@@ -16,8 +16,8 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Hook engine tests
-        run: cd hooks/PreToolUse && uvx pytest tests/ -v
+      - name: Hook tests
+        run: make test-hooks
 
       - name: create-repo tests (unit + structural eval)
         run: cd skills/create-repo && uv run pytest tests/ -v -m "not e2e"

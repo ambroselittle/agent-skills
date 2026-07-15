@@ -80,6 +80,52 @@ printf "\n${_bold}🛠  Agent Skills Setup${_reset}\n"
 
 mkdir -p "$CLAUDE_SKILLS_DIR"
 
+# Register a hook command under an event in settings.json, keyed on the command
+# so a re-run updates an existing entry (e.g. a changed timeout) in place.
+# Usage: _register_hook <event> <command> [timeout-seconds]
+_register_hook() {
+  python3 - "$CLAUDE_SETTINGS" "$1" "$2" "${3:-}" <<'PYEOF'
+import json
+import sys
+
+settings_path, event, command, timeout = sys.argv[1:5]
+
+try:
+    with open(settings_path) as f:
+        settings = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    settings = {}
+
+hooks = settings.setdefault("hooks", {})
+entries = hooks.setdefault(event, [])
+
+desired = {"type": "command", "command": command}
+if timeout:
+    desired["timeout"] = int(timeout)
+
+existing = next(
+    (h for entry in entries for h in entry.get("hooks", []) if command in h.get("command", "")),
+    None,
+)
+
+if existing == desired:
+    print(f"  \033[2m· {event} hook already registered in settings.json\033[0m")
+    sys.exit(0)
+
+if existing is None:
+    entries.append({"hooks": [desired]})
+else:
+    existing.clear()
+    existing.update(desired)
+
+with open(settings_path, "w") as f:
+    json.dump(settings, f, indent=2)
+    f.write("\n")
+
+print(f"  \033[32m✓\033[0m {event} hook registered in settings.json")
+PYEOF
+}
+
 # --------------------------------------------------------------------------- #
 # Prerequisites                                                               #
 # --------------------------------------------------------------------------- #
@@ -278,41 +324,7 @@ if [[ -f "$hook_source" ]]; then
   cp "$hook_source" "$hook_target"
   ok "Hook rules"
 
-  # Ensure hook is registered in settings.json
-  python3 - "$CLAUDE_SETTINGS" <<'PYEOF'
-import json
-import sys
-
-settings_path = sys.argv[1]
-hook_command = "~/.claude/hooks/pre-tool-use.sh"
-
-try:
-    with open(settings_path) as f:
-        settings = json.load(f)
-except (FileNotFoundError, json.JSONDecodeError):
-    settings = {}
-
-hooks = settings.setdefault("hooks", {})
-pre_tool_use = hooks.setdefault("PreToolUse", [])
-
-# Check if already registered
-already = any(
-    hook_command in h.get("command", "")
-    for entry in pre_tool_use
-    for h in entry.get("hooks", [])
-)
-
-if not already:
-    pre_tool_use.append({
-        "hooks": [{"type": "command", "command": hook_command}]
-    })
-    with open(settings_path, "w") as f:
-        json.dump(settings, f, indent=2)
-        f.write("\n")
-    print("  \033[32m✓\033[0m Hook registered in settings.json")
-else:
-    print("  \033[2m· Hook already registered in settings.json\033[0m")
-PYEOF
+  _register_hook "PreToolUse" "~/.claude/hooks/pre-tool-use.sh"
 
 else
   warn "$hook_source not found, skipping hook installation"
@@ -337,40 +349,7 @@ if [[ "$(uname)" == "Darwin" ]]; then
       warn "terminal-notifier not installed (brew install terminal-notifier); hook will no-op until it is"
     fi
 
-    # Ensure hook is registered in settings.json
-    python3 - "$CLAUDE_SETTINGS" <<'PYEOF'
-import json
-import sys
-
-settings_path = sys.argv[1]
-hook_command = "~/.claude/hooks/notify-attention.sh"
-
-try:
-    with open(settings_path) as f:
-        settings = json.load(f)
-except (FileNotFoundError, json.JSONDecodeError):
-    settings = {}
-
-hooks = settings.setdefault("hooks", {})
-notification = hooks.setdefault("Notification", [])
-
-already = any(
-    hook_command in h.get("command", "")
-    for entry in notification
-    for h in entry.get("hooks", [])
-)
-
-if not already:
-    notification.append({
-        "hooks": [{"type": "command", "command": hook_command}]
-    })
-    with open(settings_path, "w") as f:
-        json.dump(settings, f, indent=2)
-        f.write("\n")
-    print("  \033[32m✓\033[0m Hook registered in settings.json")
-else:
-    print("  \033[2m· Hook already registered in settings.json\033[0m")
-PYEOF
+    _register_hook "Notification" "~/.claude/hooks/notify-attention.sh"
 
   else
     warn "$notify_source_dir/notify-attention.sh not found, skipping"
@@ -378,7 +357,34 @@ PYEOF
 fi
 
 # --------------------------------------------------------------------------- #
-# 4. Merge built-in rules into settings.json permissions                      #
+# 4. Install MessageDisplay hook (phrase swapping)                            #
+# --------------------------------------------------------------------------- #
+
+section "Installing MessageDisplay hook"
+
+swap_source_dir="$SCRIPT_DIR/hooks/MessageDisplay"
+swap_target_dir="$HOOKS_DIR/message-display"
+
+if [[ -f "$swap_source_dir/swap.py" ]]; then
+  mkdir -p "$swap_target_dir"
+  cp "$swap_source_dir/swap.py" "$swap_target_dir/swap.py"
+  chmod +x "$swap_target_dir/swap.py"
+  ok "Entry point → $swap_target_dir/swap.py"
+
+  # phrases.json is the shipped word list; personal additions live in
+  # ~/.agent-skills/local-phrases.json and are never overwritten here.
+  cp "$swap_source_dir/phrases.json" "$swap_target_dir/phrases.json"
+  ok "Phrase list"
+
+  # Fires on every flush of every streaming message — cap it well under the
+  # 10s default so a wedged hook can't stall rendering for long.
+  _register_hook "MessageDisplay" "~/.claude/hooks/message-display/swap.py" 5
+else
+  warn "$swap_source_dir/swap.py not found, skipping"
+fi
+
+# --------------------------------------------------------------------------- #
+# 5. Merge built-in rules into settings.json permissions                      #
 # --------------------------------------------------------------------------- #
 
 section "Merging permissions"
@@ -436,7 +442,7 @@ else
 fi
 
 # --------------------------------------------------------------------------- #
-# 5. Disable Claude auto-attribution (commit/PR trailers + session URL)        #
+# 6. Disable Claude auto-attribution (commit/PR trailers + session URL)        #
 # --------------------------------------------------------------------------- #
 
 section "Disabling Claude auto-attribution"
@@ -475,7 +481,7 @@ else:
 PYEOF
 
 # --------------------------------------------------------------------------- #
-# 6. Register MCP servers                                                     #
+# 7. Register MCP servers                                                     #
 # --------------------------------------------------------------------------- #
 
 section "Registering MCP servers"
@@ -506,7 +512,7 @@ _register_mcp() {
 _register_mcp "playwright" "@playwright/mcp" -- npx @playwright/mcp@latest
 
 # --------------------------------------------------------------------------- #
-# 7. Upsert <agent-skills-guidance> block in CLAUDE.md                        #
+# 8. Upsert <agent-skills-guidance> block in CLAUDE.md                        #
 # --------------------------------------------------------------------------- #
 
 section "Updating CLAUDE.md"
@@ -569,7 +575,7 @@ else
 fi
 
 # --------------------------------------------------------------------------- #
-# 8. Install CLI scripts                                                      #
+# 9. Install CLI scripts                                                      #
 # --------------------------------------------------------------------------- #
 
 section "Installing CLI scripts"
