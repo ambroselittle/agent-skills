@@ -192,6 +192,16 @@ context-dependent fixes), coordinate as a hub and delegate to parallel sub-agent
 6. **Keep your own context clean.** The point of delegation is that agent results stay out of
    your main context. Summarize outcomes; don't paste raw output back into the conversation.
 
+## Batch Edit Scripts: Write Per-Edit or At-End — Never Assert Mid-Batch
+
+A script that applies multiple text replacements and asserts between them
+loses every already-applied edit when a later assertion fails before the
+write. Either write the file after each successful replacement, or collect
+all replacements and assert them ALL before writing once. After any batch
+script fails partway, re-verify which edits actually landed — do not trust
+the ones that "ran before the error," and do not assume the failed ones
+were the only casualties.
+
 ## Long-Running Background Waits — Never Die Silently
 
 When waiting on anything long-running in the background — CI deploys, load tests, builds,
