@@ -108,6 +108,36 @@ This:
 
 Idempotent — safe to re-run. In a worktree for this repo, only skills with changes on the branch are relinked, so you can test them prior to merging more easily.
 
+### Installing only the parts you want
+
+Every piece of the install is a named component, so you can take just the PreToolUse hook without the skills, CLAUDE.md guidance, or anything else:
+
+```bash
+bash setup.sh pretooluse
+```
+
+Name any number of components, or use `--without` to take everything except the ones you list:
+
+```bash
+bash setup.sh hooks                    # pretooluse + notification + message-display
+bash setup.sh skills guidance          # skills plus the CLAUDE.md guidance block
+bash setup.sh --without guidance mcp   # everything except those two
+bash setup.sh --list                   # show every component and what it touches
+```
+
+| Component | Installs |
+|---|---|
+| `skills` | Symlinks skills into `~/.claude/skills/` |
+| `pretooluse` | PreToolUse hook engine + `rules.json`, and the built-in allow/deny permissions |
+| `notification` | macOS attention banners on Notification events |
+| `message-display` | MessageDisplay phrase-swap hook |
+| `attribution` | Disables Claude auto-attribution (commit/PR trailers, session URL) |
+| `mcp` | Registers MCP servers (Playwright) |
+| `guidance` | Upserts the `<agent-skills-guidance>` block in `~/.claude/CLAUDE.md` |
+| `cli` | `claude-resume` script and the `reclaude` shell alias |
+
+Nothing is remembered between runs — a bare `setup.sh` (and therefore `make init`) always means the full setup.
+
 ## License
 
 [MIT](LICENSE)

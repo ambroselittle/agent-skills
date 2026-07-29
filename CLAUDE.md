@@ -135,3 +135,11 @@ Called by `make init`. Idempotent installer that:
 3. Merges permissions from `built-in-rules.json` into `~/.claude/settings.json`
 4. Registers MCP servers (Playwright)
 5. Upserts guidance block into `~/.claude/CLAUDE.md` from `templates/`
+
+### Components
+
+Each step is a named component that can be installed on its own: `skills`, `pretooluse` (engine + rules + permissions), `notification`, `message-display`, `attribution`, `mcp`, `guidance`, `cli`. `hooks` is a group covering the three hook components. Run `bash setup.sh --list` for descriptions.
+
+- `bash setup.sh` (no arguments) always runs the full setup — selections are never persisted.
+- `bash setup.sh pretooluse` installs only the hook engine; `bash setup.sh --without guidance` takes everything else.
+- Each section in `setup.sh` is guarded by `_want <component>` and banner-tagged with `# [component]`. When adding a new install step, add its name to `ALL_COMPONENTS`, give it a `_describe_component` line, and gate it — otherwise it silently runs on every partial install.

@@ -2,14 +2,12 @@
 # Sets up agent skills: links skills, installs hooks, merges permissions,
 # registers MCP servers, and upserts CLAUDE.md guidance.
 # Idempotent — safe to re-run anytime.
+#
+# Everything is opt-in-able: name one or more components (see --list) to
+# install just those, e.g. `setup.sh pretooluse` for only the hook engine.
+# No arguments means the full setup; nothing is remembered between runs.
 
 set -euo pipefail
-
-# Only clear when invoked without flags (the default full setup).
-# Subcommands like --install-wtf-worker or --help shouldn't wipe terminal scrollback.
-if [ $# -eq 0 ]; then
-  clear
-fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="$HOME/.claude"
@@ -19,7 +17,7 @@ CLAUDE_MD="$CLAUDE_DIR/CLAUDE.md"
 HOOKS_DIR="$CLAUDE_DIR/hooks"
 
 # --------------------------------------------------------------------------- #
-# Subcommands — opt-in side installs that short-circuit the normal setup     #
+# Subcommands — opt-in side installs that short-circuit the normal setup       #
 # --------------------------------------------------------------------------- #
 
 case "${1:-}" in
@@ -29,14 +27,87 @@ case "${1:-}" in
   --uninstall-wtf-worker)
     exec "$SCRIPT_DIR/scripts/wtf-worker-install.sh" uninstall
     ;;
-  --help|-h)
-    cat <<USAGE
-Usage: setup.sh [flag]
+esac
 
-Default (no flags): idempotent setup — links skills, installs hooks,
+# --------------------------------------------------------------------------- #
+# Components — each is an independently installable unit                      #
+# --------------------------------------------------------------------------- #
+
+ALL_COMPONENTS=(
+  skills
+  pretooluse
+  notification
+  message-display
+  attribution
+  mcp
+  guidance
+  cli
+)
+
+# Group name → member components. Groups are just shorthand on the command line.
+_expand_group() {
+  case "$1" in
+    hooks) printf 'pretooluse notification message-display' ;;
+    all)   printf '%s' "${ALL_COMPONENTS[*]}" ;;
+    *)     return 1 ;;
+  esac
+}
+
+_is_component() {
+  local c
+  for c in "${ALL_COMPONENTS[@]}"; do
+    if [[ "$c" == "$1" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+_describe_component() {
+  case "$1" in
+    skills)          printf 'Symlink skills into ~/.claude/skills' ;;
+    pretooluse)      printf 'PreToolUse hook engine + rules, and the built-in allow/deny permissions' ;;
+    notification)    printf 'macOS attention banners on Notification events (Darwin only)' ;;
+    message-display) printf 'MessageDisplay phrase-swap hook' ;;
+    attribution)     printf 'Disable Claude auto-attribution (commit/PR trailers, session URL)' ;;
+    mcp)             printf 'Register MCP servers (Playwright)' ;;
+    guidance)        printf 'Upsert the <agent-skills-guidance> block in ~/.claude/CLAUDE.md' ;;
+    cli)             printf 'Install claude-resume and the reclaude shell alias' ;;
+  esac
+}
+
+_print_components() {
+  printf "\nComponents (pass any number of names; default is all):\n"
+  local c
+  for c in "${ALL_COMPONENTS[@]}"; do
+    printf "  %-16s %s\n" "$c" "$(_describe_component "$c")"
+  done
+  printf "\nGroups:\n"
+  printf "  %-16s %s\n" "hooks" "pretooluse + notification + message-display"
+  printf "  %-16s %s\n" "all" "every component (the default)"
+}
+
+_usage() {
+  cat <<USAGE
+Usage: setup.sh [component|group ...] [flag ...]
+
+Default (no arguments): idempotent full setup — links skills, installs hooks,
 merges permissions, registers MCP servers, and updates CLAUDE.md.
 
+Name one or more components to install only those. Nothing is remembered
+between runs: a bare 'setup.sh' always means the full setup.
+
+Examples:
+  setup.sh                          Everything
+  setup.sh pretooluse               Just the PreToolUse hook (engine + permissions)
+  setup.sh hooks                    All three hooks
+  setup.sh skills guidance          Skills plus the CLAUDE.md guidance block
+  setup.sh --without guidance mcp   Everything except those two
+
 Flags:
+  --without                        Treat every component named after this flag
+                                   as an exclusion from the full set.
+  --list                           List components and exit.
   --install-wtf-worker [--test]    Install the WTF worker launchd job.
                                    --test fires an immediate run and
                                    tails the log.
@@ -45,18 +116,116 @@ Flags:
                                    (useful when invoked from another script).
   --help, -h                       Show this message.
 USAGE
-    exit 0
-    ;;
-  --no-clear)
-    ;;
-  "")
-    ;;
-  *)
-    printf "Unknown flag: %s\n" "$1" >&2
-    printf "Run 'bash setup.sh --help' for usage.\n" >&2
-    exit 1
-    ;;
-esac
+  _print_components
+}
+
+# --------------------------------------------------------------------------- #
+# Argument parsing                                                            #
+# --------------------------------------------------------------------------- #
+
+# Only clear on the default full run — a targeted run or a subcommand
+# shouldn't wipe terminal scrollback.
+DO_CLEAR=false
+if [[ $# -eq 0 ]]; then
+  DO_CLEAR=true
+fi
+
+_requested=""
+_excluded=""
+_exclude_mode=false
+
+_add_names() {
+  local target="$1" expanded name
+  shift
+  for name in "$@"; do
+    if expanded="$(_expand_group "$name")"; then
+      _add_names "$target" $expanded
+      continue
+    fi
+    if ! _is_component "$name"; then
+      printf "Unknown component or flag: %s\n" "$name" >&2
+      printf "Run 'bash setup.sh --help' for usage.\n" >&2
+      exit 1
+    fi
+    if [[ "$target" == include ]]; then
+      [[ " $_requested " == *" $name "* ]] || _requested="$_requested $name"
+    else
+      [[ " $_excluded " == *" $name "* ]] || _excluded="$_excluded $name"
+    fi
+  done
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --help|-h)
+      _usage
+      exit 0
+      ;;
+    --list)
+      _print_components
+      exit 0
+      ;;
+    --no-clear)
+      DO_CLEAR=false
+      ;;
+    --without)
+      _exclude_mode=true
+      ;;
+    --install-wtf-worker|--uninstall-wtf-worker)
+      printf "%s must be the first argument.\n" "$1" >&2
+      exit 1
+      ;;
+    -*)
+      printf "Unknown flag: %s\n" "$1" >&2
+      printf "Run 'bash setup.sh --help' for usage.\n" >&2
+      exit 1
+      ;;
+    *)
+      if $_exclude_mode; then
+        _add_names exclude "$1"
+      else
+        _add_names include "$1"
+      fi
+      ;;
+  esac
+  shift
+done
+
+if [[ -z "$_requested" ]]; then
+  SELECTED=" ${ALL_COMPONENTS[*]} "
+  IS_FULL_RUN=true
+else
+  SELECTED=" ${_requested# } "
+  IS_FULL_RUN=false
+fi
+
+for _name in $_excluded; do
+  SELECTED="${SELECTED// $_name / }"
+  IS_FULL_RUN=false
+done
+
+if [[ -z "${SELECTED// /}" ]]; then
+  printf "Nothing selected — every component was excluded.\n" >&2
+  exit 1
+fi
+
+# True when the named component is part of this run.
+_want() { [[ "$SELECTED" == *" $1 "* ]]; }
+
+# True when any of the named components is part of this run.
+_want_any() {
+  local c
+  for c in "$@"; do
+    if _want "$c"; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+if $DO_CLEAR; then
+  clear
+fi
 
 # --------------------------------------------------------------------------- #
 # UX helpers                                                                  #
@@ -78,7 +247,12 @@ fail()    { printf "  ${_red}✗ %s${_reset}\n" "$1"; }
 
 printf "\n${_bold}🛠  Agent Skills Setup${_reset}\n"
 
-mkdir -p "$CLAUDE_SKILLS_DIR"
+if ! $IS_FULL_RUN; then
+  printf "  ${_dim}Selected:${_reset}${SELECTED% }\n"
+  printf "  ${_dim}Run 'setup.sh' with no arguments for the full setup.${_reset}\n"
+fi
+
+mkdir -p "$CLAUDE_DIR"
 
 # Register a hook command under an event in settings.json, keyed on the command
 # so a re-run updates an existing entry (e.g. a changed timeout) in place.
@@ -132,267 +306,293 @@ PYEOF
 
 section "Checking prerequisites"
 
-if ! command -v python3 &>/dev/null; then
-  fail "python3 not found — the hook engine requires Python 3.11+"
-  exit 1
+# Everything except skills/mcp/cli shells out to python3 — to run the hook
+# engine, or to edit settings.json / CLAUDE.md.
+if _want_any pretooluse notification message-display attribution guidance; then
+  if ! command -v python3 &>/dev/null; then
+    fail "python3 not found — the hook engine requires Python 3.11+"
+    exit 1
+  fi
+
+  py_version="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+  py_major="${py_version%%.*}"
+  py_minor="${py_version##*.}"
+  if [[ "$py_major" -lt 3 ]] || { [[ "$py_major" -eq 3 ]] && [[ "$py_minor" -lt 11 ]]; }; then
+    fail "Python $py_version found, but 3.11+ required (for union type syntax)"
+    printf "     Install a newer Python or update your PATH.\n"
+    exit 1
+  fi
+  ok "Python $py_version"
 fi
 
-py_version="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
-py_major="${py_version%%.*}"
-py_minor="${py_version##*.}"
-if [[ "$py_major" -lt 3 ]] || { [[ "$py_major" -eq 3 ]] && [[ "$py_minor" -lt 11 ]]; }; then
-  fail "Python $py_version found, but 3.11+ required (for union type syntax)"
-  printf "     Install a newer Python or update your PATH.\n"
-  exit 1
-fi
-ok "Python $py_version"
-
-if command -v gh &>/dev/null; then
-  ok "GitHub CLI (gh)"
-else
-  warn "GitHub CLI (gh) not found — personal template lookup will be skipped"
+if _want guidance; then
+  if command -v gh &>/dev/null; then
+    ok "GitHub CLI (gh)"
+  else
+    warn "GitHub CLI (gh) not found — personal template lookup will be skipped"
+  fi
 fi
 
-if command -v claude &>/dev/null; then
-  ok "Claude CLI"
-else
-  warn "Claude CLI not found — MCP server registration will be skipped"
+if _want mcp; then
+  if command -v claude &>/dev/null; then
+    ok "Claude CLI"
+  else
+    warn "Claude CLI not found — MCP server registration will be skipped"
+  fi
 fi
 
 # --------------------------------------------------------------------------- #
 # Worktree detection                                                          #
 # --------------------------------------------------------------------------- #
 
+# Only the skills component cares — skip the git calls otherwise.
 IS_WORKTREE=false
-MAIN_REPO=""
 
-if git -C "$SCRIPT_DIR" rev-parse --is-inside-work-tree &>/dev/null; then
+if _want skills && git -C "$SCRIPT_DIR" rev-parse --is-inside-work-tree &>/dev/null; then
   worktree_root="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
   git_common="$(git -C "$SCRIPT_DIR" rev-parse --git-common-dir)"
   main_repo="$(cd "$git_common" && cd .. && pwd)"
 
   if [[ "$worktree_root" != "$main_repo" ]]; then
     IS_WORKTREE=true
-    MAIN_REPO="$main_repo"
   fi
 fi
 
 # --------------------------------------------------------------------------- #
-# 1. Link skills                                                              #
+# [skills] Link skills                                                        #
 # --------------------------------------------------------------------------- #
 
-section "Linking skills"
+if _want skills; then
+  section "Linking skills"
 
-if $IS_WORKTREE; then
-  printf "  ${_dim}Worktree mode — only linking skills changed on this branch${_reset}\n"
-fi
+  mkdir -p "$CLAUDE_SKILLS_DIR"
 
-# In a worktree: only relink skills with changes on the current branch.
-# Everything else stays linked to main repo.
-_changed_skills=()
-if $IS_WORKTREE; then
-  while IFS= read -r file; do
-    if [[ "$file" == skills/* ]]; then
-      skill="${file#skills/}"
-      skill="${skill%%/*}"
-      _changed_skills+=("$skill")
+  if $IS_WORKTREE; then
+    printf "  ${_dim}Worktree mode — only linking skills changed on this branch${_reset}\n"
+  fi
+
+  # In a worktree: only relink skills with changes on the current branch.
+  # Everything else stays linked to main repo.
+  _changed_skills=()
+  if $IS_WORKTREE; then
+    while IFS= read -r file; do
+      if [[ "$file" == skills/* ]]; then
+        skill="${file#skills/}"
+        skill="${skill%%/*}"
+        _changed_skills+=("$skill")
+      fi
+    done < <(
+      git -C "$SCRIPT_DIR" diff --name-only main... -- skills/ 2>/dev/null
+      git -C "$SCRIPT_DIR" diff --name-only -- skills/ 2>/dev/null
+      git -C "$SCRIPT_DIR" ls-files --others --exclude-standard -- skills/ 2>/dev/null
+    )
+    _changed_skills=($(printf '%s\n' "${_changed_skills[@]}" | sort -u))
+  fi
+
+  _should_link_skill() {
+    local skill_name="$1"
+    if ! $IS_WORKTREE; then
+      return 0
     fi
-  done < <(
-    git -C "$SCRIPT_DIR" diff --name-only main... -- skills/ 2>/dev/null
-    git -C "$SCRIPT_DIR" diff --name-only -- skills/ 2>/dev/null
-    git -C "$SCRIPT_DIR" ls-files --others --exclude-standard -- skills/ 2>/dev/null
-  )
-  _changed_skills=($(printf '%s\n' "${_changed_skills[@]}" | sort -u))
-fi
+    for s in "${_changed_skills[@]}"; do
+      [[ "$s" == "$skill_name" ]] && return 0
+    done
+    return 1
+  }
 
-_should_link_skill() {
-  local skill_name="$1"
-  if ! $IS_WORKTREE; then
-    return 0
-  fi
-  for s in "${_changed_skills[@]}"; do
-    [[ "$s" == "$skill_name" ]] && return 0
-  done
-  return 1
-}
+  # Clean up stale symlinks (from renamed or deleted skills)
+  while IFS= read -r -d '' target; do
+    if [[ -L "$target" && ! -e "$target" ]]; then
+      rm -f "$target"
+      ok "removed stale symlink: $(basename "$target")"
+    fi
+  done < <(find "$CLAUDE_SKILLS_DIR" -maxdepth 1 -type l -print0 2>/dev/null)
 
-# Clean up stale symlinks (from renamed or deleted skills)
-while IFS= read -r -d '' target; do
-  if [[ -L "$target" && ! -e "$target" ]]; then
-    rm -f "$target"
-    ok "removed stale symlink: $(basename "$target")"
-  fi
-done < <(find "$CLAUDE_SKILLS_DIR" -maxdepth 1 -type l -print0 2>/dev/null)
+  _linked=0
+  _skipped=0
+  for skill_dir in "$SCRIPT_DIR"/skills/*/; do
+    [[ -d "$skill_dir" ]] || continue
+    skill_name="$(basename "$skill_dir")"
+    [[ -f "$skill_dir/SKILL.md" ]] || continue
 
-_linked=0
-_skipped=0
-for skill_dir in "$SCRIPT_DIR"/skills/*/; do
-  [[ -d "$skill_dir" ]] || continue
-  skill_name="$(basename "$skill_dir")"
-  [[ -f "$skill_dir/SKILL.md" ]] || continue
-
-  if ! _should_link_skill "$skill_name"; then
-    ((_skipped++)) || true
-    continue
-  fi
-
-  target="$CLAUDE_SKILLS_DIR/$skill_name"
-
-  if [[ -L "$target" ]]; then
-    existing="$(readlink "$target")"
-    if [[ "$existing" == "$skill_dir" || "$existing" == "${skill_dir%/}" ]]; then
+    if ! _should_link_skill "$skill_name"; then
       ((_skipped++)) || true
       continue
     fi
-    rm -f "$target"
-  elif [[ -e "$target" ]]; then
-    warn "$skill_name: non-symlink exists at $target, skipping"
-    continue
-  fi
 
-  ln -s "${skill_dir%/}" "$target"
-  if $IS_WORKTREE; then
-    ok "$skill_name → worktree"
-  else
-    ok "$skill_name"
-  fi
-  ((_linked++)) || true
-done
+    target="$CLAUDE_SKILLS_DIR/$skill_name"
 
-# Link shared resources
-shared_source="$SCRIPT_DIR/skills/shared"
-shared_target="$CLAUDE_SKILLS_DIR/shared"
+    if [[ -L "$target" ]]; then
+      existing="$(readlink "$target")"
+      if [[ "$existing" == "$skill_dir" || "$existing" == "${skill_dir%/}" ]]; then
+        ((_skipped++)) || true
+        continue
+      fi
+      rm -f "$target"
+    elif [[ -e "$target" ]]; then
+      warn "$skill_name: non-symlink exists at $target, skipping"
+      continue
+    fi
 
-if [[ -d "$shared_source" ]]; then
-  _link_shared=true
-  if $IS_WORKTREE && [[ ${#_changed_skills[@]} -eq 0 ]]; then
-    _link_shared=false
-  fi
+    ln -s "${skill_dir%/}" "$target"
+    if $IS_WORKTREE; then
+      ok "$skill_name → worktree"
+    else
+      ok "$skill_name"
+    fi
+    ((_linked++)) || true
+  done
 
-  if $_link_shared; then
-    if [[ -L "$shared_target" ]]; then
-      existing="$(readlink "$shared_target")"
-      if [[ "$existing" != "$shared_source" ]]; then
-        rm -f "$shared_target"
+  # Link shared resources
+  shared_source="$SCRIPT_DIR/skills/shared"
+  shared_target="$CLAUDE_SKILLS_DIR/shared"
+
+  if [[ -d "$shared_source" ]]; then
+    _link_shared=true
+    if $IS_WORKTREE && [[ ${#_changed_skills[@]} -eq 0 ]]; then
+      _link_shared=false
+    fi
+
+    if $_link_shared; then
+      if [[ -L "$shared_target" ]]; then
+        existing="$(readlink "$shared_target")"
+        if [[ "$existing" != "$shared_source" ]]; then
+          rm -f "$shared_target"
+          ln -s "$shared_source" "$shared_target"
+          ok "shared"
+          ((_linked++)) || true
+        fi
+      elif [[ ! -e "$shared_target" ]]; then
         ln -s "$shared_source" "$shared_target"
         ok "shared"
         ((_linked++)) || true
       fi
-    elif [[ ! -e "$shared_target" ]]; then
-      ln -s "$shared_source" "$shared_target"
-      ok "shared"
-      ((_linked++)) || true
     fi
   fi
-fi
 
-if [[ $_linked -eq 0 ]]; then
-  skip "All skills already linked ($_skipped up to date)"
-else
-  printf "  ${_dim}$_linked linked, $_skipped already up to date${_reset}\n"
-fi
-
-# --------------------------------------------------------------------------- #
-# 2. Install PreToolUse hook                                                  #
-# --------------------------------------------------------------------------- #
-
-section "Installing PreToolUse hook"
-
-hook_source="$SCRIPT_DIR/hooks/PreToolUse/rules.json"
-hook_target_dir="$HOOKS_DIR/pre-tool-use"
-hook_target="$hook_target_dir/hook-rules.json"
-
-if [[ -f "$hook_source" ]]; then
-  mkdir -p "$hook_target_dir"
-
-  # Engine
-  if [[ -d "$SCRIPT_DIR/hooks/PreToolUse/engine" ]]; then
-    [[ -d "$hook_target_dir/src" ]] && rm -rf "$hook_target_dir/src"
-    rm -rf "$hook_target_dir/engine"
-    cp -r "$SCRIPT_DIR/hooks/PreToolUse/engine" "$hook_target_dir/engine"
-    ok "Hook engine"
+  if [[ $_linked -eq 0 ]]; then
+    skip "All skills already linked ($_skipped up to date)"
+  else
+    printf "  ${_dim}$_linked linked, $_skipped already up to date${_reset}\n"
   fi
-
-  # Entry point
-  if [[ -f "$SCRIPT_DIR/hooks/PreToolUse/pre-tool-use.sh" ]]; then
-    cp "$SCRIPT_DIR/hooks/PreToolUse/pre-tool-use.sh" "$HOOKS_DIR/pre-tool-use.sh"
-    chmod +x "$HOOKS_DIR/pre-tool-use.sh"
-    ok "Entry point → $HOOKS_DIR/pre-tool-use.sh"
-  fi
-
-  # Rules
-  cp "$hook_source" "$hook_target"
-  ok "Hook rules"
-
-  _register_hook "PreToolUse" "~/.claude/hooks/pre-tool-use.sh"
-
-else
-  warn "$hook_source not found, skipping hook installation"
 fi
 
 # --------------------------------------------------------------------------- #
-# 3. Install Notification hook (macOS only)                                   #
+# [pretooluse] Install PreToolUse hook engine + rules                         #
 # --------------------------------------------------------------------------- #
 
-if [[ "$(uname)" == "Darwin" ]]; then
-  section "Installing Notification hook"
+if _want pretooluse; then
+  section "Installing PreToolUse hook"
 
-  notify_source_dir="$SCRIPT_DIR/hooks/Notification"
+  hook_source="$SCRIPT_DIR/hooks/PreToolUse/rules.json"
+  hook_target_dir="$HOOKS_DIR/pre-tool-use"
+  hook_target="$hook_target_dir/hook-rules.json"
 
-  if [[ -f "$notify_source_dir/notify-attention.sh" ]]; then
-    cp "$notify_source_dir/notify-attention.sh" "$HOOKS_DIR/notify-attention.sh"
-    cp "$notify_source_dir/focus-claude-session.sh" "$HOOKS_DIR/focus-claude-session.sh"
-    chmod +x "$HOOKS_DIR/notify-attention.sh" "$HOOKS_DIR/focus-claude-session.sh"
-    ok "Entry point → $HOOKS_DIR/notify-attention.sh"
+  if [[ -f "$hook_source" ]]; then
+    mkdir -p "$hook_target_dir"
 
-    if ! command -v terminal-notifier >/dev/null 2>&1; then
-      warn "terminal-notifier not installed (brew install terminal-notifier); hook will no-op until it is"
+    # Engine
+    if [[ -d "$SCRIPT_DIR/hooks/PreToolUse/engine" ]]; then
+      [[ -d "$hook_target_dir/src" ]] && rm -rf "$hook_target_dir/src"
+      rm -rf "$hook_target_dir/engine"
+      cp -r "$SCRIPT_DIR/hooks/PreToolUse/engine" "$hook_target_dir/engine"
+      ok "Hook engine"
     fi
 
-    _register_hook "Notification" "~/.claude/hooks/notify-attention.sh"
+    # Entry point
+    if [[ -f "$SCRIPT_DIR/hooks/PreToolUse/pre-tool-use.sh" ]]; then
+      cp "$SCRIPT_DIR/hooks/PreToolUse/pre-tool-use.sh" "$HOOKS_DIR/pre-tool-use.sh"
+      chmod +x "$HOOKS_DIR/pre-tool-use.sh"
+      ok "Entry point → $HOOKS_DIR/pre-tool-use.sh"
+    fi
+
+    # Rules
+    cp "$hook_source" "$hook_target"
+    ok "Hook rules"
+
+    _register_hook "PreToolUse" "~/.claude/hooks/pre-tool-use.sh"
 
   else
-    warn "$notify_source_dir/notify-attention.sh not found, skipping"
+    warn "$hook_source not found, skipping hook installation"
   fi
 fi
 
 # --------------------------------------------------------------------------- #
-# 4. Install MessageDisplay hook (phrase swapping)                            #
+# [notification] Install Notification hook (macOS only)                       #
 # --------------------------------------------------------------------------- #
 
-section "Installing MessageDisplay hook"
+if _want notification; then
+  if [[ "$(uname)" != "Darwin" ]]; then
+    # Only announce the skip when it was asked for explicitly — a full run on
+    # Linux shouldn't report a component the platform can't have.
+    if ! $IS_FULL_RUN; then
+      section "Installing Notification hook"
+      skip "notification is macOS-only — skipping on $(uname)"
+    fi
+  else
+    section "Installing Notification hook"
 
-swap_source_dir="$SCRIPT_DIR/hooks/MessageDisplay"
-swap_target_dir="$HOOKS_DIR/message-display"
+    notify_source_dir="$SCRIPT_DIR/hooks/Notification"
 
-if [[ -f "$swap_source_dir/swap.py" ]]; then
-  mkdir -p "$swap_target_dir"
-  cp "$swap_source_dir/swap.py" "$swap_target_dir/swap.py"
-  chmod +x "$swap_target_dir/swap.py"
-  ok "Entry point → $swap_target_dir/swap.py"
+    if [[ -f "$notify_source_dir/notify-attention.sh" ]]; then
+      mkdir -p "$HOOKS_DIR"
+      cp "$notify_source_dir/notify-attention.sh" "$HOOKS_DIR/notify-attention.sh"
+      cp "$notify_source_dir/focus-claude-session.sh" "$HOOKS_DIR/focus-claude-session.sh"
+      chmod +x "$HOOKS_DIR/notify-attention.sh" "$HOOKS_DIR/focus-claude-session.sh"
+      ok "Entry point → $HOOKS_DIR/notify-attention.sh"
 
-  # phrases.json is the shipped word list; personal additions live in
-  # ~/.agent-skills/local-phrases.json and are never overwritten here.
-  cp "$swap_source_dir/phrases.json" "$swap_target_dir/phrases.json"
-  ok "Phrase list"
+      if ! command -v terminal-notifier >/dev/null 2>&1; then
+        warn "terminal-notifier not installed (brew install terminal-notifier); hook will no-op until it is"
+      fi
 
-  # Fires on every flush of every streaming message — cap it well under the
-  # 10s default so a wedged hook can't stall rendering for long.
-  _register_hook "MessageDisplay" "~/.claude/hooks/message-display/swap.py" 5
-else
-  warn "$swap_source_dir/swap.py not found, skipping"
+      _register_hook "Notification" "~/.claude/hooks/notify-attention.sh"
+
+    else
+      warn "$notify_source_dir/notify-attention.sh not found, skipping"
+    fi
+  fi
 fi
 
 # --------------------------------------------------------------------------- #
-# 5. Merge built-in rules into settings.json permissions                      #
+# [message-display] Install MessageDisplay hook (phrase swapping)             #
 # --------------------------------------------------------------------------- #
 
-section "Merging permissions"
+if _want message-display; then
+  section "Installing MessageDisplay hook"
 
-builtin_rules="$SCRIPT_DIR/hooks/PreToolUse/built-in-rules.json"
+  swap_source_dir="$SCRIPT_DIR/hooks/MessageDisplay"
+  swap_target_dir="$HOOKS_DIR/message-display"
 
-if [[ -f "$builtin_rules" ]]; then
-  python3 - "$CLAUDE_SETTINGS" "$builtin_rules" <<'PYEOF'
+  if [[ -f "$swap_source_dir/swap.py" ]]; then
+    mkdir -p "$swap_target_dir"
+    cp "$swap_source_dir/swap.py" "$swap_target_dir/swap.py"
+    chmod +x "$swap_target_dir/swap.py"
+    ok "Entry point → $swap_target_dir/swap.py"
+
+    # phrases.json is the shipped word list; personal additions live in
+    # ~/.agent-skills/local-phrases.json and are never overwritten here.
+    cp "$swap_source_dir/phrases.json" "$swap_target_dir/phrases.json"
+    ok "Phrase list"
+
+    # Fires on every flush of every streaming message — cap it well under the
+    # 10s default so a wedged hook can't stall rendering for long.
+    _register_hook "MessageDisplay" "~/.claude/hooks/message-display/swap.py" 5
+  else
+    warn "$swap_source_dir/swap.py not found, skipping"
+  fi
+fi
+
+# --------------------------------------------------------------------------- #
+# [pretooluse] Merge built-in rules into settings.json permissions            #
+# --------------------------------------------------------------------------- #
+
+if _want pretooluse; then
+  section "Merging permissions"
+
+  builtin_rules="$SCRIPT_DIR/hooks/PreToolUse/built-in-rules.json"
+
+  if [[ -f "$builtin_rules" ]]; then
+    python3 - "$CLAUDE_SETTINGS" "$builtin_rules" <<'PYEOF'
 import json
 import sys
 
@@ -437,22 +637,24 @@ else:
 if removed_count:
     print(f"  \033[32m✓\033[0m {removed_count} retired rules removed")
 PYEOF
-else
-  warn "$builtin_rules not found, skipping permissions merge"
+  else
+    warn "$builtin_rules not found, skipping permissions merge"
+  fi
 fi
 
 # --------------------------------------------------------------------------- #
-# 6. Disable Claude auto-attribution (commit/PR trailers + session URL)        #
+# [attribution] Disable Claude auto-attribution (commit/PR trailers + URL)    #
 # --------------------------------------------------------------------------- #
 
-section "Disabling Claude auto-attribution"
+if _want attribution; then
+  section "Disabling Claude auto-attribution"
 
-# We append our own trailers manually (see ~/.claude/CLAUDE.md), so turn off
-# Claude Code's auto-attribution entirely to avoid duplicates:
-#   attribution.sessionUrl = false  → drop the session-URL line
-#   attribution.commit      = ""     → no auto commit trailer
-#   attribution.pr          = ""     → no auto PR trailer
-python3 - "$CLAUDE_SETTINGS" <<'PYEOF'
+  # We append our own trailers manually (see ~/.claude/CLAUDE.md), so turn off
+  # Claude Code's auto-attribution entirely to avoid duplicates:
+  #   attribution.sessionUrl = false  → drop the session-URL line
+  #   attribution.commit      = ""     → no auto commit trailer
+  #   attribution.pr          = ""     → no auto PR trailer
+  python3 - "$CLAUDE_SETTINGS" <<'PYEOF'
 import json
 import sys
 
@@ -479,62 +681,66 @@ else:
         "(sessionUrl=false, commit=\"\", pr=\"\")"
     )
 PYEOF
+fi
 
 # --------------------------------------------------------------------------- #
-# 7. Register MCP servers                                                     #
+# [mcp] Register MCP servers                                                  #
 # --------------------------------------------------------------------------- #
 
-section "Registering MCP servers"
+if _want mcp; then
+  section "Registering MCP servers"
 
-_register_mcp() {
-  local name="$1"
-  local check_cmd="$2"
-  shift 2
-  # Check if already registered by looking for the command in mcp list output.
-  # We match on command (not name) since users may register under a different name.
-  if command -v claude &>/dev/null && claude mcp list 2>/dev/null | grep -q "$check_cmd"; then
-    skip "$name already registered"
-    return
-  fi
+  _register_mcp() {
+    local name="$1"
+    local check_cmd="$2"
+    shift 2
+    # Check if already registered by looking for the command in mcp list output.
+    # We match on command (not name) since users may register under a different name.
+    if command -v claude &>/dev/null && claude mcp list 2>/dev/null | grep -q "$check_cmd"; then
+      skip "$name already registered"
+      return
+    fi
 
-  if ! command -v claude &>/dev/null; then
-    skip "$name — claude CLI not available"
-    return
-  fi
+    if ! command -v claude &>/dev/null; then
+      skip "$name — claude CLI not available"
+      return
+    fi
 
-  if claude mcp add --scope user "$name" "$@" 2>/dev/null; then
-    ok "$name"
-  else
-    warn "$name — registration failed (run manually: claude mcp add --scope user $name $*)"
-  fi
-}
+    if claude mcp add --scope user "$name" "$@" 2>/dev/null; then
+      ok "$name"
+    else
+      warn "$name — registration failed (run manually: claude mcp add --scope user $name $*)"
+    fi
+  }
 
-_register_mcp "playwright" "@playwright/mcp" -- npx @playwright/mcp@latest
+  _register_mcp "playwright" "@playwright/mcp" -- npx @playwright/mcp@latest
+fi
 
 # --------------------------------------------------------------------------- #
-# 8. Upsert <agent-skills-guidance> block in CLAUDE.md                        #
+# [guidance] Upsert <agent-skills-guidance> block in CLAUDE.md                #
 # --------------------------------------------------------------------------- #
 
-section "Updating CLAUDE.md"
+if _want guidance; then
+  section "Updating CLAUDE.md"
 
-core_template="$SCRIPT_DIR/templates/user-claude.md"
+  core_template="$SCRIPT_DIR/templates/user-claude.md"
 
-if [[ -f "$core_template" ]]; then
-  gh_user=""
-  if command -v gh &>/dev/null; then
-    gh_user="$(gh api user --jq .login 2>/dev/null || true)"
-  fi
+  if [[ -f "$core_template" ]]; then
+    gh_user=""
+    if command -v gh &>/dev/null; then
+      gh_user="$(gh api user --jq .login 2>/dev/null || true)"
+    fi
 
-  block_content="$(cat "$core_template")"
+    block_content="$(cat "$core_template")"
 
-  if [[ -n "$gh_user" ]] && [[ -f "$SCRIPT_DIR/templates/${gh_user}.md" ]]; then
-    block_content="${block_content}
+    if [[ -n "$gh_user" ]] && [[ -f "$SCRIPT_DIR/templates/${gh_user}.md" ]]; then
+      block_content="${block_content}
 
-$(cat "$SCRIPT_DIR/templates/${gh_user}.md")"
-    ok "Personal template for $gh_user"
-  fi
+  $(cat "$SCRIPT_DIR/templates/${gh_user}.md")"
+      ok "Personal template for $gh_user"
+    fi
 
-  python3 - "$CLAUDE_MD" "$block_content" <<'PYEOF'
+    python3 - "$CLAUDE_MD" "$block_content" <<'PYEOF'
 import sys
 from pathlib import Path
 
@@ -570,82 +776,90 @@ else:
 claude_md.write_text(updated)
 print(f"  \033[32m✓\033[0m {action} guidance block in {claude_md_path}")
 PYEOF
-else
-  warn "$core_template not found, skipping CLAUDE.md update"
+  else
+    warn "$core_template not found, skipping CLAUDE.md update"
+  fi
 fi
 
 # --------------------------------------------------------------------------- #
-# 9. Install CLI scripts                                                      #
+# [cli] Install CLI scripts                                                   #
 # --------------------------------------------------------------------------- #
 
-section "Installing CLI scripts"
+if _want cli; then
+  section "Installing CLI scripts"
 
-SCRIPTS_TARGET_DIR="$CLAUDE_DIR/scripts"
-mkdir -p "$SCRIPTS_TARGET_DIR"
+  SCRIPTS_TARGET_DIR="$CLAUDE_DIR/scripts"
+  mkdir -p "$SCRIPTS_TARGET_DIR"
 
-# claude-resume
-_resume_source="$SCRIPT_DIR/scripts/claude-resume/claude-resume.sh"
-_resume_target="$SCRIPTS_TARGET_DIR/claude-resume.sh"
+  # claude-resume
+  _resume_source="$SCRIPT_DIR/scripts/claude-resume/claude-resume.sh"
+  _resume_target="$SCRIPTS_TARGET_DIR/claude-resume.sh"
 
-if [[ -f "$_resume_source" ]]; then
-  if [[ -L "$_resume_target" ]]; then
-    existing="$(readlink "$_resume_target")"
-    if [[ "$existing" == "$_resume_source" ]]; then
-      skip "claude-resume already linked"
+  if [[ -f "$_resume_source" ]]; then
+    if [[ -L "$_resume_target" ]]; then
+      existing="$(readlink "$_resume_target")"
+      if [[ "$existing" == "$_resume_source" ]]; then
+        skip "claude-resume already linked"
+      else
+        rm -f "$_resume_target"
+        ln -s "$_resume_source" "$_resume_target"
+        ok "claude-resume (updated link)"
+      fi
     else
-      rm -f "$_resume_target"
+      [[ -f "$_resume_target" ]] && rm -f "$_resume_target"
       ln -s "$_resume_source" "$_resume_target"
-      ok "claude-resume (updated link)"
+      ok "claude-resume"
     fi
   else
-    [[ -f "$_resume_target" ]] && rm -f "$_resume_target"
-    ln -s "$_resume_source" "$_resume_target"
-    ok "claude-resume"
+    warn "claude-resume source not found, skipping"
   fi
-else
-  warn "claude-resume source not found, skipping"
-fi
 
-# Shell alias: re-claude
-_shell_rc=""
-case "$SHELL" in
-  */zsh)  _shell_rc="$HOME/.zshrc" ;;
-  */bash) _shell_rc="$HOME/.bash_profile" ;;
-esac
+  # Shell alias: re-claude
+  _shell_rc=""
+  case "$SHELL" in
+    */zsh)  _shell_rc="$HOME/.zshrc" ;;
+    */bash) _shell_rc="$HOME/.bash_profile" ;;
+  esac
 
-if [[ -n "$_shell_rc" ]] && [[ -f "$_shell_rc" ]]; then
-  _fence_begin="# BEGIN agent-skills-aliases"
-  _fence_end="# END agent-skills-aliases"
+  if [[ -n "$_shell_rc" ]] && [[ -f "$_shell_rc" ]]; then
+    _fence_begin="# BEGIN agent-skills-aliases"
+    _fence_end="# END agent-skills-aliases"
 
-  read -r -d '' _alias_block << 'ALIASES' || true
+    read -r -d '' _alias_block << 'ALIASES' || true
 
 # BEGIN agent-skills-aliases — managed by agent-skills setup, do not edit manually
 alias reclaude="$HOME/.claude/scripts/claude-resume.sh"
 # END agent-skills-aliases
 ALIASES
 
-  if grep -q "$_fence_begin" "$_shell_rc" 2>/dev/null; then
-    _block_file="$(mktemp)"
-    printf '%s\n' "$_alias_block" > "$_block_file"
-    _updated="$(awk -v block_file="$_block_file" '
-      /# BEGIN agent-skills-aliases/ { while ((getline line < block_file) > 0) print line; in_block=1; next }
-      /# END agent-skills-aliases/   { in_block=0; next }
-      !in_block                      { print }
-    ' "$_shell_rc")"
-    rm -f "$_block_file"
-    echo "$_updated" > "$_shell_rc"
-    ok "Shell aliases updated in $(basename "$_shell_rc")"
+    if grep -q "$_fence_begin" "$_shell_rc" 2>/dev/null; then
+      _block_file="$(mktemp)"
+      printf '%s\n' "$_alias_block" > "$_block_file"
+      _updated="$(awk -v block_file="$_block_file" '
+        /# BEGIN agent-skills-aliases/ { while ((getline line < block_file) > 0) print line; in_block=1; next }
+        /# END agent-skills-aliases/   { in_block=0; next }
+        !in_block                      { print }
+      ' "$_shell_rc")"
+      rm -f "$_block_file"
+      echo "$_updated" > "$_shell_rc"
+      ok "Shell aliases updated in $(basename "$_shell_rc")"
+    else
+      echo "$_alias_block" >> "$_shell_rc"
+      ok "Shell aliases added to $(basename "$_shell_rc") — run: source ~/${_shell_rc##*/}"
+    fi
   else
-    echo "$_alias_block" >> "$_shell_rc"
-    ok "Shell aliases added to $(basename "$_shell_rc") — run: source ~/${_shell_rc##*/}"
+    skip "Shell aliases — unsupported shell or missing rc file"
   fi
-else
-  skip "Shell aliases — unsupported shell or missing rc file"
 fi
 
 # --------------------------------------------------------------------------- #
 # Done                                                                        #
 # --------------------------------------------------------------------------- #
 
-printf "\n${_bold}${_green}✓ Setup complete${_reset}\n"
-printf "  Rerun this at any time to update your CLAUDE.md, skills, and hooks.\n\n"
+if $IS_FULL_RUN; then
+  printf "\n${_bold}${_green}✓ Setup complete${_reset}\n"
+  printf "  Rerun this at any time to update your CLAUDE.md, skills, and hooks.\n\n"
+else
+  printf "\n${_bold}${_green}✓ Setup complete${_reset}${_dim} —${SELECTED% }${_reset}\n"
+  printf "  Run 'bash setup.sh --list' to see everything else available.\n\n"
+fi
