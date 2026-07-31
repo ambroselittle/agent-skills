@@ -3,6 +3,8 @@
   "allow": [
     "Bash(~/.claude/skills/*/scripts/*.sh)",
     "Bash(~/.claude/skills/*/scripts/*.sh *)",
+    "Bash(~/.claude/scripts/window-title)",
+    "Bash(~/.claude/scripts/window-title *)",
     "Bash(rsync *)",
     "Read",
     "Write",
@@ -57,7 +59,5 @@
     "Bash(rm -fr ~*)",
     "Bash(rm -r ~*)"
   ],
-  "removed": [
-    "mcp__*"
-  ]
+  "removed": ["mcp__*"]
 }

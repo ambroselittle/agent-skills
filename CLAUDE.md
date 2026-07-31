@@ -38,12 +38,13 @@ Every skill has a `SKILL.md` with YAML frontmatter:
 name: skill-name
 description: Short phrase shown to user
 argument-hint: "[options]"
-depends-on: plan-work           # optional prerequisite
-context: fork                   # optional: run in isolated context
+depends-on: plan-work # optional prerequisite
+context: fork # optional: run in isolated context
 ---
 ```
 
 The rest of SKILL.md is the AI orchestrator prompt — phases, steps, and instructions for Claude Code. Skills may also include:
+
 - `references/` — docs the skill reads at runtime (e.g., flakiness-practices.md)
 - `agents/` — sub-agent definitions spawned by the skill
 - `scripts/` — shell/Python utilities called by the skill
@@ -60,6 +61,7 @@ Rule-based engine that intercepts tool calls. Decision priority: **deny > ask > 
 Each rule in `rules.json` specifies an `operation` (e.g., `read-path`, `write-path`, `git-force-push`, `bash-safe`) and an `action`. See `hooks/PreToolUse/CLAUDE.md` for the full list of operations and how to add rules.
 
 **Adding a new rule:**
+
 1. Add the rule to `rules.json`
 2. Create `tests/rules/test_<slug>.py` with `RULE_DESCRIPTION` matching the rule's `description` exactly
 3. Include `test_match`, `test_no_match`, and at least one `test_boundary_*`
@@ -70,6 +72,7 @@ Each rule in `rules.json` specifies an `operation` (e.g., `read-path`, `write-pa
 Python scripts handle deterministic work; the AI handles intelligence (interview, version resolution, customization, diagnostics).
 
 **Template layers:** up to 4 layers, each overriding the previous:
+
 1. `templates/__common/` — universal files (all templates)
 2. `templates/__common/<platform>/` — platform-specific shared files (e.g., `python/`, `ts/`)
 3. `templates/<base>/` — base template files (when child declares `"extends"` in `template.json`)
@@ -78,6 +81,7 @@ Python scripts handle deterministic work; the AI handles intelligence (interview
 Each template has a `template.json` declaring its platform (a string like `"python"` or a list like `["ts", "python"]` for multi-platform templates). When a list is given, each platform's `__common/<platform>/` layer is applied in order. Templates can inherit from a base via `"extends"` and skip specific base files via `"exclude"` globs. Files with `.j2` extension get Jinja2 rendering; others are copied as-is.
 
 **Template variables:**
+
 - `{{ project_name }}` — e.g., `my-app`
 - `{{ scope }}` — e.g., `@my-app`
 - `{{ swift_project_name }}` — PascalCase, e.g., `MyApp`
@@ -94,17 +98,21 @@ Each template has a `template.json` declaring its platform (a string like `"pyth
 All Python projects use **uv** and **pytest**.
 
 ### Hooks (~440 tests, <1s)
+
 ```bash
 make test-hooks
 ```
+
 Runs every `hooks/*/tests` suite — the PreToolUse rule engine and the MessageDisplay phrase swap.
 
 ### create-repo unit + structural eval (~55 tests, <1s)
+
 ```bash
 cd skills/create-repo && uv run pytest tests/ -v -m "not e2e"
 ```
 
 ### Scaffold E2E — interactive picker (needs pnpm, node, Docker or Postgres, ~3min)
+
 ```bash
 make test-scaffolds                        # interactive — pick a template or all
 make test-scaffolds TEMPLATE=fullstack-ts  # specific template
@@ -116,6 +124,7 @@ In CI, set `DATABASE_URL` env var and the test auto-skips docker compose.
 ## CI
 
 GitHub Actions (`.github/workflows/ci.yml`) runs on push to PR branches and main:
+
 - **Unit tests** — hook engine + create-repo unit/structural (~30s)
 - **Scaffold E2E** — scaffolds all templates, runs full verify pipeline with Postgres service container (~3min)
 
@@ -130,6 +139,7 @@ This installs `uv` if missing, syncs Python environments (hooks + create-repo), 
 ## setup.sh
 
 Called by `make init`. Idempotent installer that:
+
 1. Links skills to `~/.claude/skills/` (worktree-aware — only changed skills in worktrees)
 2. Installs PreToolUse hook engine to `~/.claude/hooks/`
 3. Merges permissions from `built-in-rules.json` into `~/.claude/settings.json`
@@ -138,7 +148,7 @@ Called by `make init`. Idempotent installer that:
 
 ### Components
 
-Each step is a named component that can be installed on its own: `skills`, `pretooluse` (engine + rules + permissions), `notification`, `message-display`, `attribution`, `mcp`, `guidance`, `cli`. `hooks` is a group covering the three hook components. Run `bash setup.sh --list` for descriptions.
+Each step is a named component that can be installed on its own: `skills`, `pretooluse` (engine + rules + permissions), `notification`, `message-display`, `window-title`, `attribution`, `mcp`, `guidance`, `cli`. `hooks` is a group covering every hook component. Run `bash setup.sh --list` for descriptions.
 
 - `bash setup.sh` (no arguments) always runs the full setup — selections are never persisted.
 - `bash setup.sh pretooluse` installs only the hook engine; `bash setup.sh --without guidance` takes everything else.
