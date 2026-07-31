@@ -15,8 +15,12 @@ WLIB_STALE_AFTER=10
 # Minimum turns between reminders, so an ignored one doesn't nag every turn.
 WLIB_NUDGE_BACKOFF=5
 
-# Path length beyond which leading components collapse to a single character.
-WLIB_PATH_MAX=30
+# Prefixes dropped from displayed paths, longest first. These are the roots
+# everything already lives under, so printing them says nothing and crowds out
+# the part that identifies the directory. $HOME is always shortened to ~.
+WLIB_PATH_STRIP=(
+  /Volumes/Code
+)
 
 WLIB_EMOJI=(
   $'\xf0\x9f\x94\xb4'  # red
@@ -162,46 +166,22 @@ wlib_find_transcript() {
 # Display strings                                                              #
 # --------------------------------------------------------------------------- #
 
-# Home-relative path, shortening leading components to a single character
-# once it gets long — the same shape as a zsh prompt.
+# The path as written, minus a leading root that carries no information:
+# $HOME becomes ~, and anything in WLIB_PATH_STRIP is dropped outright.
+# Every remaining component is printed in full — an abbreviated component
+# has to be decoded, which is the opposite of what a status line is for.
 wlib_path() {
-  local path="${1:-$PWD}" out="" prefix="" rest seg total=0 index=0 scan
+  local path="${1:-$PWD}" strip
   case "$path" in
-    "$HOME") printf '~'; return ;;
-    "$HOME"/*) path="~/${path#"$HOME"/}" ;;
+    "$HOME")    printf '~'; return ;;
+    "$HOME"/*)  printf '~/%s' "${path#"$HOME"/}"; return ;;
   esac
-  if [ ${#path} -le $WLIB_PATH_MAX ]; then
-    printf '%s' "$path"
-    return
-  fi
-  case "$path" in
-    /*) prefix="/"; rest="${path#/}" ;;
-    *)  rest="$path" ;;
-  esac
-  scan="$rest"
-  while [ -n "$scan" ]; do
-    total=$((total + 1))
-    case "$scan" in
-      */*) scan="${scan#*/}" ;;
-      *)   scan="" ;;
+  for strip in "${WLIB_PATH_STRIP[@]}"; do
+    case "$path" in
+      "$strip"/*) printf '%s' "${path#"$strip"/}"; return ;;
     esac
   done
-  while [ -n "$rest" ]; do
-    case "$rest" in
-      */*) seg="${rest%%/*}"; rest="${rest#*/}" ;;
-      *)   seg="$rest"; rest="" ;;
-    esac
-    if [ "$index" -lt $((total - 2)) ] && [ "$seg" != "~" ]; then
-      seg="${seg:0:1}"
-    fi
-    if [ -z "$out" ]; then
-      out="$seg"
-    else
-      out="$out/$seg"
-    fi
-    index=$((index + 1))
-  done
-  printf '%s%s' "$prefix" "$out"
+  printf '%s' "$path"
 }
 
 wlib_branch() {
