@@ -55,6 +55,27 @@ wlib_rgb() {
 }
 
 # --------------------------------------------------------------------------- #
+# Applicability                                                                #
+# --------------------------------------------------------------------------- #
+
+# True when this session is attached to something with a title bar to set.
+#
+# The title itself is OSC 2, which every terminal either honours or discards,
+# so terminal *type* needs no check — an IDE's integrated terminal is as valid
+# a target as Ghostty. What does need one is a session with no window at all:
+# a scripted -p run, CI, or a cloud session, where the reminder would spend a
+# turn naming a window nobody can see.
+wlib_has_window() {
+  case "${CLAUDE_CODE_ENTRYPOINT:-}" in
+    sdk-*|github-actions|cloud) return 1 ;;
+  esac
+  case "${TERM:-}" in
+    ''|dumb) return 1 ;;
+  esac
+  return 0
+}
+
+# --------------------------------------------------------------------------- #
 # Label store                                                                  #
 # --------------------------------------------------------------------------- #
 #

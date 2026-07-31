@@ -6,6 +6,8 @@
 
 source "$HOME/.claude/hooks/window-lib.sh"
 
+wlib_has_window || exit 0
+
 input=$(cat)
 sid=$(printf '%s' "$input" | jq -r '.session_id // empty')
 cwd=$(printf '%s' "$input" | jq -r '.cwd // empty')
