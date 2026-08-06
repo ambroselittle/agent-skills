@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# Reads and writes the current session's window title.
+#
+# The session is resolved from CLAUDE_CODE_SESSION_ID, which Claude Code
+# exports into the shell it runs commands in — so the agent never needs to
+# know its own session id or where the label is stored.
+#
+#   window-title set "Ghostty window titles"   agent-chosen, may be revised
+#   window-title pin "Ghostty window titles"   the user's, never revised
+#   window-title unpin                         hand it back to the agent
+#   window-title show                          print the current title
+
+set -euo pipefail
+
+source "$HOME/.claude/hooks/window-lib.sh"
+
+MAX_LENGTH=48
+
+_die() {
+  printf 'window-title: %s\n' "$1" >&2
+  exit 1
+}
+
+_session() {
+  local sid="${CLAUDE_CODE_SESSION_ID:-}"
+  [ -n "$sid" ] || _die "no CLAUDE_CODE_SESSION_ID — run this from inside a Claude Code session"
+  printf '%s' "$sid"
+}
+
+_turns() {
+  local sid="$1" transcript
+  transcript=$(wlib_find_transcript "$sid" 2>/dev/null) || { printf '0'; return; }
+  wlib_turn_count "$transcript"
+}
+
+_store() {
+  local mode="$1" label="$2" sid turns
+  [ -n "$label" ] || _die "a title is required"
+  label=$(printf '%s' "$label" | tr '\n\t' '  ' | sed 's/  */ /g; s/^ //; s/ *$//')
+  [ -n "$label" ] || _die "a title is required"
+  if [ ${#label} -gt $MAX_LENGTH ]; then
+    _die "title is ${#label} characters; keep it under $MAX_LENGTH so it stays readable in a tab"
+  fi
+  # Identifiers scan as noise and have to be looked up to mean anything, so an
+  # agent-chosen title names the subject instead. Two digits keeps "UTF-8" out
+  # of it. A pinned title is the user's wording and is never second-guessed.
+  if [ "$mode" != pinned ] &&
+     { [[ "$label" =~ (^|[^A-Za-z])[A-Z]{2,6}-[0-9]{2,}([^0-9]|$) ]] ||
+       [[ "$label" =~ (^|[^A-Za-z0-9])#[0-9]+([^0-9]|$) ]]; }; then
+    _die "titles can't contain ticket, PR, or issue identifiers — name what it's about instead (\"custom fields at depth\", not \"LC-27615\")"
+  fi
+  sid=$(_session)
+  turns=$(_turns "$sid")
+  wlib_write "$sid" "$label" "$mode" "$turns" "$turns"
+  printf 'Window title %s: %s\n' \
+    "$([ "$mode" = pinned ] && printf 'pinned' || printf 'set')" "$label"
+}
+
+case "${1:-show}" in
+  set)
+    shift
+    sid=$(_session)
+    if wlib_is_pinned "$sid"; then
+      printf 'Window title is pinned by the user (%s) — leaving it alone.\n' \
+        "$(wlib_stored_label "$sid")"
+      exit 0
+    fi
+    _store auto "${*:-}"
+    ;;
+  pin)
+    shift
+    _store pinned "${*:-}"
+    ;;
+  unpin)
+    sid=$(_session)
+    label=$(wlib_stored_label "$sid") || _die "no title set"
+    wlib_write "$sid" "$label" auto
+    printf 'Window title unpinned: %s\n' "$label"
+    ;;
+  show)
+    sid=$(_session)
+    if label=$(wlib_stored_label "$sid"); then
+      printf '%s (%s)\n' "$label" "$(wlib_meta "$sid" mode auto)"
+    else
+      printf 'No window title set.\n'
+    fi
+    ;;
+  -h|--help|help)
+    sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+    ;;
+  *)
+    _die "unknown command '${1}' — try set, pin, unpin, or show"
+    ;;
+esac

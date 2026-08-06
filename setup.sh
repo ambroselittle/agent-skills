@@ -38,6 +38,7 @@ ALL_COMPONENTS=(
   pretooluse
   notification
   message-display
+  window-title
   attribution
   mcp
   guidance
@@ -47,7 +48,7 @@ ALL_COMPONENTS=(
 # Group name → member components. Groups are just shorthand on the command line.
 _expand_group() {
   case "$1" in
-    hooks) printf 'pretooluse notification message-display' ;;
+    hooks) printf 'pretooluse notification message-display window-title' ;;
     all)   printf '%s' "${ALL_COMPONENTS[*]}" ;;
     *)     return 1 ;;
   esac
@@ -69,6 +70,7 @@ _describe_component() {
     pretooluse)      printf 'PreToolUse hook engine + rules, and the built-in allow/deny permissions' ;;
     notification)    printf 'macOS attention banners on Notification events (Darwin only)' ;;
     message-display) printf 'MessageDisplay phrase-swap hook' ;;
+    window-title)    printf 'Per-session window titles, the window-title CLI, and the status line' ;;
     attribution)     printf 'Disable Claude auto-attribution (commit/PR trailers, session URL)' ;;
     mcp)             printf 'Register MCP servers (Playwright)' ;;
     guidance)        printf 'Upsert the <agent-skills-guidance> block in ~/.claude/CLAUDE.md' ;;
@@ -83,7 +85,7 @@ _print_components() {
     printf "  %-16s %s\n" "$c" "$(_describe_component "$c")"
   done
   printf "\nGroups:\n"
-  printf "  %-16s %s\n" "hooks" "pretooluse + notification + message-display"
+  printf "  %-16s %s\n" "hooks" "pretooluse + notification + message-display + window-title"
   printf "  %-16s %s\n" "all" "every component (the default)"
 }
 
@@ -100,7 +102,7 @@ between runs: a bare 'setup.sh' always means the full setup.
 Examples:
   setup.sh                          Everything
   setup.sh pretooluse               Just the PreToolUse hook (engine + permissions)
-  setup.sh hooks                    All three hooks
+  setup.sh hooks                    Every hook
   setup.sh skills guidance          Skills plus the CLAUDE.md guidance block
   setup.sh --without guidance mcp   Everything except those two
 
@@ -308,7 +310,7 @@ section "Checking prerequisites"
 
 # Everything except skills/mcp/cli shells out to python3 — to run the hook
 # engine, or to edit settings.json / CLAUDE.md.
-if _want_any pretooluse notification message-display attribution guidance; then
+if _want_any pretooluse notification message-display window-title attribution guidance; then
   if ! command -v python3 &>/dev/null; then
     fail "python3 not found — the hook engine requires Python 3.11+"
     exit 1
@@ -323,6 +325,15 @@ if _want_any pretooluse notification message-display attribution guidance; then
     exit 1
   fi
   ok "Python $py_version"
+fi
+
+if _want window-title; then
+  if command -v jq &>/dev/null; then
+    ok "jq"
+  else
+    fail "jq not found — the window-title hooks parse hook payloads with it"
+    exit 1
+  fi
 fi
 
 if _want guidance; then
@@ -579,6 +590,99 @@ if _want message-display; then
     _register_hook "MessageDisplay" "~/.claude/hooks/message-display/swap.py" 5
   else
     warn "$swap_source_dir/swap.py not found, skipping"
+  fi
+fi
+
+# --------------------------------------------------------------------------- #
+# [window-title] Install per-session window titles and the status line        #
+# --------------------------------------------------------------------------- #
+
+if _want window-title; then
+  section "Installing window titles"
+
+  wt_source_dir="$SCRIPT_DIR/hooks/WindowTitle"
+
+  if [[ -f "$wt_source_dir/window-lib.sh" ]]; then
+    mkdir -p "$HOOKS_DIR" "$CLAUDE_DIR/scripts" "$CLAUDE_DIR/window-labels"
+
+    cp "$wt_source_dir/window-lib.sh" "$HOOKS_DIR/window-lib.sh"
+    cp "$wt_source_dir/window-tag.sh" "$HOOKS_DIR/window-tag.sh"
+    cp "$wt_source_dir/window-nudge.sh" "$HOOKS_DIR/window-nudge.sh"
+    chmod +x "$HOOKS_DIR/window-tag.sh" "$HOOKS_DIR/window-nudge.sh"
+    ok "Hooks → $HOOKS_DIR/window-{tag,nudge}.sh"
+
+    cp "$wt_source_dir/window-title" "$CLAUDE_DIR/scripts/window-title"
+    chmod +x "$CLAUDE_DIR/scripts/window-title"
+    ok "CLI → $CLAUDE_DIR/scripts/window-title"
+
+    cp "$wt_source_dir/statusline.sh" "$CLAUDE_DIR/statusline.sh"
+    chmod +x "$CLAUDE_DIR/statusline.sh"
+    ok "Status line → $CLAUDE_DIR/statusline.sh"
+
+    # The title is re-asserted at every point the terminal would otherwise
+    # overwrite it; the reminder only needs the two events that can carry
+    # additional context into the conversation.
+    for _wt_event in SessionStart UserPromptSubmit Stop; do
+      _register_hook "$_wt_event" "~/.claude/hooks/window-tag.sh"
+    done
+    for _wt_event in SessionStart UserPromptSubmit; do
+      _register_hook "$_wt_event" "~/.claude/hooks/window-nudge.sh"
+    done
+
+    python3 - "$CLAUDE_SETTINGS" <<'PYEOF'
+import json
+import sys
+
+settings_path = sys.argv[1]
+desired = {"type": "command", "command": "~/.claude/statusline.sh"}
+
+try:
+    with open(settings_path) as f:
+        settings = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    settings = {}
+
+if settings.get("statusLine") == desired:
+    print("  \033[2m· Status line already registered in settings.json\033[0m")
+    sys.exit(0)
+
+settings["statusLine"] = desired
+with open(settings_path, "w") as f:
+    json.dump(settings, f, indent=2)
+    f.write("\n")
+
+print("  \033[32m✓\033[0m Status line registered in settings.json")
+PYEOF
+
+    # Claude Code owns the title only when its own title-setting is off,
+    # otherwise it overwrites the hook's escape sequence on every render.
+    python3 - "$CLAUDE_SETTINGS" <<'PYEOF'
+import json
+import sys
+
+settings_path = sys.argv[1]
+
+try:
+    with open(settings_path) as f:
+        settings = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    settings = {}
+
+env = settings.setdefault("env", {})
+if env.get("CLAUDE_CODE_DISABLE_TERMINAL_TITLE") == "1":
+    print("  \033[2m· Built-in terminal title already disabled\033[0m")
+    sys.exit(0)
+
+env["CLAUDE_CODE_DISABLE_TERMINAL_TITLE"] = "1"
+with open(settings_path, "w") as f:
+    json.dump(settings, f, indent=2)
+    f.write("\n")
+
+print("  \033[32m✓\033[0m Built-in terminal title disabled")
+PYEOF
+
+  else
+    warn "$wt_source_dir/window-lib.sh not found, skipping"
   fi
 fi
 

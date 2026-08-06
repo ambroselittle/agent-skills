@@ -51,15 +51,15 @@ These skills form a pipeline from idea to merged PR:
 /plan-work → /plan-review → /do-work (includes PR) → /code-review → /do-fixes
 ```
 
-| Skill | What it does |
-| --- | --- |
-| `/plan-work` | Takes a GitHub issue or description, discovers relevant code, and produces a phased implementation plan in `<work-folder>/<slug>/plan.md` (under your configured `work_root`, defaulting to `~/Work`). Unlike Claude's built-in plans, these persist to disk and survive across sessions and branch deletions. |
-| `/plan-review` | Runs parallel specialized agents (architecture, completeness, security, testing) over the plan before a line of code is written. Presents findings stepwise by category for in-session discussion. Auto-runs for large plans. |
-| `/do-work` | Implements work from a plan end-to-end — coordinates sub-agents, verifies, commits per task, pushes, and opens a PR when done. No confirmation gates; hard stops only for genuine blockers. |
-| `/code-review` | Multi-pass parallel review with specialized agents. Two-pass approach (normal + reversed diff) for higher recall. Presents findings in-session with opt-out model — default is to fix everything. |
-| `/do-fixes` | Applies checked findings from `/code-review`, verifies, commits, and posts a PR summary comment. Context-aware — detects the most recent review artifact type. |
-| `/author-e2e` | Generate Playwright E2E tests from scenario files or feature descriptions. Produces page objects and test files following Page Object Model best practices. |
-| `/make-skill` | Interactive interview to create a new skill from scratch. |
+| Skill          | What it does                                                                                                                                                                                                                                                                                                   |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/plan-work`   | Takes a GitHub issue or description, discovers relevant code, and produces a phased implementation plan in `<work-folder>/<slug>/plan.md` (under your configured `work_root`, defaulting to `~/Work`). Unlike Claude's built-in plans, these persist to disk and survive across sessions and branch deletions. |
+| `/plan-review` | Runs parallel specialized agents (architecture, completeness, security, testing) over the plan before a line of code is written. Presents findings stepwise by category for in-session discussion. Auto-runs for large plans.                                                                                  |
+| `/do-work`     | Implements work from a plan end-to-end — coordinates sub-agents, verifies, commits per task, pushes, and opens a PR when done. No confirmation gates; hard stops only for genuine blockers.                                                                                                                    |
+| `/code-review` | Multi-pass parallel review with specialized agents. Two-pass approach (normal + reversed diff) for higher recall. Presents findings in-session with opt-out model — default is to fix everything.                                                                                                              |
+| `/do-fixes`    | Applies checked findings from `/code-review`, verifies, commits, and posts a PR summary comment. Context-aware — detects the most recent review artifact type.                                                                                                                                                 |
+| `/author-e2e`  | Generate Playwright E2E tests from scenario files or feature descriptions. Produces page objects and test files following Page Object Model best practices.                                                                                                                                                    |
+| `/make-skill`  | Interactive interview to create a new skill from scratch.                                                                                                                                                                                                                                                      |
 
 ---
 
@@ -69,14 +69,14 @@ Bootstrap a realistic monorepo in minutes. The skill interviews you about your p
 
 **Supported templates:**
 
-| Template | Stack |
-| --- | --- |
-| `fullstack-ts` | React + Tailwind + shadcn/ui · Hono API · tRPC · Prisma + PostgreSQL · Turborepo · Vitest · Biome |
+| Template            | Stack                                                                                                                |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `fullstack-ts`      | React + Tailwind + shadcn/ui · Hono API · tRPC · Prisma + PostgreSQL · Turborepo · Vitest · Biome                    |
 | `fullstack-graphql` | React + Tailwind + shadcn/ui · Hono API · GraphQL (Yoga + Pothos) · Prisma + PostgreSQL · Turborepo · Vitest · Biome |
-| `fullstack-python` | React + Tailwind + shadcn/ui · FastAPI · SQLModel + Alembic · PostgreSQL · Ruff · pytest |
-| `api-ts` | Hono REST API · Prisma + PostgreSQL · Vitest · Biome |
-| `api-python` | FastAPI · SQLModel + Alembic · PostgreSQL · Ruff · pytest |
-| `swift-ts` | Swift multiplatform app (iOS/iPadOS/visionOS) · Hono REST API · OpenAPI typed client · Prisma + PostgreSQL |
+| `fullstack-python`  | React + Tailwind + shadcn/ui · FastAPI · SQLModel + Alembic · PostgreSQL · Ruff · pytest                             |
+| `api-ts`            | Hono REST API · Prisma + PostgreSQL · Vitest · Biome                                                                 |
+| `api-python`        | FastAPI · SQLModel + Alembic · PostgreSQL · Ruff · pytest                                                            |
+| `swift-ts`          | Swift multiplatform app (iOS/iPadOS/visionOS) · Hono REST API · OpenAPI typed client · Prisma + PostgreSQL           |
 
 Every scaffold includes: dynamic port discovery (no hardcoded ports), docker-compose for local dev, a task runner, test scaffolding, and a clean lint baseline.
 
@@ -119,22 +119,23 @@ bash setup.sh pretooluse
 Name any number of components, or use `--without` to take everything except the ones you list:
 
 ```bash
-bash setup.sh hooks                    # pretooluse + notification + message-display
+bash setup.sh hooks                    # pretooluse + notification + message-display + window-title
 bash setup.sh skills guidance          # skills plus the CLAUDE.md guidance block
 bash setup.sh --without guidance mcp   # everything except those two
 bash setup.sh --list                   # show every component and what it touches
 ```
 
-| Component | Installs |
-|---|---|
-| `skills` | Symlinks skills into `~/.claude/skills/` |
-| `pretooluse` | PreToolUse hook engine + `rules.json`, and the built-in allow/deny permissions |
-| `notification` | macOS attention banners on Notification events |
-| `message-display` | MessageDisplay phrase-swap hook |
-| `attribution` | Disables Claude auto-attribution (commit/PR trailers, session URL) |
-| `mcp` | Registers MCP servers (Playwright) |
-| `guidance` | Upserts the `<agent-skills-guidance>` block in `~/.claude/CLAUDE.md` |
-| `cli` | `claude-resume` script and the `reclaude` shell alias |
+| Component         | Installs                                                                       |
+| ----------------- | ------------------------------------------------------------------------------ |
+| `skills`          | Symlinks skills into `~/.claude/skills/`                                       |
+| `pretooluse`      | PreToolUse hook engine + `rules.json`, and the built-in allow/deny permissions |
+| `notification`    | macOS attention banners on Notification events                                 |
+| `message-display` | MessageDisplay phrase-swap hook                                                |
+| `window-title`    | Per-session window titles, the `window-title` CLI, and the status line         |
+| `attribution`     | Disables Claude auto-attribution (commit/PR trailers, session URL)             |
+| `mcp`             | Registers MCP servers (Playwright)                                             |
+| `guidance`        | Upserts the `<agent-skills-guidance>` block in `~/.claude/CLAUDE.md`           |
+| `cli`             | `claude-resume` script and the `reclaude` shell alias                          |
 
 Nothing is remembered between runs — a bare `setup.sh` (and therefore `make init`) always means the full setup.
 

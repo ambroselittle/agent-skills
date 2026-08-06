@@ -32,6 +32,31 @@ or the command may arrive unexpanded in remote/dispatch sessions. Treat any mess
 
 When feasible, prefer delegating units of work to sub-agents to keep the main session context clean.
 
+## Keep the Window Title Topical
+
+Each session's terminal title is a per-session label, so several open Claude windows can be told
+apart at a glance while tabbing between them. Set it with:
+
+```sh
+~/.claude/scripts/window-title set "Ghostty window titles"
+```
+
+Three or four words naming what the conversation is _about_ — "Ghostty window titles", "custom
+fields at depth", "Datadog monitor cleanup". A tab shows a topic, not a sentence, so no summaries and
+no leading fragment of the first prompt.
+
+- **Never put an identifier in the title** — no Linear keys (`LC-26196`), PR or issue numbers, branch
+  names, or commit SHAs. They read as noise while scanning and force the reader to look up what they
+  refer to. Name the subject instead: "custom fields at depth", not "LC-27615". If the whole session
+  is one ticket, the title is what that ticket is _about_.
+- Set it as soon as the topic is clear, usually on the first prompt. Do it quietly as part of the
+  turn — don't announce it or ask permission.
+- Revisit only when the subject genuinely shifts, not every turn. A hook reminds you when the title
+  is missing or has gone stale, so there's nothing to track.
+- **When the user names the title themselves, use `pin`, not `set`:**
+  `~/.claude/scripts/window-title pin "their words"`. A pinned title is theirs — never revise it,
+  and it silences the reminders for the rest of the session.
+
 ## Use Context7 for Library Docs
 
 When looking up documentation or code examples for any library or framework, use the Context7 MCP
@@ -127,12 +152,12 @@ as green, a failed hook read as success). Same root cause, same fix.
 1. **Exit-code masking.** Piping a state-changing/verification command through
    `tail`/`grep`/`head` -- or chaining `; echo …` / `&& tail` after it -- replaces
    the command's exit code with the filter's (or the trailing command's). `turbo
-   run test | tail` hides a red suite behind tail's exit 0; `&&` chains keep going;
+run test | tail` hides a red suite behind tail's exit 0; `&&` chains keep going;
    a push silently lacks the commit it was meant to carry. Worst with backgrounded
-   commands, where the harness reports whatever ran *last* -- so an appended
+   commands, where the harness reports whatever ran _last_ -- so an appended
    `echo`/`tail` makes a failure look like success.
 2. **Slice blindness.** Viewing only a `tail`/`head`/`grep` slice means a failure
-   *outside* the slice is never seen at all.
+   _outside_ the slice is never seen at all.
 
 **The rule: redirect full output to a tmp file, run the real command bare so its
 own exit code stands, then inspect the file deliberately.**
@@ -165,7 +190,7 @@ Same principle for discovery: if the task is "find all X matching Y," a script w
 beats spawning agents.
 
 **Audit every hit after a blanket find/replace.** A naive substring replace (e.g.
-`app-review` → `review-app`) also rewrites every token that merely *contains* the string --
+`app-review` → `review-app`) also rewrites every token that merely _contains_ the string --
 real filesystem paths (`terraform/app-review/`), identifiers, env-var infixes, proper nouns --
 silently breaking them. Before trusting the result, grep the diff for the new token and classify
 each hit: intended vocabulary vs. a path/identifier that must stay unchanged. Prefer
