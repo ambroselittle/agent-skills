@@ -245,3 +245,9 @@ def test_attribution_set_reports_already_disabled(settings_file, capsys):
 def test_attribution_rejects_unknown_key(settings_file, capsys):
     assert sc.main(["attribution", "set", str(settings_file), "bogus"]) == 1
     assert "unknown attribution key" in capsys.readouterr().err
+
+
+def test_save_json_keeps_non_ascii_literal(settings_file):
+    """Claude Code writes settings.json as UTF-8; escaping em-dashes would churn every run."""
+    sc.save_json(settings_file, {"note": "a — b"})
+    assert "a — b" in settings_file.read_text()

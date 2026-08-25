@@ -257,3 +257,130 @@ def test_excluded_cli_leaves_foreign_link_alone(box, tmp_path):
     assert result.returncode == 0, result.stdout + result.stderr
     assert (scripts / "claude-resume.sh").is_symlink()
     assert "not ours" in result.stdout
+
+
+# --------------------------------------------------------------------------- #
+# hooks reconciliation (settings.json-backed)                                 #
+# --------------------------------------------------------------------------- #
+
+IS_DARWIN = os.uname().sysname == "Darwin"
+
+
+def hook_commands(settings: dict, event: str) -> list[str]:
+    return [
+        h["command"] for entry in settings.get("hooks", {}).get(event, []) for h in entry["hooks"]
+    ]
+
+
+def test_hooks_install_then_exclude_removes_only_the_excluded_ones(box):
+    result = box.run("hooks")
+    assert result.returncode == 0, result.stdout + result.stderr
+    settings = json.loads((box.claude_dir / "settings.json").read_text())
+    assert "~/.claude/hooks/message-display/swap.py" in hook_commands(settings, "MessageDisplay")
+    assert "~/.claude/hooks/window-tag.sh" in hook_commands(settings, "Stop")
+    assert settings["statusLine"]["command"] == "~/.claude/statusline.sh"
+    assert settings["env"]["CLAUDE_CODE_DISABLE_TERMINAL_TITLE"] == "1"
+    assert "Bash(rsync *)" in settings["permissions"]["allow"]
+    assert (box.claude_dir / "hooks" / "message-display" / "swap.py").exists()
+    assert (box.claude_dir / "statusline.sh").exists()
+
+    box.write_config({"exclude": {"hooks": ["message-display", "window-title"]}})
+    result = box.run("hooks")
+    assert result.returncode == 0, result.stdout + result.stderr
+    settings = json.loads((box.claude_dir / "settings.json").read_text())
+
+    assert "MessageDisplay" not in settings.get("hooks", {})
+    for event in ("SessionStart", "UserPromptSubmit", "Stop"):
+        assert "~/.claude/hooks/window-tag.sh" not in hook_commands(settings, event)
+        assert "~/.claude/hooks/window-nudge.sh" not in hook_commands(settings, event)
+    assert "statusLine" not in settings
+    assert "env" not in settings
+    assert not (box.claude_dir / "hooks" / "message-display").exists()
+    for name in ("window-lib.sh", "window-tag.sh", "window-nudge.sh"):
+        assert not (box.claude_dir / "hooks" / name).exists()
+    assert not (box.claude_dir / "statusline.sh").exists()
+    assert not (box.claude_dir / "scripts" / "window-title").exists()
+
+    # pretooluse (and notification on macOS) are untouched.
+    assert "~/.claude/hooks/pre-tool-use.sh" in hook_commands(settings, "PreToolUse")
+    assert "Bash(rsync *)" in settings["permissions"]["allow"]
+    assert (box.claude_dir / "hooks" / "pre-tool-use.sh").exists()
+    if IS_DARWIN:
+        assert "~/.claude/hooks/notify-attention.sh" in hook_commands(settings, "Notification")
+
+
+def test_excluding_pretooluse_removes_engine_registration_and_permissions(box):
+    box.run("pretooluse")
+    box.write_config({"exclude": {"hooks": ["pretooluse"]}})
+    result = box.run("pretooluse")
+    assert result.returncode == 0, result.stdout + result.stderr
+    settings = json.loads((box.claude_dir / "settings.json").read_text())
+    assert "PreToolUse" not in settings.get("hooks", {})
+    assert "permissions" not in settings
+    assert not (box.claude_dir / "hooks" / "pre-tool-use.sh").exists()
+    assert not (box.claude_dir / "hooks" / "pre-tool-use").exists()
+
+
+def test_excluding_every_hook_leaves_user_settings_untouched(box):
+    (box.claude_dir / "settings.json").write_text(
+        json.dumps({"model": "opus", "permissions": {"allow": ["Bash(git *)"]}}, indent=2) + "\n"
+    )
+    box.run("hooks")
+    box.write_config({"exclude": {"hooks": ["all"]}})
+    result = box.run("hooks")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert json.loads((box.claude_dir / "settings.json").read_text()) == {
+        "model": "opus",
+        "permissions": {"allow": ["Bash(git *)"]},
+    }
+
+
+def test_bare_rerun_does_not_rewrite_settings(box):
+    box.run("hooks", "attribution")
+    before = (box.claude_dir / "settings.json").read_text()
+    result = box.run("hooks", "attribution")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (box.claude_dir / "settings.json").read_text() == before
+
+
+# --------------------------------------------------------------------------- #
+# attribution / guidance reconciliation                                       #
+# --------------------------------------------------------------------------- #
+
+
+def test_attribution_is_per_key(box):
+    box.run("attribution")
+    settings = json.loads((box.claude_dir / "settings.json").read_text())
+    assert settings["attribution"] == {"sessionUrl": False, "commit": "", "pr": ""}
+
+    box.write_config({"exclude": {"attribution": ["commit"]}})
+    result = box.run("attribution")
+    assert result.returncode == 0, result.stdout + result.stderr
+    settings = json.loads((box.claude_dir / "settings.json").read_text())
+    assert settings["attribution"] == {"sessionUrl": False, "pr": ""}
+
+    box.write_config({"exclude": {"attribution": ["all"]}})
+    box.run("attribution")
+    settings = json.loads((box.claude_dir / "settings.json").read_text())
+    assert "attribution" not in settings
+
+
+def test_guidance_core_excluded_removes_fence_and_keeps_user_text(box):
+    md = box.claude_dir / "CLAUDE.md"
+    md.write_text("My notes.\n")
+    box.run("guidance")
+    assert md.read_text().startswith("<agent-skills-guidance>\n")
+    assert md.read_text().endswith("</agent-skills-guidance>\n\nMy notes.\n")
+
+    box.write_config({"exclude": {"guidance": ["core"]}})
+    result = box.run("guidance")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert md.read_text() == "My notes.\n"
+
+
+def test_guidance_personal_excluded_skips_personal_template(box):
+    box.write_config({"exclude": {"guidance": ["personal"]}})
+    result = box.run("guidance")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Personal template excluded" in result.stdout
+    assert (box.claude_dir / "CLAUDE.md").exists()
