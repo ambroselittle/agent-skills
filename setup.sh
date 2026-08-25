@@ -5,7 +5,10 @@
 #
 # Everything is opt-in-able: name one or more components (see --list) to
 # install just those, e.g. `setup.sh pretooluse` for only the hook engine.
-# No arguments means the full setup; nothing is remembered between runs.
+# No arguments means the full setup. To keep something off a machine for good,
+# list it under "exclude" in ~/.claude/agent-skills.json (or pass --without,
+# which writes that entry for you): excluded pieces are never installed and
+# are removed if a previous run installed them.
 
 set -euo pipefail
 
@@ -96,8 +99,20 @@ Usage: setup.sh [component|group ...] [flag ...]
 Default (no arguments): idempotent full setup — links skills, installs hooks,
 merges permissions, registers MCP servers, and updates CLAUDE.md.
 
-Name one or more components to install only those. Nothing is remembered
-between runs: a bare 'setup.sh' always means the full setup.
+Name one or more components to install only those for this run. A bare
+'setup.sh' always means the full setup, minus anything listed under "exclude"
+in ~/.claude/agent-skills.json — excluded pieces are never installed and are
+removed if a previous run installed them. Every key there is a list ("all"
+excludes everything under that key):
+
+  "exclude": {
+    "hooks":       ["pretooluse", "notification", "message-display", "window-title"],
+    "mcp":         ["playwright"],
+    "guidance":    ["core", "personal"],
+    "skills":      ["<skill name>", ...],
+    "attribution": ["sessionUrl", "commit", "pr"],
+    "cli":         ["claude-resume", "reclaude"]
+  }
 
 Examples:
   setup.sh                          Everything
@@ -107,8 +122,11 @@ Examples:
   setup.sh --without guidance mcp   Everything except those two
 
 Flags:
-  --without                        Treat every component named after this flag
-                                   as an exclusion from the full set.
+  --without                        Persist every component named after this
+                                   flag into the "exclude" key of
+                                   ~/.claude/agent-skills.json, then remove
+                                   what it installed. Sticks on every later
+                                   run; edit the key to undo.
   --list                           List components and exit.
   --install-wtf-worker [--test]    Install the WTF worker launchd job.
                                    --test fires an immediate run and
