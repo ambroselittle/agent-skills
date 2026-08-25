@@ -201,15 +201,6 @@ else
   IS_FULL_RUN=false
 fi
 
-for _name in $_excluded; do
-  SELECTED="${SELECTED// $_name / }"
-  IS_FULL_RUN=false
-done
-
-if [[ -z "${SELECTED// /}" ]]; then
-  printf "Nothing selected — every component was excluded.\n" >&2
-  exit 1
-fi
 
 # True when the named component is part of this run.
 _want() { [[ "$SELECTED" == *" $1 "* ]]; }
@@ -353,6 +344,56 @@ if _want mcp; then
 fi
 
 # --------------------------------------------------------------------------- #
+# Exclusions — the persistent opt-out in ~/.claude/agent-skills.json          #
+# --------------------------------------------------------------------------- #
+
+SETUP_CONFIG="$SCRIPT_DIR/scripts/setup_config.py"
+export AGENT_SKILLS_CONFIG="${AGENT_SKILLS_CONFIG:-$CLAUDE_DIR/agent-skills.json}"
+
+# Every settings.json / CLAUDE.md / shell-rc edit goes through the helper so
+# install and uninstall share the same tested code.
+_config() { python3 "$SETUP_CONFIG" "$@"; }
+
+# One space-delimited set per exclude key (bash 3 has no associative arrays).
+# "all" in a set excludes everything under that key.
+_EXCL_hooks="" _EXCL_mcp="" _EXCL_guidance="" _EXCL_skills="" _EXCL_attribution="" _EXCL_cli=""
+
+if command -v python3 &>/dev/null; then
+  if [[ -n "$_excluded" ]]; then
+    section "Persisting exclusions"
+    for _name in $_excluded; do
+      _config add-exclusion "$_name"
+    done
+    printf "  ${_dim}Saved to %s — edit its \"exclude\" key to undo.${_reset}\n" "$AGENT_SKILLS_CONFIG"
+  fi
+
+  while IFS='=' read -r _key _name; do
+    [[ -n "$_key" ]] || continue
+    _var="_EXCL_${_key}"
+    printf -v "$_var" '%s %s' "${!_var}" "$_name"
+  done < <(_config exclusions)
+elif [[ -n "$_excluded" ]]; then
+  warn "python3 not found — --without could not be persisted"
+fi
+
+# True when <name> under exclude key <key> is excluded, by name or by "all".
+_is_excluded() {
+  local var="_EXCL_$1" members
+  members="${!var:-}"
+  [[ " $members " == *" all "* || " $members " == *" $2 "* ]]
+}
+
+_excluded_summary=""
+for _key in hooks mcp guidance skills attribution cli; do
+  _var="_EXCL_${_key}"
+  _members="${!_var# }"
+  [[ -n "$_members" ]] && _excluded_summary="$_excluded_summary $_key:${_members// /,}"
+done
+if [[ -n "$_excluded_summary" ]]; then
+  printf "\n  ${_dim}Excluded (%s):%s${_reset}\n" "$AGENT_SKILLS_CONFIG" "$_excluded_summary"
+fi
+
+# --------------------------------------------------------------------------- #
 # Worktree detection                                                          #
 # --------------------------------------------------------------------------- #
 
@@ -402,6 +443,9 @@ if _want skills; then
 
   _should_link_skill() {
     local skill_name="$1"
+    if _is_excluded skills "$skill_name"; then
+      return 1
+    fi
     if ! $IS_WORKTREE; then
       return 0
     fi
@@ -418,6 +462,36 @@ if _want skills; then
       ok "removed stale symlink: $(basename "$target")"
     fi
   done < <(find "$CLAUDE_SKILLS_DIR" -maxdepth 1 -type l -print0 2>/dev/null)
+
+  # True when the symlink <link> points into one of the given directories.
+  _links_into() {
+    local link_target root
+    link_target="$(readlink "$1")"
+    shift
+    for root in "$@"; do
+      [[ "$link_target" == "$root/"* ]] && return 0
+    done
+    return 1
+  }
+
+  # Remove excluded skills we installed. A link that points somewhere else
+  # (another clone, an org repo's skill of the same name) is not ours to touch.
+  _repo_skill_roots="$SCRIPT_DIR/skills"
+  if $IS_WORKTREE; then
+    _repo_skill_roots="$_repo_skill_roots $main_repo/skills"
+  fi
+  for skill_dir in "$SCRIPT_DIR"/skills/*/; do
+    [[ -f "$skill_dir/SKILL.md" ]] || continue
+    skill_name="$(basename "$skill_dir")"
+    _is_excluded skills "$skill_name" || continue
+    target="$CLAUDE_SKILLS_DIR/$skill_name"
+    if [[ -L "$target" ]] && _links_into "$target" $_repo_skill_roots; then
+      rm -f "$target"
+      ok "removed $skill_name (excluded)"
+    elif [[ -e "$target" || -L "$target" ]]; then
+      skip "$skill_name excluded, but $target is not ours — left alone"
+    fi
+  done
 
   _linked=0
   _skipped=0
@@ -817,7 +891,36 @@ if _want mcp; then
     fi
   }
 
-  _register_mcp "playwright" "@playwright/mcp" -- npx @playwright/mcp@latest
+  _unregister_mcp() {
+    local name="$1"
+    local check_cmd="$2"
+    if ! command -v claude &>/dev/null; then
+      skip "$name — claude CLI not available"
+      return
+    fi
+    # Only remove a registration that carries our command — a server the user
+    # registered under the same name with a different command is theirs.
+    if ! claude mcp get "$name" 2>/dev/null | grep -q "$check_cmd"; then
+      skip "$name excluded — not registered by us, left alone"
+      return
+    fi
+    if claude mcp remove --scope user "$name" >/dev/null 2>&1; then
+      ok "removed $name (excluded)"
+    else
+      warn "$name — removal failed (run manually: claude mcp remove --scope user $name)"
+    fi
+  }
+
+  # One line per server: excluded servers are removed, the rest registered.
+  _mcp_server() {
+    if _is_excluded mcp "$1"; then
+      _unregister_mcp "$1" "$2"
+    else
+      _register_mcp "$@"
+    fi
+  }
+
+  _mcp_server "playwright" "@playwright/mcp" -- npx @playwright/mcp@latest
 fi
 
 # --------------------------------------------------------------------------- #
@@ -899,7 +1002,14 @@ if _want cli; then
   _resume_source="$SCRIPT_DIR/scripts/claude-resume/claude-resume.sh"
   _resume_target="$SCRIPTS_TARGET_DIR/claude-resume.sh"
 
-  if [[ -f "$_resume_source" ]]; then
+  if _is_excluded cli claude-resume; then
+    if [[ -L "$_resume_target" ]] && [[ "$(readlink "$_resume_target")" == *"/scripts/claude-resume/claude-resume.sh" ]]; then
+      rm -f "$_resume_target"
+      ok "removed claude-resume (excluded)"
+    elif [[ -e "$_resume_target" || -L "$_resume_target" ]]; then
+      skip "claude-resume excluded, but $_resume_target is not ours — left alone"
+    fi
+  elif [[ -f "$_resume_source" ]]; then
     if [[ -L "$_resume_target" ]]; then
       existing="$(readlink "$_resume_target")"
       if [[ "$existing" == "$_resume_source" ]]; then
@@ -926,30 +1036,14 @@ if _want cli; then
   esac
 
   if [[ -n "$_shell_rc" ]] && [[ -f "$_shell_rc" ]]; then
-    _fence_begin="# BEGIN agent-skills-aliases"
-    _fence_end="# END agent-skills-aliases"
-
-    read -r -d '' _alias_block << 'ALIASES' || true
-
+    if _is_excluded cli reclaude; then
+      _config rcfence remove "$_shell_rc"
+    else
+      _config rcfence upsert "$_shell_rc" - <<'ALIASES'
 # BEGIN agent-skills-aliases — managed by agent-skills setup, do not edit manually
 alias reclaude="$HOME/.claude/scripts/claude-resume.sh"
 # END agent-skills-aliases
 ALIASES
-
-    if grep -q "$_fence_begin" "$_shell_rc" 2>/dev/null; then
-      _block_file="$(mktemp)"
-      printf '%s\n' "$_alias_block" > "$_block_file"
-      _updated="$(awk -v block_file="$_block_file" '
-        /# BEGIN agent-skills-aliases/ { while ((getline line < block_file) > 0) print line; in_block=1; next }
-        /# END agent-skills-aliases/   { in_block=0; next }
-        !in_block                      { print }
-      ' "$_shell_rc")"
-      rm -f "$_block_file"
-      echo "$_updated" > "$_shell_rc"
-      ok "Shell aliases updated in $(basename "$_shell_rc")"
-    else
-      echo "$_alias_block" >> "$_shell_rc"
-      ok "Shell aliases added to $(basename "$_shell_rc") — run: source ~/${_shell_rc##*/}"
     fi
   else
     skip "Shell aliases — unsupported shell or missing rc file"
