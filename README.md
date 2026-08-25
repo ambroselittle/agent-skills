@@ -137,7 +137,24 @@ bash setup.sh --list                   # show every component and what it touche
 | `guidance`        | Upserts the `<agent-skills-guidance>` block in `~/.claude/CLAUDE.md`           |
 | `cli`             | `claude-resume` script and the `reclaude` shell alias                          |
 
-Nothing is remembered between runs — a bare `setup.sh` (and therefore `make init`) always means the full setup.
+### Opting out permanently
+
+Naming components on the command line is a one-off. To keep something off a machine for good, list it under `exclude` in `~/.claude/agent-skills.json`. Every key is a list, and `"all"` in a list excludes everything under that key:
+
+```json
+"exclude": {
+  "hooks":       ["message-display"],
+  "mcp":         ["playwright"],
+  "guidance":    ["personal"],
+  "skills":      ["author-message", "plan-work", "do-work"],
+  "attribution": ["commit"],
+  "cli":         ["reclaude"]
+}
+```
+
+`setup.sh --without <component>` writes the matching entry for you (`--without mcp` becomes `"mcp": ["all"]`, `--without pretooluse` becomes `"hooks": ["pretooluse"]`), so it sticks on every bare run after that. Edit the key to undo. `/setup-agent-skills` asks about exclusions up front so a fresh machine never installs them even once.
+
+On every run `setup.sh` reconciles against the list: it skips installing anything excluded and removes anything excluded that it installed earlier. It only removes what is recognizably its own — a skill symlink that points somewhere else (another clone, an org repo's skill of the same name), an MCP server registered with a different command, or a settings key holding a value we did not write is left alone and mentioned in one line. `shared` cannot be excluded because other skills depend on it, and unknown names are warned about and ignored.
 
 ## License
 

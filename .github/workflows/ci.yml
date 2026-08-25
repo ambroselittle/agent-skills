@@ -19,6 +19,9 @@ jobs:
       - name: Hook tests
         run: make test-hooks
 
+      - name: setup.sh helper tests
+        run: make test-scripts
+
       - name: create-repo tests (unit + structural eval)
         run: cd skills/create-repo && uv run pytest tests/ -v -m "not e2e"
 

@@ -6,7 +6,7 @@ extend-exclude = ["**/templates/**", "**/.eval-runs/**", "skills/solve-take-home
 select = ["E", "F", "I", "UP", "B"]
 
 [lint.isort]
-known-first-party = ["engine", "src"]
+known-first-party = ["engine", "src", "setup_config"]
 
 [lint.per-file-ignores]
 # Tests can have longer lines and more imports

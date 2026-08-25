@@ -5,7 +5,10 @@
 #
 # Everything is opt-in-able: name one or more components (see --list) to
 # install just those, e.g. `setup.sh pretooluse` for only the hook engine.
-# No arguments means the full setup; nothing is remembered between runs.
+# No arguments means the full setup. To keep something off a machine for good,
+# list it under "exclude" in ~/.claude/agent-skills.json (or pass --without,
+# which writes that entry for you): excluded pieces are never installed and
+# are removed if a previous run installed them.
 
 set -euo pipefail
 
@@ -96,8 +99,20 @@ Usage: setup.sh [component|group ...] [flag ...]
 Default (no arguments): idempotent full setup — links skills, installs hooks,
 merges permissions, registers MCP servers, and updates CLAUDE.md.
 
-Name one or more components to install only those. Nothing is remembered
-between runs: a bare 'setup.sh' always means the full setup.
+Name one or more components to install only those for this run. A bare
+'setup.sh' always means the full setup, minus anything listed under "exclude"
+in ~/.claude/agent-skills.json — excluded pieces are never installed and are
+removed if a previous run installed them. Every key there is a list ("all"
+excludes everything under that key):
+
+  "exclude": {
+    "hooks":       ["pretooluse", "notification", "message-display", "window-title"],
+    "mcp":         ["playwright"],
+    "guidance":    ["core", "personal"],
+    "skills":      ["<skill name>", ...],
+    "attribution": ["sessionUrl", "commit", "pr"],
+    "cli":         ["claude-resume", "reclaude"]
+  }
 
 Examples:
   setup.sh                          Everything
@@ -107,8 +122,11 @@ Examples:
   setup.sh --without guidance mcp   Everything except those two
 
 Flags:
-  --without                        Treat every component named after this flag
-                                   as an exclusion from the full set.
+  --without                        Persist every component named after this
+                                   flag into the "exclude" key of
+                                   ~/.claude/agent-skills.json, then remove
+                                   what it installed. Sticks on every later
+                                   run; edit the key to undo.
   --list                           List components and exit.
   --install-wtf-worker [--test]    Install the WTF worker launchd job.
                                    --test fires an immediate run and
@@ -201,15 +219,6 @@ else
   IS_FULL_RUN=false
 fi
 
-for _name in $_excluded; do
-  SELECTED="${SELECTED// $_name / }"
-  IS_FULL_RUN=false
-done
-
-if [[ -z "${SELECTED// /}" ]]; then
-  printf "Nothing selected — every component was excluded.\n" >&2
-  exit 1
-fi
 
 # True when the named component is part of this run.
 _want() { [[ "$SELECTED" == *" $1 "* ]]; }
@@ -256,50 +265,36 @@ fi
 
 mkdir -p "$CLAUDE_DIR"
 
+SETUP_CONFIG="$SCRIPT_DIR/scripts/setup_config.py"
+export AGENT_SKILLS_CONFIG="${AGENT_SKILLS_CONFIG:-$CLAUDE_DIR/agent-skills.json}"
+
+# Every settings.json / CLAUDE.md / shell-rc edit goes through the helper so
+# install and uninstall share the same tested code.
+_config() { python3 "$SETUP_CONFIG" "$@"; }
+
 # Register a hook command under an event in settings.json, keyed on the command
 # so a re-run updates an existing entry (e.g. a changed timeout) in place.
 # Usage: _register_hook <event> <command> [timeout-seconds]
 _register_hook() {
-  python3 - "$CLAUDE_SETTINGS" "$1" "$2" "${3:-}" <<'PYEOF'
-import json
-import sys
+  _config hook register "$CLAUDE_SETTINGS" "$1" "$2" ${3:+--timeout "$3"}
+}
 
-settings_path, event, command, timeout = sys.argv[1:5]
+# Remove every registration of <command> under <event>, pruning empty entries.
+_unregister_hook() {
+  _config hook unregister "$CLAUDE_SETTINGS" "$1" "$2"
+}
 
-try:
-    with open(settings_path) as f:
-        settings = json.load(f)
-except (FileNotFoundError, json.JSONDecodeError):
-    settings = {}
-
-hooks = settings.setdefault("hooks", {})
-entries = hooks.setdefault(event, [])
-
-desired = {"type": "command", "command": command}
-if timeout:
-    desired["timeout"] = int(timeout)
-
-existing = next(
-    (h for entry in entries for h in entry.get("hooks", []) if command in h.get("command", "")),
-    None,
-)
-
-if existing == desired:
-    print(f"  \033[2m· {event} hook already registered in settings.json\033[0m")
-    sys.exit(0)
-
-if existing is None:
-    entries.append({"hooks": [desired]})
-else:
-    existing.clear()
-    existing.update(desired)
-
-with open(settings_path, "w") as f:
-    json.dump(settings, f, indent=2)
-    f.write("\n")
-
-print(f"  \033[32m✓\033[0m {event} hook registered in settings.json")
-PYEOF
+# Delete the given paths (files or directories) that exist, reporting each.
+_remove_paths() {
+  local path removed=false
+  for path in "$@"; do
+    if [[ -e "$path" || -L "$path" ]]; then
+      rm -rf "$path"
+      ok "removed $path"
+      removed=true
+    fi
+  done
+  $removed || skip "nothing installed to remove"
 }
 
 # --------------------------------------------------------------------------- #
@@ -308,24 +303,23 @@ PYEOF
 
 section "Checking prerequisites"
 
-# Everything except skills/mcp/cli shells out to python3 — to run the hook
-# engine, or to edit settings.json / CLAUDE.md.
-if _want_any pretooluse notification message-display window-title attribution guidance; then
-  if ! command -v python3 &>/dev/null; then
-    fail "python3 not found — the hook engine requires Python 3.11+"
-    exit 1
-  fi
-
-  py_version="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
-  py_major="${py_version%%.*}"
-  py_minor="${py_version##*.}"
-  if [[ "$py_major" -lt 3 ]] || { [[ "$py_major" -eq 3 ]] && [[ "$py_minor" -lt 11 ]]; }; then
-    fail "Python $py_version found, but 3.11+ required (for union type syntax)"
-    printf "     Install a newer Python or update your PATH.\n"
-    exit 1
-  fi
-  ok "Python $py_version"
+# Every component shells out to python3 — for the hook engine, and for the
+# scripts/setup_config.py helper that edits settings.json, CLAUDE.md, and
+# the shell rc file.
+if ! command -v python3 &>/dev/null; then
+  fail "python3 not found — setup requires Python 3.11+"
+  exit 1
 fi
+
+py_version="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+py_major="${py_version%%.*}"
+py_minor="${py_version##*.}"
+if [[ "$py_major" -lt 3 ]] || { [[ "$py_major" -eq 3 ]] && [[ "$py_minor" -lt 11 ]]; }; then
+  fail "Python $py_version found, but 3.11+ required (for union type syntax)"
+  printf "     Install a newer Python or update your PATH.\n"
+  exit 1
+fi
+ok "Python $py_version"
 
 if _want window-title; then
   if command -v jq &>/dev/null; then
@@ -350,6 +344,45 @@ if _want mcp; then
   else
     warn "Claude CLI not found — MCP server registration will be skipped"
   fi
+fi
+
+# --------------------------------------------------------------------------- #
+# Exclusions — the persistent opt-out in ~/.claude/agent-skills.json          #
+# --------------------------------------------------------------------------- #
+
+# One space-delimited set per exclude key (bash 3 has no associative arrays).
+# "all" in a set excludes everything under that key.
+_EXCL_hooks="" _EXCL_mcp="" _EXCL_guidance="" _EXCL_skills="" _EXCL_attribution="" _EXCL_cli=""
+
+if [[ -n "$_excluded" ]]; then
+  section "Persisting exclusions"
+  for _name in $_excluded; do
+    _config add-exclusion "$_name"
+  done
+  printf "  ${_dim}Saved to %s — edit its \"exclude\" key to undo.${_reset}\n" "$AGENT_SKILLS_CONFIG"
+fi
+
+while IFS='=' read -r _key _name; do
+  [[ -n "$_key" ]] || continue
+  _var="_EXCL_${_key}"
+  printf -v "$_var" '%s %s' "${!_var}" "$_name"
+done < <(_config exclusions)
+
+# True when <name> under exclude key <key> is excluded, by name or by "all".
+_is_excluded() {
+  local var="_EXCL_$1" members
+  members="${!var:-}"
+  [[ " $members " == *" all "* || " $members " == *" $2 "* ]]
+}
+
+_excluded_summary=""
+for _key in hooks mcp guidance skills attribution cli; do
+  _var="_EXCL_${_key}"
+  _members="${!_var# }"
+  [[ -n "$_members" ]] && _excluded_summary="$_excluded_summary $_key:${_members// /,}"
+done
+if [[ -n "$_excluded_summary" ]]; then
+  printf "\n  ${_dim}Excluded (%s):%s${_reset}\n" "$AGENT_SKILLS_CONFIG" "$_excluded_summary"
 fi
 
 # --------------------------------------------------------------------------- #
@@ -402,6 +435,9 @@ if _want skills; then
 
   _should_link_skill() {
     local skill_name="$1"
+    if _is_excluded skills "$skill_name"; then
+      return 1
+    fi
     if ! $IS_WORKTREE; then
       return 0
     fi
@@ -418,6 +454,36 @@ if _want skills; then
       ok "removed stale symlink: $(basename "$target")"
     fi
   done < <(find "$CLAUDE_SKILLS_DIR" -maxdepth 1 -type l -print0 2>/dev/null)
+
+  # True when the symlink <link> points into one of the given directories.
+  _links_into() {
+    local link_target root
+    link_target="$(readlink "$1")"
+    shift
+    for root in "$@"; do
+      [[ "$link_target" == "$root/"* ]] && return 0
+    done
+    return 1
+  }
+
+  # Remove excluded skills we installed. A link that points somewhere else
+  # (another clone, an org repo's skill of the same name) is not ours to touch.
+  _repo_skill_roots="$SCRIPT_DIR/skills"
+  if $IS_WORKTREE; then
+    _repo_skill_roots="$_repo_skill_roots $main_repo/skills"
+  fi
+  for skill_dir in "$SCRIPT_DIR"/skills/*/; do
+    [[ -f "$skill_dir/SKILL.md" ]] || continue
+    skill_name="$(basename "$skill_dir")"
+    _is_excluded skills "$skill_name" || continue
+    target="$CLAUDE_SKILLS_DIR/$skill_name"
+    if [[ -L "$target" ]] && _links_into "$target" $_repo_skill_roots; then
+      rm -f "$target"
+      ok "removed $skill_name (excluded)"
+    elif [[ -e "$target" || -L "$target" ]]; then
+      skip "$skill_name excluded, but $target is not ours — left alone"
+    fi
+  done
 
   _linked=0
   _skipped=0
@@ -493,13 +559,16 @@ fi
 # --------------------------------------------------------------------------- #
 
 if _want pretooluse; then
-  section "Installing PreToolUse hook"
-
   hook_source="$SCRIPT_DIR/hooks/PreToolUse/rules.json"
   hook_target_dir="$HOOKS_DIR/pre-tool-use"
   hook_target="$hook_target_dir/hook-rules.json"
 
-  if [[ -f "$hook_source" ]]; then
+  if _is_excluded hooks pretooluse; then
+    section "Removing PreToolUse hook (excluded)"
+    _remove_paths "$hook_target_dir" "$HOOKS_DIR/pre-tool-use.sh"
+    _unregister_hook "PreToolUse" "~/.claude/hooks/pre-tool-use.sh"
+  elif [[ -f "$hook_source" ]]; then
+    section "Installing PreToolUse hook"
     mkdir -p "$hook_target_dir"
 
     # Engine
@@ -541,11 +610,14 @@ if _want notification; then
       skip "notification is macOS-only — skipping on $(uname)"
     fi
   else
-    section "Installing Notification hook"
-
     notify_source_dir="$SCRIPT_DIR/hooks/Notification"
 
-    if [[ -f "$notify_source_dir/notify-attention.sh" ]]; then
+    if _is_excluded hooks notification; then
+      section "Removing Notification hook (excluded)"
+      _remove_paths "$HOOKS_DIR/notify-attention.sh" "$HOOKS_DIR/focus-claude-session.sh"
+      _unregister_hook "Notification" "~/.claude/hooks/notify-attention.sh"
+    elif [[ -f "$notify_source_dir/notify-attention.sh" ]]; then
+      section "Installing Notification hook"
       mkdir -p "$HOOKS_DIR"
       cp "$notify_source_dir/notify-attention.sh" "$HOOKS_DIR/notify-attention.sh"
       cp "$notify_source_dir/focus-claude-session.sh" "$HOOKS_DIR/focus-claude-session.sh"
@@ -569,12 +641,15 @@ fi
 # --------------------------------------------------------------------------- #
 
 if _want message-display; then
-  section "Installing MessageDisplay hook"
-
   swap_source_dir="$SCRIPT_DIR/hooks/MessageDisplay"
   swap_target_dir="$HOOKS_DIR/message-display"
 
-  if [[ -f "$swap_source_dir/swap.py" ]]; then
+  if _is_excluded hooks message-display; then
+    section "Removing MessageDisplay hook (excluded)"
+    _remove_paths "$swap_target_dir"
+    _unregister_hook "MessageDisplay" "~/.claude/hooks/message-display/swap.py"
+  elif [[ -f "$swap_source_dir/swap.py" ]]; then
+    section "Installing MessageDisplay hook"
     mkdir -p "$swap_target_dir"
     cp "$swap_source_dir/swap.py" "$swap_target_dir/swap.py"
     chmod +x "$swap_target_dir/swap.py"
@@ -598,11 +673,22 @@ fi
 # --------------------------------------------------------------------------- #
 
 if _want window-title; then
-  section "Installing window titles"
-
   wt_source_dir="$SCRIPT_DIR/hooks/WindowTitle"
 
-  if [[ -f "$wt_source_dir/window-lib.sh" ]]; then
+  if _is_excluded hooks window-title; then
+    section "Removing window titles (excluded)"
+    _remove_paths "$HOOKS_DIR/window-lib.sh" "$HOOKS_DIR/window-tag.sh" "$HOOKS_DIR/window-nudge.sh" \
+      "$CLAUDE_DIR/scripts/window-title" "$CLAUDE_DIR/statusline.sh" "$CLAUDE_DIR/window-labels"
+    for _wt_event in SessionStart UserPromptSubmit Stop; do
+      _unregister_hook "$_wt_event" "~/.claude/hooks/window-tag.sh"
+    done
+    for _wt_event in SessionStart UserPromptSubmit; do
+      _unregister_hook "$_wt_event" "~/.claude/hooks/window-nudge.sh"
+    done
+    _config statusline unset "$CLAUDE_SETTINGS" "~/.claude/statusline.sh"
+    _config env unset "$CLAUDE_SETTINGS" CLAUDE_CODE_DISABLE_TERMINAL_TITLE 1
+  elif [[ -f "$wt_source_dir/window-lib.sh" ]]; then
+    section "Installing window titles"
     mkdir -p "$HOOKS_DIR" "$CLAUDE_DIR/scripts" "$CLAUDE_DIR/window-labels"
 
     cp "$wt_source_dir/window-lib.sh" "$HOOKS_DIR/window-lib.sh"
@@ -629,57 +715,11 @@ if _want window-title; then
       _register_hook "$_wt_event" "~/.claude/hooks/window-nudge.sh"
     done
 
-    python3 - "$CLAUDE_SETTINGS" <<'PYEOF'
-import json
-import sys
-
-settings_path = sys.argv[1]
-desired = {"type": "command", "command": "~/.claude/statusline.sh"}
-
-try:
-    with open(settings_path) as f:
-        settings = json.load(f)
-except (FileNotFoundError, json.JSONDecodeError):
-    settings = {}
-
-if settings.get("statusLine") == desired:
-    print("  \033[2m· Status line already registered in settings.json\033[0m")
-    sys.exit(0)
-
-settings["statusLine"] = desired
-with open(settings_path, "w") as f:
-    json.dump(settings, f, indent=2)
-    f.write("\n")
-
-print("  \033[32m✓\033[0m Status line registered in settings.json")
-PYEOF
+    _config statusline set "$CLAUDE_SETTINGS" "~/.claude/statusline.sh"
 
     # Claude Code owns the title only when its own title-setting is off,
     # otherwise it overwrites the hook's escape sequence on every render.
-    python3 - "$CLAUDE_SETTINGS" <<'PYEOF'
-import json
-import sys
-
-settings_path = sys.argv[1]
-
-try:
-    with open(settings_path) as f:
-        settings = json.load(f)
-except (FileNotFoundError, json.JSONDecodeError):
-    settings = {}
-
-env = settings.setdefault("env", {})
-if env.get("CLAUDE_CODE_DISABLE_TERMINAL_TITLE") == "1":
-    print("  \033[2m· Built-in terminal title already disabled\033[0m")
-    sys.exit(0)
-
-env["CLAUDE_CODE_DISABLE_TERMINAL_TITLE"] = "1"
-with open(settings_path, "w") as f:
-    json.dump(settings, f, indent=2)
-    f.write("\n")
-
-print("  \033[32m✓\033[0m Built-in terminal title disabled")
-PYEOF
+    _config env set "$CLAUDE_SETTINGS" CLAUDE_CODE_DISABLE_TERMINAL_TITLE 1
 
   else
     warn "$wt_source_dir/window-lib.sh not found, skipping"
@@ -691,58 +731,17 @@ fi
 # --------------------------------------------------------------------------- #
 
 if _want pretooluse; then
-  section "Merging permissions"
-
   builtin_rules="$SCRIPT_DIR/hooks/PreToolUse/built-in-rules.json"
 
-  if [[ -f "$builtin_rules" ]]; then
-    python3 - "$CLAUDE_SETTINGS" "$builtin_rules" <<'PYEOF'
-import json
-import sys
-
-settings_path = sys.argv[1]
-rules_path = sys.argv[2]
-
-try:
-    with open(settings_path) as f:
-        settings = json.load(f)
-except (FileNotFoundError, json.JSONDecodeError):
-    settings = {}
-
-with open(rules_path) as f:
-    rules = json.load(f)
-
-if "permissions" not in settings:
-    settings["permissions"] = {}
-
-removed = set(rules.get("removed", []))
-
-existing_allow = set(settings["permissions"].get("allow", []))
-repo_allow = set(rules.get("allow", []))
-settings["permissions"]["allow"] = sorted((existing_allow | repo_allow) - removed)
-
-existing_deny = set(settings["permissions"].get("deny", []))
-repo_deny = set(rules.get("deny", []))
-settings["permissions"]["deny"] = sorted((existing_deny | repo_deny) - removed)
-
-with open(settings_path, "w") as f:
-    json.dump(settings, f, indent=2)
-    f.write("\n")
-
-new_allow = repo_allow - existing_allow
-new_deny = repo_deny - existing_deny
-removed_count = len(removed & (existing_allow | existing_deny))
-
-if new_allow or new_deny:
-    print(f"  \033[32m✓\033[0m {len(new_allow)} allow + {len(new_deny)} deny rules added")
-else:
-    print(f"  \033[2m· All {len(repo_allow)} allow + {len(repo_deny)} deny rules already present\033[0m")
-
-if removed_count:
-    print(f"  \033[32m✓\033[0m {removed_count} retired rules removed")
-PYEOF
-  else
+  if [[ ! -f "$builtin_rules" ]]; then
+    section "Merging permissions"
     warn "$builtin_rules not found, skipping permissions merge"
+  elif _is_excluded hooks pretooluse; then
+    section "Removing built-in permissions (excluded)"
+    _config permissions remove "$CLAUDE_SETTINGS" "$builtin_rules"
+  else
+    section "Merging permissions"
+    _config permissions merge "$CLAUDE_SETTINGS" "$builtin_rules"
   fi
 fi
 
@@ -754,37 +753,27 @@ if _want attribution; then
   section "Disabling Claude auto-attribution"
 
   # We append our own trailers manually (see ~/.claude/CLAUDE.md), so turn off
-  # Claude Code's auto-attribution entirely to avoid duplicates:
+  # Claude Code's auto-attribution to avoid duplicates:
   #   attribution.sessionUrl = false  → drop the session-URL line
   #   attribution.commit      = ""     → no auto commit trailer
   #   attribution.pr          = ""     → no auto PR trailer
-  python3 - "$CLAUDE_SETTINGS" <<'PYEOF'
-import json
-import sys
-
-settings_path = sys.argv[1]
-
-try:
-    with open(settings_path) as f:
-        settings = json.load(f)
-except (FileNotFoundError, json.JSONDecodeError):
-    settings = {}
-
-attribution = settings.setdefault("attribution", {})
-
-desired = {"sessionUrl": False, "commit": "", "pr": ""}
-if all(attribution.get(k) == v for k, v in desired.items()):
-    print("  \033[2m· Auto-attribution already disabled\033[0m")
-else:
-    attribution.update(desired)
-    with open(settings_path, "w") as f:
-        json.dump(settings, f, indent=2)
-        f.write("\n")
-    print(
-        "  \033[32m✓\033[0m Auto-attribution disabled "
-        "(sessionUrl=false, commit=\"\", pr=\"\")"
-    )
-PYEOF
+  # An excluded key is deleted (only while it still holds our value) so Claude
+  # Code falls back to its default for it.
+  _attr_set=""
+  _attr_unset=""
+  for _attr_key in sessionUrl commit pr; do
+    if _is_excluded attribution "$_attr_key"; then
+      _attr_unset="$_attr_unset $_attr_key"
+    else
+      _attr_set="$_attr_set $_attr_key"
+    fi
+  done
+  if [[ -n "$_attr_set" ]]; then
+    _config attribution set "$CLAUDE_SETTINGS" $_attr_set
+  fi
+  if [[ -n "$_attr_unset" ]]; then
+    _config attribution unset "$CLAUDE_SETTINGS" $_attr_unset
+  fi
 fi
 
 # --------------------------------------------------------------------------- #
@@ -817,7 +806,36 @@ if _want mcp; then
     fi
   }
 
-  _register_mcp "playwright" "@playwright/mcp" -- npx @playwright/mcp@latest
+  _unregister_mcp() {
+    local name="$1"
+    local check_cmd="$2"
+    if ! command -v claude &>/dev/null; then
+      skip "$name — claude CLI not available"
+      return
+    fi
+    # Only remove a registration that carries our command — a server the user
+    # registered under the same name with a different command is theirs.
+    if ! claude mcp get "$name" 2>/dev/null | grep -q "$check_cmd"; then
+      skip "$name excluded — not registered by us, left alone"
+      return
+    fi
+    if claude mcp remove --scope user "$name" >/dev/null 2>&1; then
+      ok "removed $name (excluded)"
+    else
+      warn "$name — removal failed (run manually: claude mcp remove --scope user $name)"
+    fi
+  }
+
+  # One line per server: excluded servers are removed, the rest registered.
+  _mcp_server() {
+    if _is_excluded mcp "$1"; then
+      _unregister_mcp "$1" "$2"
+    else
+      _register_mcp "$@"
+    fi
+  }
+
+  _mcp_server "playwright" "@playwright/mcp" -- npx @playwright/mcp@latest
 fi
 
 # --------------------------------------------------------------------------- #
@@ -829,57 +847,27 @@ if _want guidance; then
 
   core_template="$SCRIPT_DIR/templates/user-claude.md"
 
-  if [[ -f "$core_template" ]]; then
-    gh_user=""
-    if command -v gh &>/dev/null; then
-      gh_user="$(gh api user --jq .login 2>/dev/null || true)"
-    fi
-
+  if _is_excluded guidance core; then
+    _config guidance remove "$CLAUDE_MD"
+  elif [[ -f "$core_template" ]]; then
     block_content="$(cat "$core_template")"
 
-    if [[ -n "$gh_user" ]] && [[ -f "$SCRIPT_DIR/templates/${gh_user}.md" ]]; then
-      block_content="${block_content}
+    if _is_excluded guidance personal; then
+      skip "Personal template excluded"
+    else
+      gh_user=""
+      if command -v gh &>/dev/null; then
+        gh_user="$(gh api user --jq .login 2>/dev/null || true)"
+      fi
+      if [[ -n "$gh_user" ]] && [[ -f "$SCRIPT_DIR/templates/${gh_user}.md" ]]; then
+        block_content="${block_content}
 
-  $(cat "$SCRIPT_DIR/templates/${gh_user}.md")"
-      ok "Personal template for $gh_user"
+$(cat "$SCRIPT_DIR/templates/${gh_user}.md")"
+        ok "Personal template for $gh_user"
+      fi
     fi
 
-    python3 - "$CLAUDE_MD" "$block_content" <<'PYEOF'
-import sys
-from pathlib import Path
-
-claude_md_path = sys.argv[1]
-new_content = sys.argv[2]
-
-open_tag = "<agent-skills-guidance>"
-close_tag = "</agent-skills-guidance>"
-
-fenced_block = f"{open_tag}\n{new_content}\n{close_tag}"
-
-claude_md = Path(claude_md_path)
-
-if claude_md.exists():
-    existing = claude_md.read_text()
-
-    if open_tag in existing and close_tag in existing:
-        before = existing[:existing.index(open_tag)]
-        after = existing[existing.index(close_tag) + len(close_tag):]
-        updated = before + fenced_block + after
-        action = "Updated"
-    elif open_tag in existing or close_tag in existing:
-        print("  \033[33m⚠\033[0m Orphaned tag found — prepending fresh block")
-        updated = fenced_block + "\n\n" + existing
-        action = "Prepended"
-    else:
-        updated = fenced_block + "\n\n" + existing
-        action = "Prepended"
-else:
-    updated = fenced_block + "\n"
-    action = "Created"
-
-claude_md.write_text(updated)
-print(f"  \033[32m✓\033[0m {action} guidance block in {claude_md_path}")
-PYEOF
+    printf '%s' "$block_content" | _config guidance upsert "$CLAUDE_MD" -
   else
     warn "$core_template not found, skipping CLAUDE.md update"
   fi
@@ -899,7 +887,14 @@ if _want cli; then
   _resume_source="$SCRIPT_DIR/scripts/claude-resume/claude-resume.sh"
   _resume_target="$SCRIPTS_TARGET_DIR/claude-resume.sh"
 
-  if [[ -f "$_resume_source" ]]; then
+  if _is_excluded cli claude-resume; then
+    if [[ -L "$_resume_target" ]] && [[ "$(readlink "$_resume_target")" == *"/scripts/claude-resume/claude-resume.sh" ]]; then
+      rm -f "$_resume_target"
+      ok "removed claude-resume (excluded)"
+    elif [[ -e "$_resume_target" || -L "$_resume_target" ]]; then
+      skip "claude-resume excluded, but $_resume_target is not ours — left alone"
+    fi
+  elif [[ -f "$_resume_source" ]]; then
     if [[ -L "$_resume_target" ]]; then
       existing="$(readlink "$_resume_target")"
       if [[ "$existing" == "$_resume_source" ]]; then
@@ -926,30 +921,14 @@ if _want cli; then
   esac
 
   if [[ -n "$_shell_rc" ]] && [[ -f "$_shell_rc" ]]; then
-    _fence_begin="# BEGIN agent-skills-aliases"
-    _fence_end="# END agent-skills-aliases"
-
-    read -r -d '' _alias_block << 'ALIASES' || true
-
+    if _is_excluded cli reclaude; then
+      _config rcfence remove "$_shell_rc"
+    else
+      _config rcfence upsert "$_shell_rc" - <<'ALIASES'
 # BEGIN agent-skills-aliases — managed by agent-skills setup, do not edit manually
 alias reclaude="$HOME/.claude/scripts/claude-resume.sh"
 # END agent-skills-aliases
 ALIASES
-
-    if grep -q "$_fence_begin" "$_shell_rc" 2>/dev/null; then
-      _block_file="$(mktemp)"
-      printf '%s\n' "$_alias_block" > "$_block_file"
-      _updated="$(awk -v block_file="$_block_file" '
-        /# BEGIN agent-skills-aliases/ { while ((getline line < block_file) > 0) print line; in_block=1; next }
-        /# END agent-skills-aliases/   { in_block=0; next }
-        !in_block                      { print }
-      ' "$_shell_rc")"
-      rm -f "$_block_file"
-      echo "$_updated" > "$_shell_rc"
-      ok "Shell aliases updated in $(basename "$_shell_rc")"
-    else
-      echo "$_alias_block" >> "$_shell_rc"
-      ok "Shell aliases added to $(basename "$_shell_rc") — run: source ~/${_shell_rc##*/}"
     fi
   else
     skip "Shell aliases — unsupported shell or missing rc file"
