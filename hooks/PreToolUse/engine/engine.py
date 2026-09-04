@@ -104,14 +104,7 @@ def _path_matches_allowed(
     payload: dict, allowed_paths: list[str], repo_root: str, cwd: str
 ) -> bool:
     """Check if all file paths in the tool call match at least one allowed pattern."""
-    from operations.filesystem import (
-        _DELETE_COMMANDS,
-        _READ_COMMANDS,
-        _WRITE_COMMANDS,
-        _path_args,
-        _python_open_paths,
-        _split_subcommands,
-    )
+    from operations.filesystem import collect_bash_paths
     from resolver import matches_path_pattern
 
     tool_name = payload.get("tool_name", "")
@@ -125,16 +118,7 @@ def _path_matches_allowed(
         if fp:
             paths.append(fp)
     elif tool_name == "Bash":
-        command = tool_input.get("command", "")
-        for tokens in _split_subcommands(command):
-            if not tokens:
-                continue
-            from pathlib import Path as P
-
-            cmd = P(tokens[0]).name
-            if cmd in _READ_COMMANDS | _WRITE_COMMANDS | _DELETE_COMMANDS:
-                paths.extend(_path_args(tokens))
-        paths.extend(_python_open_paths(command))
+        paths.extend(collect_bash_paths(tool_input.get("command", ""), cwd))
 
     if not paths:
         return False
@@ -247,21 +231,14 @@ def evaluate(payload: dict, rules: list, repo_root: str | None = None) -> dict:
     return {"decision": "proceed"}
 
 
-def _strip_heredocs(command: str) -> str:
-    """Remove heredoc bodies from a shell command before pattern matching."""
-    return re.sub(
-        r"<<-?\s*['\"]?(\w+)['\"]?\n(?:.*\n)*?\1[ \t]*(?:\n|$)",
-        "",
-        command,
-    )
-
-
 def _match_pattern(payload: dict, pattern: str) -> bool:
     """Match a raw pattern rule against the tool call."""
     tool_name = payload.get("tool_name", "")
     tool_input = payload.get("tool_input", {})
 
     if tool_name == "Bash":
+        from operations.common import _strip_heredocs
+
         command = _strip_heredocs(tool_input.get("command", ""))
         return bool(re.search(pattern, command))
     elif tool_name in ("Read", "Edit", "Write"):
