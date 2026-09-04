@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import shlex
 
 _COMPOUND_OPS = frozenset(["&&", "||", ";", "|"])
@@ -43,3 +44,15 @@ def _is_bash(payload: dict) -> bool:
 
 def _command(payload: dict) -> str:
     return payload.get("tool_input", {}).get("command", "")
+
+
+_HEREDOC_RE = re.compile(r"<<-?\s*['\"]?(\w+)['\"]?\n(?:.*\n)*?\1[ \t]*(?:\n|$)")
+
+
+def _strip_heredocs(command: str) -> str:
+    """Remove heredoc bodies from a shell command.
+
+    Heredoc content is data, not arguments: a body that mentions a file name or a
+    URL must not be mistaken for a path the command reads or writes.
+    """
+    return _HEREDOC_RE.sub("", command)

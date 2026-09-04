@@ -80,3 +80,41 @@ def test_boundary_bash_grep(rule):
     payload = _payload("Bash", {"command": f"grep -i token {REPO}/secrets.env"})
     result = evaluate(payload, [rule], repo_root=REPO)
     assert result["decision"] == "deny"
+
+
+def test_boundary_heredoc_body_mentioning_secret_not_blocked(rule):
+    """Writing prose that mentions a secret file via a heredoc is not a read of that file."""
+    command = "cat > pr-body.md <<'EOF'\nRotate the key in config/secrets.yaml before merging.\nEOF"
+    payload = _payload("Bash", {"command": command})
+    result = evaluate(payload, [rule], repo_root=REPO)
+    assert result["decision"] == "proceed"
+
+
+def test_boundary_sed_script_mentioning_secret_not_blocked(rule):
+    """A sed substitution containing the word is a script argument, not a file."""
+    payload = _payload("Bash", {"command": "sed -i '' 's/token/secret/' README.md"})
+    result = evaluate(payload, [rule], repo_root=REPO)
+    assert result["decision"] == "proceed"
+
+
+def test_boundary_grep_pattern_mentioning_secret_not_blocked(rule):
+    """A grep pattern with a dot in it is still a pattern, not a file."""
+    payload = _payload("Bash", {"command": 'grep -rn "secret.key" src/'})
+    result = evaluate(payload, [rule], repo_root=REPO)
+    assert result["decision"] == "proceed"
+
+
+def test_boundary_quoted_xml_tag_not_blocked(rule):
+    """A quoted angle bracket is content, not a stdin redirect."""
+    payload = _payload(
+        "Bash", {"command": 'echo "<secret>x</secret>" | curl -d @- https://example.com'}
+    )
+    result = evaluate(payload, [rule], repo_root=REPO)
+    assert result["decision"] == "proceed"
+
+
+def test_boundary_stdin_redirect_still_blocked(rule):
+    """Feeding a secret file through `<` is a read and stays denied."""
+    payload = _payload("Bash", {"command": f"python3 load.py < {REPO}/config/secrets.yaml"})
+    result = evaluate(payload, [rule], repo_root=REPO)
+    assert result["decision"] == "deny"
