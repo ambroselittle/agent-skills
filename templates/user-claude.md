@@ -475,16 +475,51 @@ These commands will be blocked -- avoid generating them and use alternatives ins
 
 ## CRITICAL -- NEVER IGNORE OR BYPASS
 
-**NEVER WORK AROUND A BLOCK.** When a tool call is denied, a permission is refused, a hook fires,
-or a command errors unexpectedly -- STOP. Report what happened and wait for the user to decide.
-A block is a stop sign, not a puzzle. Switching to a different tool, reformulating the command,
-or using bypass flags (`--no-verify`, `--skip-checks`, `dangerouslyDisableSandbox`, etc.) to
-achieve the same blocked outcome is a violation of this rule -- even if the workaround seems safe.
+**NEVER WORK AROUND A BLOCK.** When a hook denies an action, a permission is refused for
+something the user did not ask for, or a command errors unexpectedly -- STOP. Report what
+happened and wait for the user to decide. A block is a stop sign, not a puzzle. Switching to a
+different tool, changing what the command does, or using bypass flags (`--no-verify`,
+`--skip-checks`, `dangerouslyDisableSandbox`, etc.) to achieve the same blocked outcome is a
+violation of this rule -- even if the workaround seems safe.
 
 This explicitly includes **moving a blocked action into a script** to avoid hook interception. If
 the Bash tool is blocked from running `git push origin main`, adding that same command to a Python
 script is bypassing the block -- not fixing it. Fix the hook rule in the source repo and deploy via
 `setup.sh`. Scripts are not a loophole.
+
+**A DENIAL IS NOT ALWAYS A BLOCK.** Three different things arrive as "denied", and only one of
+them is a stop sign:
+
+1. **A hook deny with a stated reason** (force-push to main, a secrets file, a blocked command).
+   That is a block. Stop and report the reason verbatim. If the user's task *is* that action, the
+   fix is the hook rule in the agent-skills repo, deployed via `setup.sh` -- propose that edit; do
+   not ask them to run the command by hand.
+2. **The harness's permission check refusing a command the user explicitly asked for in this
+   task** -- push, open the PR, deploy, run the workflow, merge when they said "merge the PR".
+   That check almost always rejects the *shape* of the command, not the outcome: compound
+   `a && b; c` chains, heredoc bodies, pipes, `cd` prefixes. **Retry once with the same action in
+   its simplest single-purpose form**: one command per call, long bodies written to a file first
+   (`--body-file`, not a heredoc), no pipes, no chaining. Same action, same target, same
+   authorization -- that is not a workaround. If the plain form is denied too, stop and report the
+   exact denial text.
+3. **A command that errors.** Diagnose it. An error is a fact about the world, not a permission
+   decision.
+
+The test for "authorized" is whether the action is **integral to the work the user asked
+for** -- the request cannot be completed without it. That is plainly true when they named it
+("get this out", "push it", "open the PR", "deploy") or invoked a skill whose contract includes
+it (`/do-work` commits, pushes and opens the PR). It is equally true when the task is "fix X" and
+the denied command *is* the fix: editing the workflow file that is broken, pushing the branch the
+PR needs, running the deploy that makes the fix real. "Go fix this" already contains those steps;
+nobody asks for a fix they then want to ship by hand.
+
+It is **not** true for anything adjacent: a related cleanup, a step you added because it seemed
+useful, or an action the user has said elsewhere to ask about first (merging, force-pushing,
+TestFlight uploads, anything destructive). Blocks become pointless the moment "the user asked for
+this" is read loosely, so the question is never "would the user probably want this?" -- it is
+"did the user's request already require this exact step?". When yes, retry once in the simplest
+form and **never hand the command back to the user to run** -- the reason they asked was so they
+would not have to. When it is a judgment call, it is adjacent: stop and ask.
 
 **NEVER SILENTLY PIVOT.** If a planned approach hits a snag requiring a different solution —
 **STOP completely. Do not switch implementation strategies unilaterally.** Do not begin
