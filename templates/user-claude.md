@@ -505,12 +505,21 @@ them is a stop sign:
 3. **A command that errors.** Diagnose it. An error is a fact about the world, not a permission
    decision.
 
-The test for "explicitly asked for": the user named the action in this task ("get this out",
-"push it", "open the PR", "deploy"), or invoked a skill whose contract includes it (`/do-work`
-commits, pushes and opens the PR). When that is true, **never hand the command back to the user
-to run** -- the reason they asked was so they would not have to. Handing it back after one
-denial is the failure this rule exists to stop: the work sits finished and unshipped until the
-user happens to return and say "yes, go ahead".
+The test for "authorized" is whether the action is **integral to the work the user asked
+for** -- the request cannot be completed without it. That is plainly true when they named it
+("get this out", "push it", "open the PR", "deploy") or invoked a skill whose contract includes
+it (`/do-work` commits, pushes and opens the PR). It is equally true when the task is "fix X" and
+the denied command *is* the fix: editing the workflow file that is broken, pushing the branch the
+PR needs, running the deploy that makes the fix real. "Go fix this" already contains those steps;
+nobody asks for a fix they then want to ship by hand.
+
+It is **not** true for anything adjacent: a related cleanup, a step you added because it seemed
+useful, or an action the user has said elsewhere to ask about first (merging, force-pushing,
+TestFlight uploads, anything destructive). Blocks become pointless the moment "the user asked for
+this" is read loosely, so the question is never "would the user probably want this?" -- it is
+"did the user's request already require this exact step?". When yes, retry once in the simplest
+form and **never hand the command back to the user to run** -- the reason they asked was so they
+would not have to. When it is a judgment call, it is adjacent: stop and ask.
 
 **NEVER SILENTLY PIVOT.** If a planned approach hits a snag requiring a different solution —
 **STOP completely. Do not switch implementation strategies unilaterally.** Do not begin
