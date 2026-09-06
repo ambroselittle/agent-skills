@@ -42,6 +42,25 @@ matching would let casing bypass every path-based rule. All `paths` globs on fil
 operations (`read-path`, `write-path`, `write-content`, `delete-path`) therefore match
 case-insensitively. A rule can opt out with `"case-sensitive": true`.
 
+### How Bash commands are turned into paths
+
+The filesystem operations do not scan the raw command string for anything path-shaped. They
+extract candidates deliberately (`_bash_candidates` and `_redirect_targets` in
+`operations/filesystem.py`), so prose, patterns, and quoted content never trip a path rule:
+
+- Heredoc bodies are stripped before tokenizing. Content written through `cat <<EOF` is data,
+  not an argument. Python `open("...")` calls are still scanned in the unstripped command.
+- Only positional arguments of known read/write/delete commands count. Flag values are dropped
+  using a per-command table (`tail -f` follows, `grep -f` names a file), and `--` ends options.
+- For grep, rg, sed, and awk the first positional is the pattern or program, so it is dropped
+  unless the pattern came through `-e` / `-f`. BSD `sed -i ''` is understood.
+- Stdin and stdout redirects come from a tokenizer that treats `<` and `>` as punctuation only
+  when unquoted. `"<tag>"` stays a word; `2>&1`, `<<<`, and `<(...)` are never file targets.
+- A bare token is a path if it has a slash, a glob character, or a leading dot, or if it exists
+  on disk relative to the working directory (`cd` between subcommands is tracked). Writes and
+  deletes also accept a bare dotted name, since they may create the file. When `cd` cannot be
+  resolved statically, the dotted-name heuristic applies to reads as well.
+
 ## Adding a New Rule
 
 1. Add the rule to `rules.json` with a unique `description`

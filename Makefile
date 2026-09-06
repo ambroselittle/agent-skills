@@ -1,4 +1,4 @@
-.PHONY: init test test-hooks test-create-repo test-scaffolds scaffold list-repo-templates lint format format-check check help
+.PHONY: init test test-hooks test-scripts test-create-repo test-scaffolds scaffold list-repo-templates lint format format-check check help
 
 ## Setup & daily use
 help: ## Show available commands
@@ -20,7 +20,7 @@ init: ## Install deps, link skills & hooks, sync envs
 	@$(MAKE) --no-print-directory help
 
 ## Testing
-test: test-hooks test-create-repo ## Run all fast tests (~30s)
+test: test-hooks test-scripts test-create-repo ## Run all fast tests (~30s)
 
 test-hooks: ## Run every hook's tests (all hooks/*/tests suites)
 	@printf "\033[36mTesting hooks...\033[0m\n"
@@ -30,6 +30,10 @@ test-hooks: ## Run every hook's tests (all hooks/*/tests suites)
 		printf "\033[2m  %s\033[0m\n" "$$hook"; \
 		( cd "$$hook" && uvx pytest tests/ -q ) || exit 1; \
 	done
+
+test-scripts: ## Run the setup.sh helper tests (scripts/tests)
+	@printf "\033[36mTesting scripts...\033[0m\n"
+	@uvx pytest scripts/tests/ -q
 
 test-create-repo: ## Run create-repo unit/structural tests
 	@printf "\033[36mTesting create-repo...\033[0m\n"

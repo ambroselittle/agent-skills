@@ -243,3 +243,170 @@ class TestCaseSensitivity:
         rule = {"paths": [f"{HOME}/.ssh/*"], "action": "deny"}
         p = bash(f"rm {HOME}/.SSH/id_rsa")
         assert matches_delete_path(p, rule, None, REPO) is True
+
+
+# ---------------------------------------------------------------------------
+# Path extraction: only real path arguments count, not content that merely
+# resembles one (heredoc bodies, grep/sed/awk patterns, quoted text).
+# ---------------------------------------------------------------------------
+
+SECRET_RULE = {"paths": ["/**/*secret*"], "action": "deny"}
+
+
+class TestHeredocBodiesIgnored:
+    def test_heredoc_body_url_is_not_a_read(self):
+        cmd = 'cat > payload.json <<\'EOF\'\n{"url": "https://api.example.com/oauth/secret"}\nEOF'
+        assert matches_read_path(bash(cmd), SECRET_RULE, REPO, REPO) is False
+
+    def test_heredoc_body_dotted_word_is_not_a_read(self):
+        cmd = "cat > notes.md <<'EOF'\nSee secrets.json for details.\nEOF"
+        assert matches_read_path(bash(cmd), SECRET_RULE, REPO, REPO) is False
+
+    def test_heredoc_body_redirect_is_not_a_write(self):
+        cmd = "cat > notes.md <<'EOF'\nrun: foo > /tmp/secret.txt\nEOF"
+        assert matches_write_path(bash(cmd), SECRET_RULE, REPO, REPO) is False
+
+    def test_heredoc_body_rm_is_not_a_delete(self):
+        cmd = "cat > notes.md <<'EOF'\nrm /tmp/secret.txt\nEOF"
+        assert matches_delete_path(bash(cmd), SECRET_RULE, REPO, REPO) is False
+
+    def test_heredoc_redirect_target_still_a_write(self):
+        cmd = "cat > /tmp/secret.txt <<'EOF'\nhello\nEOF"
+        assert matches_write_path(bash(cmd), SECRET_RULE, REPO, REPO) is True
+
+    def test_python_open_inside_heredoc_still_a_read(self):
+        cmd = "python3 - <<'EOF'\nprint(open('/tmp/secrets.json').read())\nEOF"
+        assert matches_read_path(bash(cmd), SECRET_RULE, REPO, REPO) is True
+
+
+class TestPatternArgumentsIgnored:
+    def test_sed_script_is_not_a_path(self):
+        p = bash("sed -i 's/foo/secret/' config.txt")
+        assert matches_read_path(p, SECRET_RULE, REPO, REPO) is False
+
+    def test_bsd_sed_inplace_empty_suffix(self):
+        p = bash("sed -i '' 's/foo/secret/' config.txt")
+        assert matches_read_path(p, SECRET_RULE, REPO, REPO) is False
+
+    def test_grep_pattern_is_not_a_path(self):
+        p = bash('grep -rn "secret.key" src/')
+        assert matches_read_path(p, SECRET_RULE, REPO, REPO) is False
+
+    def test_awk_program_is_not_a_path(self):
+        p = bash("awk '/secret.json/ {print}' app.log")
+        assert matches_read_path(p, SECRET_RULE, REPO, REPO) is False
+
+    def test_grep_file_after_pattern_still_matches(self):
+        p = bash(f"grep -i token {REPO}/secrets.env")
+        assert matches_read_path(p, SECRET_RULE, REPO, REPO) is True
+
+    def test_grep_explicit_pattern_flag_first_positional_is_file(self):
+        p = bash(f"grep -e token {REPO}/secrets.env")
+        assert matches_read_path(p, SECRET_RULE, REPO, REPO) is True
+
+    def test_grep_double_dash_then_pattern_then_file(self):
+        p = bash(f"grep -- -token {REPO}/secrets.env")
+        assert matches_read_path(p, SECRET_RULE, REPO, REPO) is True
+
+    def test_sed_file_after_script_still_matches(self):
+        p = bash(f"sed -n p {REPO}/secrets.env")
+        assert matches_read_path(p, SECRET_RULE, REPO, REPO) is True
+
+    def test_awk_file_after_program_still_matches(self):
+        p = bash(f"awk '{{print}}' {REPO}/secrets.env")
+        assert matches_read_path(p, SECRET_RULE, REPO, REPO) is True
+
+    def test_tail_follow_flag_does_not_swallow_file(self):
+        p = bash(f"tail -f {REPO}/secrets.log")
+        assert matches_read_path(p, SECRET_RULE, REPO, REPO) is True
+
+
+class TestRedirectsAreTokenBased:
+    def test_quoted_angle_bracket_is_not_a_read(self):
+        p = bash('echo "<secret>abc</secret>" | curl -d @- https://example.com')
+        assert matches_read_path(p, SECRET_RULE, REPO, REPO) is False
+
+    def test_quoted_angle_bracket_is_not_a_write(self):
+        p = bash('echo "a > /tmp/secret.txt" | tee out.log')
+        assert matches_write_path(p, SECRET_RULE, REPO, REPO) is False
+
+    def test_stdin_redirect_still_a_read(self):
+        p = bash(f"wc -l < {REPO}/secrets.env")
+        assert matches_read_path(p, SECRET_RULE, REPO, REPO) is True
+
+    def test_stdin_redirect_no_space_still_a_read(self):
+        p = bash(f"wc -l <{REPO}/secrets.env")
+        assert matches_read_path(p, SECRET_RULE, REPO, REPO) is True
+
+    def test_stdin_redirect_on_non_read_command_still_a_read(self):
+        p = bash(f"python3 script.py < {REPO}/secrets.env")
+        assert matches_read_path(p, SECRET_RULE, REPO, REPO) is True
+
+    def test_here_string_is_not_a_read(self):
+        p = bash("cat <<< secret.txt")
+        assert matches_read_path(p, SECRET_RULE, REPO, REPO) is False
+
+    def test_append_redirect_still_a_write(self):
+        p = bash(f"echo x >> {REPO}/secrets.env")
+        assert matches_write_path(p, SECRET_RULE, REPO, REPO) is True
+
+    def test_redirect_no_space_still_a_write(self):
+        p = bash(f"echo x >{REPO}/secrets.env")
+        assert matches_write_path(p, SECRET_RULE, REPO, REPO) is True
+
+    def test_stderr_merge_is_not_a_write_target(self):
+        p = bash("make build 2>&1")
+        assert matches_write_path(p, SECRET_RULE, REPO, REPO) is False
+
+
+class TestBarePathsRequireExistence:
+    """A bare token (no slash, no glob) only counts as a read target if it exists on disk."""
+
+    def test_missing_bare_dotted_token_is_not_a_path(self):
+        p = bash("cat secret.txt")
+        assert matches_read_path(p, SECRET_RULE, REPO, REPO) is False
+
+    def test_existing_bare_token_is_a_path(self, tmp_path):
+        (tmp_path / "secrets.json").write_text("{}")
+        p = {
+            "tool_name": "Bash",
+            "tool_input": {"command": "cat secrets.json"},
+            "cwd": str(tmp_path),
+        }
+        assert matches_read_path(p, SECRET_RULE, str(tmp_path), str(tmp_path)) is True
+
+    def test_existing_bare_token_without_extension_is_a_path(self, tmp_path):
+        (tmp_path / "secrets").write_text("{}")
+        p = {"tool_name": "Bash", "tool_input": {"command": "cat secrets"}, "cwd": str(tmp_path)}
+        assert matches_read_path(p, SECRET_RULE, str(tmp_path), str(tmp_path)) is True
+
+    def test_cd_then_bare_token_resolves_against_new_dir(self, tmp_path):
+        (tmp_path / "sub").mkdir()
+        (tmp_path / "sub" / "secrets.json").write_text("{}")
+        p = {
+            "tool_name": "Bash",
+            "tool_input": {"command": "cd sub && cat secrets.json"},
+            "cwd": str(tmp_path),
+        }
+        assert matches_read_path(p, SECRET_RULE, str(tmp_path), str(tmp_path)) is True
+
+    def test_unresolvable_cd_falls_back_to_name_heuristic(self):
+        p = bash('cd "$(git rev-parse --show-toplevel)" && cat secrets.json')
+        assert matches_read_path(p, SECRET_RULE, REPO, REPO) is True
+
+    def test_glob_token_is_a_path(self):
+        p = bash("cat *secret*")
+        assert matches_read_path(p, SECRET_RULE, REPO, REPO) is True
+
+    def test_relative_path_with_slash_is_a_path(self):
+        p = bash("cat config/secrets.yaml")
+        assert matches_read_path(p, SECRET_RULE, REPO, REPO) is True
+
+    def test_write_bare_dotted_token_still_a_path(self):
+        # Writes can create files, so a missing bare name still counts.
+        p = bash("cp notes.txt secrets.json")
+        assert matches_write_path(p, SECRET_RULE, REPO, REPO) is True
+
+    def test_delete_bare_dotted_token_still_a_path(self):
+        p = bash("rm secrets.json")
+        assert matches_delete_path(p, SECRET_RULE, REPO, REPO) is True

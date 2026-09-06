@@ -105,6 +105,14 @@ make test-hooks
 
 Runs every `hooks/*/tests` suite — the PreToolUse rule engine and the MessageDisplay phrase swap.
 
+### setup.sh helper (~90 tests, ~10s)
+
+```bash
+make test-scripts
+```
+
+Covers `scripts/setup_config.py` — the `exclude` schema, `--without` persistence, and every settings.json / CLAUDE.md / shell-rc primitive with its inverse — plus end-to-end runs of `setup.sh` against a sandbox `HOME` with `claude` and `gh` shimmed.
+
 ### create-repo unit + structural eval (~55 tests, <1s)
 
 ```bash
@@ -150,6 +158,8 @@ Called by `make init`. Idempotent installer that:
 
 Each step is a named component that can be installed on its own: `skills`, `pretooluse` (engine + rules + permissions), `notification`, `message-display`, `window-title`, `attribution`, `mcp`, `guidance`, `cli`. `hooks` is a group covering every hook component. Run `bash setup.sh --list` for descriptions.
 
-- `bash setup.sh` (no arguments) always runs the full setup — selections are never persisted.
-- `bash setup.sh pretooluse` installs only the hook engine; `bash setup.sh --without guidance` takes everything else.
-- Each section in `setup.sh` is guarded by `_want <component>` and banner-tagged with `# [component]`. When adding a new install step, add its name to `ALL_COMPONENTS`, give it a `_describe_component` line, and gate it — otherwise it silently runs on every partial install.
+- `bash setup.sh` (no arguments) always runs the full setup. Naming components selects them for that run only.
+- `bash setup.sh pretooluse` installs only the hook engine.
+- `bash setup.sh --without guidance` persists `guidance` into the `exclude` key of `~/.claude/agent-skills.json`; the section then removes what it installed, and every later bare run keeps it off. See "Opting out permanently" in the README for the schema.
+- Each section in `setup.sh` is guarded by `_want <component>` and banner-tagged with `# [component]`. When adding a new install step, add its name to `ALL_COMPONENTS`, give it a `_describe_component` line, gate it, and give it an exclusion branch that removes what it installs (an `_is_excluded <key> <name>` check at the top of the section) — otherwise it silently runs on every partial install and can never be opted out of.
+- All settings.json, CLAUDE.md, and shell-rc edits go through `scripts/setup_config.py`, whose install primitives each have an uninstall counterpart. Do not add inline Python heredocs to `setup.sh`; add a subcommand to the helper and a test for both directions.
