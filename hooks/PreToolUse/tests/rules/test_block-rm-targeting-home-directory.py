@@ -78,3 +78,62 @@ def test_boundary_rm_absolute_chained_with_tilde_in_later_command(rule):
     """
     result = evaluate(_payload("rm /tmp/hook-test.tmp && tail -3 ~/.claude/audit.log"), [rule])
     assert result["decision"] == "proceed"
+
+
+def test_boundary_word_ending_in_rm_not_blocked(rule):
+    """A word that merely ends in 'rm' is not the rm command.
+
+    'terraform' ends in 'rm', and a later ~/ path must not turn a read-only
+    jq lookup into a home-directory removal.
+    """
+    command = "TOKEN=$(jq -r '.credentials[\"app.terraform.io\"].token' ~/.terraform.d/credentials.tfrc.json)"
+    result = evaluate(_payload(command), [rule])
+    assert result["decision"] == "proceed"
+
+
+def test_boundary_rm_flag_not_blocked(rule):
+    """docker run --rm -v ~/.aws:... falls through — --rm is a flag, not the rm command."""
+    result = evaluate(_payload("docker run --rm -v ~/.aws:/root/.aws amazon/aws-cli s3 ls"), [rule])
+    assert result["decision"] == "proceed"
+
+
+def test_boundary_bare_tilde(rule):
+    """rm -rf ~ is denied — the home directory itself, with no trailing slash."""
+    result = evaluate(_payload("rm -rf ~"), [rule])
+    assert result["decision"] == "deny"
+
+
+def test_boundary_bare_tilde_before_separator(rule):
+    """rm -rf ~; ls is denied — a separator right after ~ still ends the target."""
+    result = evaluate(_payload("rm -rf ~; ls"), [rule])
+    assert result["decision"] == "deny"
+
+
+def test_boundary_home_variable(rule):
+    """rm -rf "$HOME" is denied — $HOME is the same directory as ~."""
+    result = evaluate(_payload('rm -rf "$HOME"'), [rule])
+    assert result["decision"] == "deny"
+
+
+def test_boundary_braced_home_variable_subdirectory(rule):
+    """rm -rf ${HOME}/Documents is denied."""
+    result = evaluate(_payload("rm -rf ${HOME}/Documents"), [rule])
+    assert result["decision"] == "deny"
+
+
+def test_boundary_home_prefixed_variable_not_blocked(rule):
+    """rm -rf $HOMEBREW_PREFIX/var/tmp falls through — $HOMEBREW_PREFIX is not $HOME."""
+    result = evaluate(_payload("rm -rf $HOMEBREW_PREFIX/var/tmp"), [rule])
+    assert result["decision"] == "proceed"
+
+
+def test_boundary_rm_invoked_by_path(rule):
+    """/bin/rm -rf ~/foo is denied — calling rm by its full path is still rm."""
+    result = evaluate(_payload("/bin/rm -rf ~/foo"), [rule])
+    assert result["decision"] == "deny"
+
+
+def test_boundary_rm_alias_escaped(rule):
+    """\\rm -rf ~/foo is denied — the backslash only skips a shell alias."""
+    result = evaluate(_payload("\\rm -rf ~/foo"), [rule])
+    assert result["decision"] == "deny"
