@@ -27,6 +27,8 @@ When the template's task runner wraps a tool (e.g., `just test` calls `uv run py
 
 ### CI compatibility
 
-If the user-facing start command manages infrastructure (e.g., docker compose), add a guard for CI environments where that infrastructure is provided externally. The canonical pattern: capture `DATABASE_URL` before loading `.env`, and skip docker if it was externally set. This keeps the command identical for users while making it safe to call in CI.
+If the user-facing start command manages infrastructure (e.g., docker compose), add a guard for CI environments where that infrastructure is provided externally. The canonical pattern: treat `DATABASE_URL` as external, and skip docker, only when it does not point at `localhost:$DB_PORT` from setup. Capturing `DATABASE_URL` before sourcing `.env` is not enough, because `set dotenv-load` has already exported `.env` when the recipe starts. This keeps the command identical for users while making it safe to call in CI.
+
+Setup leaves infrastructure running, which hides a start command that never starts it. Locally, `verify.py` stops the project's Postgres before `just start` and then lists users through the API, so the check covers what a developer sees on every run after the first.
 
 Never add a separate `start-ci` recipe or bypass flag — that defeats the purpose and creates two diverging code paths.
