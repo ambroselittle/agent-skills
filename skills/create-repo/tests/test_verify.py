@@ -333,6 +333,96 @@ def test_verify_python_runs_correct_sequence():
     assert "dev server" in step_names
 
 
+def _run_python_verify(platform, *, database_url=None, users_ok=True):
+    """Run verify for a Python platform with processes mocked; return (result, calls, health_urls).
+
+    ``calls`` records subprocess.run commands and the Popen of ``just start`` in order.
+    ``users_ok=False`` makes every users endpoint fail its health check.
+    """
+    calls = []
+    health_urls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        return _mock_run()
+
+    def fake_popen(cmd, **kwargs):
+        calls.append(cmd)
+        return MagicMock()
+
+    def fake_health(url, timeout=10):
+        health_urls.append(url)
+        return users_ok or "/users/" not in url
+
+    with (
+        patch.dict("scripts.verify.os.environ", clear=False) as env,
+        patch("scripts.verify.detect_platform", return_value=platform),
+        patch("scripts.verify.subprocess.run", side_effect=fake_run),
+        patch("scripts.verify.subprocess.Popen", side_effect=fake_popen),
+        patch("scripts.verify.wait_for_port", return_value=True),
+        patch("scripts.verify.check_health", side_effect=fake_health),
+        patch("scripts.verify.os.getpgid", return_value=99999),
+        patch("scripts.verify.atexit.register"),
+        patch("scripts.verify._kill_process_group"),
+        patch("scripts.verify._sigint_and_check", return_value=StepResult("clean exit", True, 0)),
+    ):
+        env.pop("DATABASE_URL", None)
+        if database_url:
+            env["DATABASE_URL"] = database_url
+        result = verify(Path("/tmp/test-project"))
+
+    return result, calls, health_urls
+
+
+def test_verify_python_stops_postgres_before_just_start():
+    """Locally, Postgres is stopped first so `just start` has to bring it up, as on a developer's next run."""
+    result, calls, _ = _run_python_verify("python")
+
+    assert result.passed
+    assert ["docker", "compose", "stop"] in calls
+    assert calls.index(["docker", "compose", "stop"]) < calls.index(["just", "start"])
+
+
+def test_verify_python_leaves_ci_database_alone():
+    """In CI, DATABASE_URL points at a service container, so there is no compose Postgres to stop."""
+    result, calls, _ = _run_python_verify("python", database_url="postgresql://ci/db")
+
+    assert result.passed
+    assert ["docker", "compose", "stop"] not in calls
+
+
+def test_verify_python_checks_api_reaches_database():
+    """The users endpoint must answer, proving the API reached Postgres, not just that it booted."""
+    result, _, health_urls = _run_python_verify("python")
+
+    assert "http://localhost:8000/users/" in health_urls
+    assert any(s.name == "database" and s.passed for s in result.steps)
+
+
+def test_verify_python_fails_when_api_cannot_reach_database():
+    result, _, _ = _run_python_verify("python", users_ok=False)
+
+    assert not result.passed
+    failed = [s.name for s in result.steps if not s.passed]
+    assert failed == ["database"]
+
+
+def test_verify_fullstack_python_stops_postgres_and_checks_database():
+    result, calls, health_urls = _run_python_verify("fullstack-python")
+
+    assert result.passed
+    assert calls.index(["docker", "compose", "stop"]) < calls.index(["just", "start"])
+    assert "http://localhost:8000/api/users/" in health_urls
+
+
+def test_verify_fullstack_python_fails_when_api_cannot_reach_database():
+    result, _, _ = _run_python_verify("fullstack-python", users_ok=False)
+
+    assert not result.passed
+    failed = [s.name for s in result.steps if not s.passed]
+    assert failed == ["database"]
+
+
 # --- detect_platform ---
 
 

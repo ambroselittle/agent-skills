@@ -498,6 +498,27 @@ def verify_node(
 # ---------------------------------------------------------------------------
 
 
+def _stop_local_postgres(project_dir: Path) -> StepResult | None:
+    """Stop the project's compose Postgres so `just start` has to bring it back up.
+
+    Setup leaves Postgres running, which would hide a `just start` that never starts it —
+    the state a developer is in on every run after the first. Returns None in CI, where
+    DATABASE_URL points at a service container and there is no compose Postgres.
+    """
+    if "DATABASE_URL" in os.environ:
+        return None
+    return run_step("stop Postgres", ["docker", "compose", "stop"], project_dir, timeout=60)
+
+
+def _check_database(users_url: str, elapsed: float) -> StepResult:
+    """List users through the running API, which only succeeds if it can query Postgres."""
+    if check_health(users_url):
+        return StepResult("database", True, elapsed)
+    return StepResult(
+        "database", False, elapsed, f"GET {users_url} failed — the API could not query Postgres"
+    )
+
+
 def verify_python(
     project_dir: Path,
     api_port: int = 8000,
@@ -543,9 +564,11 @@ def verify_python(
     # just start handles postgres (or skips docker if DATABASE_URL is externally set).
     import tempfile
 
-    start_env = {**os.environ}
-    if "DATABASE_URL" in dotenv:
-        start_env["DATABASE_URL"] = dotenv["DATABASE_URL"]
+    stop_step = _stop_local_postgres(project_dir)
+    if stop_step:
+        result.steps.append(stop_step)
+        if not stop_step.passed:
+            return result
 
     dev_stderr = tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False)
     dev_proc = subprocess.Popen(
@@ -553,7 +576,6 @@ def verify_python(
         cwd=project_dir,
         stdout=subprocess.DEVNULL,
         stderr=dev_stderr,
-        env=start_env,
         start_new_session=True,
     )
     dev_pgid = os.getpgid(dev_proc.pid)
@@ -572,6 +594,7 @@ def verify_python(
             result.steps.append(StepResult("dev server", False, elapsed, "Health check failed"))
         else:
             result.steps.append(StepResult("dev server", True, elapsed))
+            result.steps.append(_check_database(f"http://localhost:{api_port}/users/", elapsed))
 
         # Step 5: Clean exit check
         dev_stderr.close()
@@ -664,13 +687,15 @@ def verify_fullstack_python(
     # catching issues like missing PATH entries, broken traps, or signal handling bugs
     # that only manifest through the justfile but not when processes are started directly.
     #
-    # CI note: `just start` skips docker when DATABASE_URL is set in the environment,
-    # so no docker port conflict occurs against a CI service container.
+    # CI note: `just start` skips docker when DATABASE_URL points somewhere other than the
+    # DB_PORT setup wrote, so no docker port conflict occurs against a CI service container.
     import tempfile
 
-    start_env = {**os.environ}
-    if "DATABASE_URL" in dotenv:
-        start_env["DATABASE_URL"] = dotenv["DATABASE_URL"]
+    stop_step = _stop_local_postgres(project_dir)
+    if stop_step:
+        result.steps.append(stop_step)
+        if not stop_step.passed:
+            return result
 
     dev_stderr = tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False)
     dev_proc = subprocess.Popen(
@@ -678,7 +703,6 @@ def verify_fullstack_python(
         cwd=project_dir,
         stdout=subprocess.DEVNULL,
         stderr=dev_stderr,
-        env=start_env,
         start_new_session=True,
     )
     dev_pgid = os.getpgid(dev_proc.pid)
@@ -700,6 +724,7 @@ def verify_fullstack_python(
             )
         else:
             result.steps.append(StepResult("dev server (API)", True, elapsed))
+            result.steps.append(_check_database(f"http://localhost:{api_port}/api/users/", elapsed))
 
         web_up = wait_for_port(web_port, timeout=60)
         web_elapsed = time.monotonic() - start

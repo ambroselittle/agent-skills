@@ -35,6 +35,14 @@ Rules in `rules.json` match by either:
 - **`operation`** — a named operation handler (e.g. `read-path`, `git-force-push`, `bash-safe`)
 - **`pattern`** — a regex matched against Bash commands or file paths
 
+### Anchoring a command in a `pattern`
+
+A `pattern` is searched across the whole raw command, so a bare command name matches inside
+other words (`rm` in `terraform`) and flags (`--rm`). Anchor it as a command word with
+`(?<![\w.-])rm(?=\s)` (this still allows `/bin/rm` and `\rm`), limit its arguments to
+`[^&|;\n]*` so the match cannot run into a later `&&`, `;`, or `|` command, and end a target
+with `(?=[\s"';&|)]|$)` rather than `\s|$`. The `block-rm-*` rules are the reference.
+
 ### Path matching is case-insensitive by default
 
 macOS filesystems are case-insensitive — `.ENV` and `.env` are the same file — so exact-case

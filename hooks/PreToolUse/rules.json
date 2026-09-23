@@ -126,21 +126,21 @@
     {
       "id": "block-rm-home",
       "description": "Block rm targeting home directory — rm ~/ would destroy the user environment",
-      "pattern": "rm\\b[^&|;\\n]*\\s~/",
+      "pattern": "(?<![\\w.-])rm(?=\\s)[^&|;\\n]*\\s[\"']?(?:~|\\$HOME|\\$\\{HOME\\})(?=[/\\s\"';&|)]|$)",
       "action": "deny",
-      "reason": "Removing files from the home directory root requires manual confirmation"
+      "reason": "Removing the home directory or anything under it requires manual confirmation"
     },
     {
       "id": "block-rm-git",
       "description": "Block recursive rm on .git directory — would destroy repository history",
-      "pattern": "rm\\b[^\\n]*-[a-zA-Z]*r[a-zA-Z]*[^\\n]*(?:\\s|/)\\.git(?:/)?(?:\\s|$)",
+      "pattern": "(?<![\\w.-])rm(?=\\s)[^&|;\\n]*\\s--?[a-zA-Z]*[rR][a-zA-Z]*[^&|;\\n]*[\\s/\"']\\.git/?(?=[\\s\"';&|)]|$)",
       "action": "deny",
       "reason": "Removing the .git directory would destroy repository history — do this manually if intentional"
     },
     {
       "id": "block-rm-tmp",
       "description": "Block rm targeting /tmp root — removing the entire temp directory is likely unintended; specify a subdirectory",
-      "pattern": "rm\\b[^\\n]*\\s/tmp(?:/\\*|/?(?:\\s|$))",
+      "pattern": "(?<![\\w.-])rm(?=\\s)[^&|;\\n]*\\s[\"']?(?:/private)?/tmp(?:/\\*|/?(?=[\\s\"';&|)]|$))",
       "action": "deny",
       "reason": "Removing /tmp entirely or all its contents requires manual confirmation — specify a subdirectory instead (e.g. /tmp/my-build-dir)"
     },

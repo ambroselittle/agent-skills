@@ -124,3 +124,45 @@ def test_boundary_glob_inside_subdir_not_blocked(rule):
     """
     result = evaluate(_bash("rm -rf /tmp/my-build/*"), [rule])
     assert result["decision"] == "proceed"
+
+
+def test_boundary_word_ending_in_rm_not_blocked(rule):
+    """terraform init -plugin-dir /tmp falls through — 'terraform' ends in 'rm' but is not rm."""
+    result = evaluate(_bash("terraform init -plugin-dir /tmp"), [rule])
+    assert result["decision"] == "proceed"
+
+
+def test_boundary_rm_flag_not_blocked(rule):
+    """docker run --rm -w /tmp alpine ls falls through — --rm is a flag, not the rm command."""
+    result = evaluate(_bash("docker run --rm -w /tmp alpine ls"), [rule])
+    assert result["decision"] == "proceed"
+
+
+def test_boundary_later_command_not_blocked(rule):
+    """rm -f out.log && ls /tmp falls through — /tmp is an argument to ls, not rm."""
+    result = evaluate(_bash("rm -f out.log && ls /tmp"), [rule])
+    assert result["decision"] == "proceed"
+
+
+def test_boundary_separator_after_target(rule):
+    """rm -rf /tmp; echo done is denied — a separator right after /tmp still ends the target."""
+    result = evaluate(_bash("rm -rf /tmp; echo done"), [rule])
+    assert result["decision"] == "deny"
+
+
+def test_boundary_quoted_path(rule):
+    """rm -rf "/tmp/" is denied — quoting the path doesn't hide it."""
+    result = evaluate(_bash('rm -rf "/tmp/"'), [rule])
+    assert result["decision"] == "deny"
+
+
+def test_boundary_private_tmp_glob(rule):
+    """rm -rf /private/tmp/* is denied — on macOS /tmp is a symlink to /private/tmp."""
+    result = evaluate(_bash("rm -rf /private/tmp/*"), [rule])
+    assert result["decision"] == "deny"
+
+
+def test_boundary_private_tmp_subdir_not_blocked(rule):
+    """rm -rf /private/tmp/my-dir falls through — specific subdirectory, same as /tmp/my-dir."""
+    result = evaluate(_bash("rm -rf /private/tmp/my-dir"), [rule])
+    assert result["decision"] == "proceed"
