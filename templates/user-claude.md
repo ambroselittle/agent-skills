@@ -136,6 +136,15 @@ Plans live outside the repo in your configured work folder (`~/.claude/agent-ski
   authorization that requires those specific words -- not "ship it", "land it", or other shorthand.
 - **Batch commits before pushing** -- every push triggers CI and jobs do not self-cancel.
   Accumulate all changes locally, then push once when the work is ready for review.
+- **Once a PR is open and the user is iterating with you, hold the push.** Commit each
+  change, say "Holding the push until you say so" in one line, and push when they say to.
+- **A PR isn't handed over until CI is green and the bots' first round is answered.**
+  After opening a PR, and after any push, follow CI to green and work through the
+  automated reviewers' comments (they arrive within minutes): fix what you confirm is
+  wrong, take small improvements and useful tests, decline with evidence when the bot
+  lacked context, and reply on and resolve each bot thread. Set aside anything that would
+  change the design or behavior, and list it for the user as a question. Use the repo's own
+  review-comment skill when it has one (the Loancrate monorepo: `address-review-comments`).
 - **`--no-verify` has exactly one sanctioned use: merge commits carrying wholly
   unrelated incoming changes.** Pre-commit hooks (lint-staged) choke on large merge
   commits -- typed lint over a huge staged set OOMs or emits spurious warnings on the
