@@ -1,17 +1,12 @@
 #!/usr/bin/env python3
-"""Translate Codex hooks to the shared policy; never execute the pending tool.
-
-PreToolUse enforces denials. PermissionRequest grants approvals. The two
-events intentionally have different JSON output contracts. Unsupported input
-and evaluation failures never produce an automatic approval.
-"""
+"""Enforce explicit shared denials without replacing native Codex approvals."""
 
 from __future__ import annotations
 
 import json
 import shlex
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from resolver import resolve_repo_root
@@ -24,7 +19,7 @@ def record_event(payload: dict, output: dict | None, error: str | None = None) -
     log = Path(__file__).resolve().parent.parent / "codex-events.jsonl"
     tool_input = payload.get("tool_input")
     record = {
-        "time": datetime.now(timezone.utc).isoformat(),
+        "time": datetime.now(UTC).isoformat(),
         "session_id": payload.get("session_id"),
         "event": payload.get("hook_event_name"),
         "tool": payload.get("tool_name"),
@@ -117,24 +112,14 @@ def patch_calls(payload: dict) -> list[dict]:
 
 def handle(payload: dict, rules: list) -> dict | None:
     event = payload.get("hook_event_name")
-    if event not in ("PreToolUse", "PermissionRequest"):
+    if event != "PreToolUse":
         return None
     tool = payload.get("tool_name", "")
     if tool == "apply_patch":
         try:
             calls = patch_calls(payload)
         except (ValueError, TypeError, AttributeError, IndexError):
-            if event == "PermissionRequest":
-                return None
-            return {
-                "hookSpecificOutput": {
-                    "hookEventName": event,
-                    "permissionDecision": "deny",
-                    "permissionDecisionReason": (
-                        "Unable to evaluate patch with agent-skills policy."
-                    ),
-                }
-            }
+            return None
     elif tool == "Bash":
         command = payload.get("tool_input", {}).get("command")
         if not isinstance(command, str) or not command.strip():
@@ -147,22 +132,13 @@ def handle(payload: dict, rules: list) -> dict | None:
 
     root = resolve_repo_root(payload.get("cwd", ""))
     results = [evaluate(call, rules, repo_root=root) for call in calls]
-    # Every operation must be allowed before a multi-file patch is approved.
+    # A denial for any patch operation blocks the complete patch.
     priority = {"allow": 0, "proceed": 1, "ask": 2, "deny": 3}
     result = max(results, key=lambda item: priority[item["decision"]])
     decision = result["decision"]
     reason = result.get("reason") or "Blocked by agent-skills policy."
-    if event == "PermissionRequest":
-        if decision not in ("allow", "deny"):
-            return None
-        output = {"behavior": decision}
-        if decision == "deny":
-            output["message"] = reason
-        return {"hookSpecificOutput": {"hookEventName": event, "decision": output}}
-    if decision not in ("deny", "ask"):
+    if decision != "deny":
         return None
-    if decision == "ask":
-        reason += " This rule requires review; Codex PreToolUse cannot request approval."
     return {
         "hookSpecificOutput": {
             "hookEventName": event,
@@ -178,6 +154,9 @@ def main() -> None:
     try:
         payload = json.load(sys.stdin)
         event = payload.get("hook_event_name")
+        if event != "PreToolUse":
+            # Old running sessions can retain removed PermissionRequest hooks.
+            return
         root = Path(__file__).resolve().parent.parent
         rules_path = root / "hook-rules.json"
         if not rules_path.exists():

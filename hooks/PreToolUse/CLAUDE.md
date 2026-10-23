@@ -2,13 +2,18 @@
 
 A rule-based engine shared by Claude Code and Codex. Claude's `interpreter.py`
 returns its native decisions. Codex's `codex_adapter.py` translates supported tool
-inputs and emits the distinct PreToolUse and PermissionRequest response shapes.
+inputs and returns only explicit PreToolUse denials.
 
 Codex installs its own snapshot of the same engine/rules from this source; it
 does not require Claude to be installed. Keep policy changes in the engine, not
-duplicated in either adapter. Unknown permission input defers, and errors never
-auto-approve. Codex PreToolUse errors or `ask` rules block rather than silently
-executing. The bounded metadata log must never include command text or file contents.
+duplicated in either adapter. Codex leaves approvals to native permissions and
+automatic review: `allow`, `proceed`, and `ask` defer without a hook decision.
+Codex cannot force an approval prompt for an `ask` rule; a native sandbox allowance
+can therefore run without a prompt. Unsupported tools or patch syntax defer to
+native permissions. Evaluation failures block PreToolUse with exit 2. Hooks do
+not inspect later input to a running shell or hosted tools. The bounded metadata
+log must never include command text or file contents. Setup selects an already
+installed Python 3.12+ runtime and exposes it at `~/.agent-skills/scripts/python`.
 
 ## Architecture
 
@@ -113,7 +118,7 @@ entries are full rule objects rather than relax-only overrides:
 
 Overlay rules are exempt from the `rules.json` convention checker (they are not
 in this repo). An absent overlay adds no rules. Claude ignores malformed overlays;
-Codex blocks PreToolUse evaluation and defers PermissionRequest to normal approval.
+Codex blocks PreToolUse evaluation; cached PermissionRequest calls always defer.
 Distinct from the per-repo `.agent-skills/config.json`, which only _relaxes_ existing denies.
 
 ## Testing

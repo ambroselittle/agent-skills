@@ -2,9 +2,9 @@
 """Config and settings primitives for setup.sh.
 
 setup.sh shells out to this script for everything that needs judgment beyond
-copying files: reading the ``exclude`` block from ``~/.claude/agent-skills.json``,
+copying files: reading shared preferences from ``~/.agent-skills/config.json``,
 persisting ``--without``, and every edit to ``~/.claude/settings.json``,
-``~/.claude/CLAUDE.md``, and the shell rc file. Each install primitive has an
+the agents' managed guidance blocks, and the shell rc file. Each primitive has an
 inverse so an excluded component can be removed with the same tested code that
 installed it.
 
@@ -22,8 +22,9 @@ Usage (each prints the same status lines setup.sh used to print inline):
     setup_config.py guidance upsert|remove <CLAUDE.md> [<content-file>|-]
     setup_config.py rcfence upsert|remove <rcfile> [<block-file>|-]
 
-The config path defaults to ``~/.claude/agent-skills.json`` and can be overridden
-with the ``AGENT_SKILLS_CONFIG`` environment variable (tests rely on this).
+The config path defaults to ``~/.agent-skills/config.json`` and can be overridden
+with ``AGENT_SKILLS_CONFIG``. Per-agent preferences under ``agents`` override
+shared defaults; managed guidance retains personal text outside its block.
 """
 
 from __future__ import annotations
@@ -119,7 +120,7 @@ def config_path() -> Path:
     override = os.environ.get("AGENT_SKILLS_CONFIG")
     if override:
         return Path(override).expanduser()
-    return Path.home() / ".claude" / "agent-skills.json"
+    return Path.home() / ".agent-skills" / "config.json"
 
 
 def load_json(path: Path) -> dict:
@@ -200,8 +201,35 @@ def normalize_exclusions(config: dict) -> dict[str, set[str]]:
     return result
 
 
+def agent_preferences(common: dict, agent: str) -> tuple[dict, dict]:
+    """Return an agent's writable overrides and its effective shared preferences."""
+    agents = common.get("agents", {})
+    if not isinstance(agents, dict):
+        raise ValueError("agents must be an object")
+    overrides = agents.get(agent, {})
+    if not isinstance(overrides, dict):
+        raise ValueError(f"agents.{agent} must be an object")
+
+    def exclusions(config: dict) -> dict:
+        value = config.get("exclude", {})
+        if isinstance(value, dict):
+            return value
+        normalize_exclusions(config)
+        return {}
+
+    return overrides, {
+        **common,
+        **overrides,
+        "exclude": {**exclusions(common), **exclusions(overrides)},
+    }
+
+
 def cmd_exclusions(_: argparse.Namespace) -> int:
-    for key, names in sorted(normalize_exclusions(load_json(config_path())).items()):
+    config = load_json(config_path())
+    agent = os.environ.get("AGENT_SKILLS_SETUP_AGENT")
+    if agent:
+        _, config = agent_preferences(config, agent)
+    for key, names in sorted(normalize_exclusions(config).items()):
         for name in sorted(names):
             print(f"{key}={name}")
     return 0
@@ -317,7 +345,9 @@ def cmd_hook(args: argparse.Namespace) -> int:
 
 
 def cmd_codex_policy(args: argparse.Namespace) -> int:
-    """Install a self-contained snapshot; keep the emergency adapter's entry path."""
+    """Install explicit-deny enforcement; native permissions retain all approvals."""
+    import setup_migrations
+
     home = Path(args.codex_home).expanduser()
     source = Path(args.source)
     settings_path = home / "hooks.json"
@@ -326,7 +356,20 @@ def cmd_codex_policy(args: argparse.Namespace) -> int:
     hook_dir = home / "hooks"
     target = hook_dir / "agent-skills-policy"
     entry = hook_dir / "agent-skills-permission-request.py"
-    command = f"python3 {shlex.quote(str(entry))}"
+    runtime = Path.home() / ".agent-skills/scripts/python"
+    command = f"{shlex.quote(str(runtime))} {shlex.quote(str(entry))}"
+    # Reconcile existing definitions, including snapshots installed before the
+    # shared runtime existed. Their cached PermissionRequest events now defer.
+    setup_migrations.remove_owned_approval_hooks(home)
+    settings = json.loads(settings_path.read_text()) if settings_path.exists() else {}
+    for old in list(settings.get("hooks", {}).get("PreToolUse", [])):
+        for handler in list(old.get("hooks", [])):
+            try:
+                ours = str(entry) in shlex.split(handler.get("command", ""))
+            except ValueError:
+                ours = False
+            if ours:
+                hook_unregister(settings, "PreToolUse", handler["command"])
     if args.action == "remove":
         for event in ("PermissionRequest", "PreToolUse"):
             hook_unregister(settings, event, command)
@@ -354,43 +397,14 @@ def cmd_codex_policy(args: argparse.Namespace) -> int:
         staged_engine.replace(engine)
     shutil.copy2(source / "rules.json", target / "hook-rules.json")
     shutil.copy2(source / "codex-policy.py", entry)
-    # Retain the original Bash hook unchanged so its reviewed definition stays
-    # current. Additional paths and PreToolUse each get their own review.
-    hooks = settings.setdefault("hooks", {}).setdefault("PermissionRequest", [])
-    if not any(
-        entry.get("matcher") == "^Bash$" and _find_hook([entry], command) is not None
-        for entry in hooks
-    ):
-        hooks.append(
-            {
-                "matcher": "^Bash$",
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": command,
-                        "timeout": 10,
-                    }
-                ],
-            }
-        )
-    if not getattr(args, "shell_only", False):
-        for event, matcher in (
-            ("PermissionRequest", "^(apply_patch|mcp__.*)$"),
-            ("PreToolUse", "^(Bash|apply_patch|mcp__.*)$"),
-        ):
-            entries = settings["hooks"].setdefault(event, [])
-            desired = {
-                "matcher": matcher,
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": command,
-                        "timeout": 10,
-                    }
-                ],
-            }
-            if not any(e == desired for e in entries):
-                entries.append(desired)
+    matcher = "^Bash$" if getattr(args, "shell_only", False) else "^(Bash|apply_patch|mcp__.*)$"
+    entries = settings.setdefault("hooks", {}).setdefault("PreToolUse", [])
+    desired = {
+        "matcher": matcher,
+        "hooks": [{"type": "command", "command": command, "timeout": 10}],
+    }
+    if not any(entry == desired for entry in entries):
+        entries.append(desired)
     save_json(settings_path, settings)
     ok(f"Codex policy installed in {target}")
     print(f"  Decision diagnostics (no command content): {target / 'codex-events.jsonl'}")
@@ -399,31 +413,59 @@ def cmd_codex_policy(args: argparse.Namespace) -> int:
 
 
 def codex_skills(root: Path, home: Path, exclusions: set[str], dry_run: bool) -> None:
-    """Link reviewed portable skills, owning only links recorded by this installer."""
+    """Compatibility entry point for the shared per-agent skill linker."""
+    agent_skills(root, "codex", home, exclusions, dry_run)
+
+
+def agent_skills(
+    root: Path,
+    agent: str,
+    home: Path,
+    exclusions: set[str],
+    dry_run: bool,
+    *,
+    primary_root: Path | None = None,
+) -> None:
+    """Select the manifest exactly and route harness aliases through shared sources."""
     catalog = json.loads((root / "skills/compatibility.json").read_text())
     manifest_path = home / "agent-skills-links.json"
     manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
-    skill_home = Path.home() / ".agents/skills"
-    for name, info in catalog.items():
+    skill_home = home / "skills" if agent == "claude" else Path.home() / ".agents/skills"
+    canonical = Path.home() / ".agent-skills/skills"
+    desired = {**catalog, "shared": {"supportedAgents": ["claude", "codex"]}}
+    for name in sorted(set(desired) | set(manifest)):
+        info = desired.get(name, {})
         target = skill_home / name
-        source = root / "skills" / name
-        excluded = "all" in exclusions or name in exclusions
-        supported = info["codex"] == "shared"
+        source = canonical / name
+        excluded = name != "shared" and ("all" in exclusions or name in exclusions)
+        supported = agent in info.get("supportedAgents", [])
+        ours = target.is_symlink() and (
+            str(target.readlink()) in (str(source), manifest.get(name))
+            or target.resolve() == (root / "skills" / name).resolve()
+            or (
+                primary_root is not None
+                and target.resolve() == (primary_root / "skills" / name).resolve()
+            )
+            or target.resolve() == source.resolve()
+        )
         if not supported and not excluded:
-            skip(f"{name}: Claude-only — {info['reason']}")
+            skip(f"{name}: unavailable for {agent} — {info.get('reason', 'retired skill')}")
         if excluded or not supported:
-            owned = manifest.get(name)
-            if owned and target.is_symlink() and str(target.resolve()) == owned:
-                print(f"  Remove owned skill link: {target}")
+            reason = "excluded" if excluded else "unsupported"
+            if ours:
+                print(f"  removed {name} ({reason})")
                 if not dry_run:
                     target.unlink()
-                    del manifest[name]
+                    manifest.pop(name, None)
+            elif target.exists() or target.is_symlink():
+                skip(f"{name} {reason}, but {target} is not ours — left alone")
             continue
-        if target.is_symlink() and target.resolve() == source.resolve():
+        if target.is_symlink() and target.readlink() == source:
             skip(f"{name} already linked")
+            manifest[name] = str(source)
             continue
         if target.exists() or target.is_symlink():
-            if not target.is_symlink() or str(target.resolve()) != manifest.get(name):
+            if not ours:
                 skip(f"{target}: existing skill left alone")
                 continue
         print(f"  Link {target} → {source}")
@@ -431,7 +473,7 @@ def codex_skills(root: Path, home: Path, exclusions: set[str], dry_run: bool) ->
             target.parent.mkdir(parents=True, exist_ok=True)
             target.unlink(missing_ok=True)
             target.symlink_to(source, target_is_directory=True)
-            manifest[name] = str(source.resolve())
+            manifest[name] = str(source)
     if not dry_run and manifest:
         save_json(manifest_path, manifest)
     elif not dry_run and manifest_path.exists():

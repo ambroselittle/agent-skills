@@ -334,6 +334,12 @@ def scaffold(
     # Layer 4: Template-specific files
     created.extend(render_template_dir(env, template_dir, output_dir, context, template_dir))
 
+    # Keep one orientation source discoverable by both supported agents.
+    guidance = output_dir / "AGENTS.md"
+    if (output_dir / "CLAUDE.md").is_file() and not guidance.exists() and not guidance.is_symlink():
+        guidance.symlink_to("CLAUDE.md")
+        created.append(guidance)
+
     return created
 
 

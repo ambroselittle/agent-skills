@@ -8,18 +8,20 @@ argument-hint: "[LINEAR-ID | NOTION-URL | GITHUB-ISSUE | description]"
 
 You are a senior engineer helping to set up a well-scoped implementation plan before writing any code.
 
-**Arguments:** $ARGUMENTS
+**Arguments:** Use the arguments supplied with this skill invocation or the user's current request.
 
-**Pre-loaded context:**
+Read `~/.agent-skills/skills/shared/references/harness-capabilities.md` before proceeding. Use its active-harness mappings for skills, questions, progress, delegation, model tiers, project instructions, and connected tools.
 
-- Current branch: !`~/.claude/skills/shared/scripts/context.sh current-branch`
-- Work folder: !`~/.claude/skills/shared/scripts/context.sh work-folder`
-- Ticket ID: !`~/.claude/skills/shared/scripts/context.sh ticket-id`
-- User branch prefix: !`~/.claude/skills/shared/scripts/context.sh user-slug`
-- CLAUDE.md exists: !`~/.claude/skills/plan-work/scripts/context.sh claude-md-exists`
-- Repo remote (owner/repo): !`~/.claude/skills/shared/scripts/context.sh repo-remote`
+**Context to load explicitly:** Run each command below before interpreting its output. These are shell commands to execute, not values supplied automatically by the harness.
 
-**Setup check:** If the pre-loaded `Work folder` shows `needs-setup`, stop immediately: "Agent-skills isn't configured yet — run `/setup-agent-skills` first (takes under a minute) to set your work folder location and branch prefix, then come back here."
+- Current branch: `bash ~/.agent-skills/scripts/shared/context.sh current-branch`
+- Work folder: `bash ~/.agent-skills/scripts/shared/context.sh work-folder`
+- Ticket ID: `bash ~/.agent-skills/scripts/shared/context.sh ticket-id`
+- User branch prefix: `bash ~/.agent-skills/scripts/shared/context.sh user-slug`
+- Project instructions: `bash ~/.agent-skills/scripts/plan-work/context.sh project-instructions`
+- Repo remote (owner/repo): `bash ~/.agent-skills/scripts/shared/context.sh repo-remote`
+
+**Setup check:** If the loaded `Work folder` shows `needs-setup`, stop immediately: "Agent-skills isn't configured yet — run `/setup-agent-skills` first to set your work folder location and branch prefix, then come back here."
 
 ---
 
@@ -34,11 +36,7 @@ Determine what you're working on. Classify the argument by matching these patter
 
 ### If a Linear issue ID was provided:
 
-Fetch the issue using the Linear MCP:
-
-```
-mcp__claude_ai_Linear__get_issue { "issueId": "<ID>" }
-```
+Fetch the issue with the available connected Linear tool. Discover its current schema and pass the provided issue ID; include the description and related issue context.
 
 Summarize the issue title and description in 2–3 sentences and proceed — no confirmation needed unless the issue is ambiguous or has no description.
 
@@ -52,21 +50,17 @@ Summarize the issue title and description in 2–3 sentences and proceed — no 
   - "Fix loan export when borrower has multiple co-applicants" → `lc-22054-loan-export-coapplicants`
   - "Make info icons smaller and gray on USDA and Residual Income screens" → `lc-21871-info-icon-styling`
   - "Improve UX of the deployment dashboard" → `lc-17331-deployments-ux`
-- Use the same slug for: branch suffix, worktree directory name, and the work folder (`<work-folder>` from pre-loaded context).
+- Use the same slug for: branch suffix, worktree directory name, and the work folder (`<work-folder>` from loaded context).
 
 **Track:** store the Linear issue ID in the plan frontmatter as `linear-issue`.
 
 ### If a Notion URL was provided:
 
-The Notion page is the **spec or existing plan** — it is the source of intent for this work item. Fetch it:
-
-```
-mcp__claude_ai_Notion__notion-fetch { "url": "<URL>" }
-```
+The Notion page is the **spec or existing plan** — it is the source of intent for this work item. Fetch its full content with the available connected Notion tool, using its current schema.
 
 Summarize what the Notion page describes (2–3 sentences). Then ask: "Do you also have a Linear issue for this work? If so, share the ID (e.g. `ENG-42`) — I'll link it to the plan."
 
-- If they provide a Linear ID → also fetch that issue with `mcp__claude_ai_Linear__get_issue` and use both as context
+- If they provide a Linear ID → also fetch that issue with the available connected Linear tool and use both as context
 - If not → proceed with the Notion page as the sole source
 
 **Derive the slug:** from the Notion page title. If a Linear ID was provided, prefix with it (`eng-42-<fragment>`); otherwise use the page title alone. Apply the same slug rule as the Linear section above — concise 2–4 keyword fragment, 70-char hard cap on the full slug. Use consistently for branch, worktree, and work folder.
@@ -127,7 +121,7 @@ If the source looks like it covers more than one focused effort:
 
 > "This covers [brief summary]. Want me to plan the whole thing, or focus on a specific part for this session?"
 
-Wait for the user's response. (`CLAUDE_HIVE=1`: plan the whole thing by default.)
+Wait for the user's response. In unattended mode (`AGENT_SKILLS_NONINTERACTIVE=1`, or legacy `CLAUDE_HIVE=1`), plan the whole thing by default.
 
 - **All / whole thing** → use the full source as the work description. Proceed.
 - **Specific part** → use that scoped description as the work item, but keep the full source as background context for discovery.
@@ -136,7 +130,7 @@ If the source is already focused (a single clear task), skip this question and p
 
 ### Check for an existing plan
 
-First check the pre-loaded `Work folder`. If it is not "none", you are already on a branch with a matching work directory — read `<work-folder>/plan.md`, summarize its goal and current status in 1–2 sentences, and ask: "Found an existing plan for `<slug>`. Want to resume it, start fresh, or just see what's left?" Wait for their answer before proceeding.
+First check the loaded `Work folder`. If it is not "none", you are already on a branch with a matching work directory — read `<work-folder>/plan.md`, summarize its goal and current status in 1–2 sentences, and ask: "Found an existing plan for `<slug>`. Want to resume it, start fresh, or just see what's left?" Wait for their answer before proceeding.
 
 If `Work folder` is `none` but the derived slug matches an existing directory under your work root, apply the same flow.
 
@@ -146,16 +140,16 @@ After the slug is determined, set up the working branch and optionally a worktre
 
 **Ask:** "Should I create the branch `<user-prefix>/<slug>` now? And do you want a git worktree for this work?"
 
-Show which branch they're currently on (from pre-loaded context) so they can decide whether to branch from here or from main.
+Show which branch they're currently on (from loaded context) so they can decide whether to branch from here or from main.
 
 A worktree lets you work on this branch in an isolated directory — useful for longer-lived work or parallel tasks.
 
-**Non-interactive mode (`CLAUDE_HIVE=1`):** Always create a worktree from main — skip the question.
+**Non-interactive mode:** When `AGENT_SKILLS_NONINTERACTIVE=1` or legacy `CLAUDE_HIVE=1`, always create a worktree from main — skip the question.
 
 **Worktree setup:**
 
-1. **Check CLAUDE.md for worktree guidance.** If it has instructions, follow them exactly — don't improvise. Repos that need custom setup (env syncing, port assignment, deps) document it there.
-2. **No CLAUDE.md guidance:** use the `EnterWorktree` tool to create and enter the worktree, then run `make init` if a Makefile with an `init` target exists. If neither is found, tell the user: "Worktree created, but I couldn't find any initialization config for this repo. You may need to install dependencies manually, or tell me what to run and I'll do it."
+1. **Read project worktree guidance.** Read applicable `AGENTS.md`, legacy `CLAUDE.md`, and rules from `.agents/rules/` and `.claude/rules/`. Follow documented setup for environment syncing, ports, and dependencies.
+2. **No documented worktree procedure:** use the active harness's worktree capability, or ordinary Git worktree creation following the shared capability reference. Run subsequent discovery/planning commands in the created directory; do not claim the current session moved unless the harness actually moved it. Then run `make init` if a Makefile with an `init` target exists. If no setup is documented, report the worktree path and ask what initialization to run.
 
 **Branch only (no worktree):**
 
@@ -200,7 +194,7 @@ State your classification and the key reasons. Format:
 
 Wait for the user's response before proceeding.
 
-**Non-interactive mode (`CLAUDE_HIVE=1`):** If this environment variable is set, there is no human in the loop — skip the confirmation and proceed with your best-judgment classification. Note the classification in the plan's `## Context` section so the user can see what was chosen.
+**Non-interactive mode:** When `AGENT_SKILLS_NONINTERACTIVE=1` or legacy `CLAUDE_HIVE=1`, there is no human in the loop — skip the confirmation and proceed with your best-judgment classification. Note the classification in the plan's `## Context` section so the user can see what was chosen.
 
 ---
 
@@ -210,14 +204,14 @@ Wait for the user's response before proceeding.
 
 Now that you know what you're building, explore the codebase.
 
-Read `CLAUDE.md` and `.claude/rules/` (if present) to understand project conventions, tech stack, and verification commands. Note the verification commands — you'll need them for the plan.
+Read applicable project instructions (`AGENTS.md`, legacy `CLAUDE.md`, and `.agents/rules/` / `.claude/rules/`) to understand project conventions, tech stack, and verification commands. Note the verification commands — you'll need them for the plan.
 
-### Spawn a discovery agent. Pass it the following explicitly (don't assume it can find things):
+### Spawn a discovery agent using the medium model tier. Pass it the following explicitly (don't assume it can find things):
 
 - The work item description
-- The full contents of `CLAUDE.md` (if it exists)
+- The applicable project instructions, deduplicating linked copies
 - The repo root path
-- `repo_owner` and `repo_name` parsed from the pre-loaded "Repo remote" context (format: `owner/repo`)
+- `repo_owner` and `repo_name` parsed from the loaded "Repo remote" context (format: `owner/repo`)
 
 Agent prompt:
 
@@ -225,8 +219,8 @@ Agent prompt:
 >
 > Work item: [summarize the goal in 1–2 sentences]
 >
-> Project conventions (from CLAUDE.md):
-> [paste CLAUDE.md contents]
+> Project conventions:
+> [paste applicable project instructions]
 >
 > Explore the codebase to find:
 >
@@ -245,7 +239,7 @@ Wait for the discovery agent to complete before writing any plan.
 
 ## Phase 2: Plan
 
-**Small scope fast path:** For **small** scope, you have no discovery findings — write the plan directly from the source material (issue or description) and your own knowledge of the codebase (from CLAUDE.md and any files you read during intake). Keep it to 1–2 phases. The plan format below still applies — don't invent a different structure.
+**Small scope fast path:** For **small** scope, you have no discovery findings — write the plan directly from the source material (issue or description) and your own knowledge of the codebase (from project instructions and files read during intake). Keep it to 1–2 phases. The plan format below still applies — don't invent a different structure.
 
 Synthesize the issue context and discovery findings into a phased implementation plan. Treat the issue as **intent**, not a literal spec — if discovery reported mismatches (item 5) or better alternatives (item 6), incorporate those into the plan rather than following the issue blindly. If a mismatch significantly changes scope or approach, surface it to the user before drafting.
 
@@ -264,7 +258,7 @@ If you're unsure how to phase the work, fewer larger phases beats more smaller o
 
 Save to `<work-folder>/plan.md` (create the directory with `mkdir -p` if it doesn't exist yet).
 
-**Read the full template** at `~/.claude/skills/plan-work/references/plan-template.md` before writing the plan — it has the exact structure that `/do-work`, `/plan-review`, and `/super-work` depend on.
+**Read the full template** at `~/.agent-skills/skills/plan-work/references/plan-template.md` before writing the plan — it has the exact structure that `/do-work`, `/plan-review`, and `/super-work` depend on.
 
 Key structural rules:
 

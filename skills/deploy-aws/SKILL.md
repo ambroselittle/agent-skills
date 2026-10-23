@@ -6,29 +6,42 @@ argument-hint: "[update|cleanup]"
 
 # Deploy to AWS
 
+Use the active agent’s native question, progress, skill invocation, and delegation capabilities as described in [harness capabilities](../shared/references/harness-capabilities.md). Load context explicitly by running the commands below; do not assume shell snippets or Claude variables are expanded automatically. Read shared preferences from `~/.agent-skills/config.json`; agent-specific overrides live under `agents.<agent>`.
+
 You are a deployment assistant. Your job is to get this project running on AWS with minimal friction — provisioning infra, building images, deploying services, and handing back live URLs.
 
-**Arguments:** $ARGUMENTS
+**Input:** optional mode from the user’s request
 - `update` — skip interview, re-deploy using existing `.deploy-aws.json` config
 - `cleanup` — tear down all provisioned AWS resources and delete `.deploy-aws.json`
 
-**Pre-loaded context:**
+Load deployment context explicitly from the project being deployed. Keep that working directory for every deployment command; `--project` selects the Python environment without changing where `.deploy-aws.json` is read and written. Run each helper separately:
 
-- AWS auth: !`~/.claude/skills/deploy-aws/scripts/context.sh auth-status`
-- Dockerfiles found: !`~/.claude/skills/deploy-aws/scripts/context.sh dockerfiles`
-- Existing deploy config: !`~/.claude/skills/deploy-aws/scripts/context.sh deploy-config`
-- Repo template type: !`~/.claude/skills/deploy-aws/scripts/context.sh template-type`
+```bash
+~/.agent-skills/scripts/deploy-aws/context.sh auth-status
+```
+
+```bash
+~/.agent-skills/scripts/deploy-aws/context.sh dockerfiles
+```
+
+```bash
+~/.agent-skills/scripts/deploy-aws/context.sh deploy-config
+```
+
+```bash
+~/.agent-skills/scripts/deploy-aws/context.sh template-type
+```
 
 ---
 
 ## Step 0: Cleanup (early exit)
 
-If `$ARGUMENTS` is `cleanup`:
+If the requested mode is `cleanup`:
 
 1. Confirm with the user: "This will delete all AWS resources for the app in `.deploy-aws.json` (App Runner services, ECR repos, RDS instance, security group, IAM role). This cannot be undone. Proceed?"
 2. If confirmed, run:
    ```bash
-   uv run --project ~/.claude/skills/deploy-aws python ~/.claude/skills/deploy-aws/scripts/cleanup.py
+   uv run --project ~/.agent-skills/skills/deploy-aws python ~/.agent-skills/scripts/deploy-aws/cleanup.py
    ```
    Pass `--keep-config` if the user says they want to keep `.deploy-aws.json`.
 3. Print the script output and stop — do not proceed to any other steps.
@@ -37,7 +50,7 @@ If `$ARGUMENTS` is `cleanup`:
 
 ## Step 1: Auth Check
 
-If the AWS auth pre-loaded context shows an error or is empty:
+If the AWS auth loaded context shows an error or is empty:
 
 > "AWS CLI isn't authenticated. Run `aws login` in your terminal (it opens a browser), then retry."
 
@@ -47,7 +60,7 @@ Stop here until auth is confirmed.
 
 ## Step 2: Assess State
 
-If `$ARGUMENTS` includes `update` **and** `.deploy-aws.json` exists with a valid config:
+If the requested mode includes `update` **and** `.deploy-aws.json` exists with a valid config:
 - Skip the interview entirely
 - Jump to Step 4 (build + push)
 
@@ -60,14 +73,7 @@ If `.deploy-aws.json` exists but `update` was not passed:
 
 ## Step 3: Interview
 
-Use `AskUserQuestion` for every question. Batch independent questions in one call (max 4 per call).
-
-**AskUserQuestion constraints:**
-- `questions`: array of 1–4 question objects
-- Each: `question` (string), `header` (max 12 chars), `options` (2–4 items), `multiSelect` (boolean)
-- Each option: `label` (1–5 words), `description`
-- Tool auto-adds "Other" for free text — don't add it yourself
-- Put the most common/default first
+Use the available question interface and its actual schema; otherwise ask conversationally and wait. Batch only independent questions.
 
 ### Batch 1 — App basics
 
@@ -133,7 +139,7 @@ Ask: "Ready to deploy?" before proceeding.
 Run the provision script. This is idempotent — safe to re-run.
 
 ```bash
-uv run --project ~/.claude/skills/deploy-aws python ~/.claude/skills/deploy-aws/scripts/provision.py \
+uv run --project ~/.agent-skills/skills/deploy-aws python ~/.agent-skills/scripts/deploy-aws/provision.py \
   --app <app-name> \
   --region <region> \
   --services <comma-separated service names, e.g. "api,web"> \
@@ -156,7 +162,7 @@ If it fails: read the error, diagnose (common issues: region not enabled, servic
 For each service being deployed, build its Docker image and push to ECR.
 
 ```bash
-uv run --project ~/.claude/skills/deploy-aws python ~/.claude/skills/deploy-aws/scripts/build-push.py \
+uv run --project ~/.agent-skills/skills/deploy-aws python ~/.agent-skills/scripts/deploy-aws/build-push.py \
   --service <service-name>
 ```
 
@@ -171,7 +177,7 @@ If a build fails: show the last 20 lines of output, diagnose the error (missing 
 Deploy each service to App Runner. For fullstack apps, **always deploy API before web** (web needs the API's live URL for `API_HOST`).
 
 ```bash
-uv run --project ~/.claude/skills/deploy-aws python ~/.claude/skills/deploy-aws/scripts/deploy.py \
+uv run --project ~/.agent-skills/skills/deploy-aws python ~/.agent-skills/scripts/deploy-aws/deploy.py \
   --service <service-name>
 ```
 
@@ -197,7 +203,7 @@ Database: <endpoint>:5432/<db-name>  (RDS free tier — remember to delete when 
 Config saved to .deploy-aws.json — run /deploy-aws update to redeploy.
 ```
 
-If any service URL is for the web app, open it: `open <url>`.
+If any service URL is for the web app, open it with the available local browser capability.
 
 ---
 

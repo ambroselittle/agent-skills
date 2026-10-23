@@ -8,12 +8,15 @@ argument-hint: "[WORK-SLUG | FILE-PATH]"
 
 You are a senior engineer coordinating a parallel review of an implementation plan. Your job is to run specialized reviewers and synthesize their findings into actionable feedback.
 
-**Arguments:** $ARGUMENTS
+**Arguments:** Use the arguments supplied with this skill invocation or the user's current request.
 
-**Pre-loaded context:**
-- Work folder: !`~/.claude/skills/shared/scripts/context.sh work-folder`
-- Ticket ID: !`~/.claude/skills/shared/scripts/context.sh ticket-id`
-- Plan reviewer agents: !`~/.claude/skills/plan-review/scripts/context.sh plan-reviewer-agents`
+Read `~/.agent-skills/skills/shared/references/harness-capabilities.md` before proceeding. Use its active-harness mappings for skills, questions, progress, delegation, model tiers, project instructions, and connected tools.
+
+**Context to load explicitly:** Run each command below before interpreting its output. These are shell commands to execute, not values supplied automatically by the harness.
+
+- Work folder: `bash ~/.agent-skills/scripts/shared/context.sh work-folder`
+- Ticket ID: `bash ~/.agent-skills/scripts/shared/context.sh ticket-id`
+- Plan reviewer agents: `bash ~/.agent-skills/scripts/plan-review/context.sh plan-reviewer-agents`
 
 **Setup check:** If `Work folder` shows `needs-setup`, stop: "Run `/setup-agent-skills` first to configure your work folder, then come back."
 
@@ -21,13 +24,13 @@ You are a senior engineer coordinating a parallel review of an implementation pl
 
 ## Phase 0: Resolve the Plan
 
-Determine what plan to review from `$ARGUMENTS`:
+Determine what plan to review from the invocation input:
 
 ### Input detection
 
 - **Bare slug** — looks like a slug (lowercase, hyphens, no spaces). Resolve to `<work-folder>/plan.md` using the configured work root.
 - **File path** — starts with `/`, `./`, or `~`, or ends with `.md`. Read the file directly.
-- **No arguments** — use the pre-loaded `Work folder`. If not "none", resolve to `<work-folder>/plan.md`. If "none": "No plan found. Provide a work slug or file path, or switch to your feature branch first."
+- **No arguments** — use the loaded `Work folder`. If not "none", resolve to `<work-folder>/plan.md`. If "none": "No plan found. Provide a work slug or file path, or switch to your feature branch first."
 
 ### Validate
 
@@ -41,21 +44,21 @@ Store the plan content — you'll pass it to every reviewer.
 
 ### Determine which reviewers to run
 
-Use the pre-loaded "Plan reviewer agents" context. This lists:
+Use the loaded "Plan reviewer agents" context. This lists:
 - **always-on** agents — run unconditionally
 - **selectable** agents — mention them to the user and ask which to include (or skip if none)
 
-All built-in plan reviewers are always-on. Repo-specific agents in `.claude/agents/plan-reviewers/` override built-ins of the same name by slug.
+All built-in plan reviewers are always-on. For each exact slug, use `.agents/plan-reviewers/<name>.md` first, then legacy `.claude/agents/plan-reviewers/<name>.md`, then the built-in persona at `~/.agent-skills/skills/plan-review/agents/<name>.md`. Run one winning persona per name; do not move existing repository overrides.
 
 ### Read the finding format
 
-Read `${CLAUDE_SKILL_DIR}/references/plan-finding-format.md` — include its full content in each agent prompt.
+Read `~/.agent-skills/skills/plan-review/references/plan-finding-format.md` — include its full content in each agent prompt.
 
-### Read CLAUDE.md
+### Read project instructions
 
-If `CLAUDE.md` exists in the repo root, read it — reviewers need project conventions for context.
+Read applicable `AGENTS.md`, legacy `CLAUDE.md`, and `.agents/rules/` / `.claude/rules/`; reviewers need project conventions. Deduplicate linked copies.
 
-### Spawn all reviewers in parallel
+### Spawn all reviewers in parallel using the medium model tier
 
 Each agent prompt:
 
@@ -67,8 +70,8 @@ Each agent prompt:
 > **Plan finding format** (you MUST use this format for all findings):
 > [paste full contents of plan-finding-format.md]
 >
-> **Project conventions (CLAUDE.md):**
-> [paste CLAUDE.md contents if present, or "No CLAUDE.md found in this repo."]
+> **Project conventions:**
+> [paste applicable project instructions, or state that none were found]
 >
 > **The plan to review:**
 > [paste full plan document]

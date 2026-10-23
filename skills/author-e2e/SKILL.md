@@ -66,7 +66,7 @@ Before writing any test code:
 2. **Find Playwright config** — look for `playwright.config.ts` in the project. Note the `testDir`, `baseURL`, and `webServer` settings
 3. **Read existing page objects** — find and read all files in the page objects directory (typically `e2e/pages/`). Understand what's already built
 4. **Read existing tests** — look at existing E2E test files for patterns: imports, test structure, how page objects are used
-5. **Read `.claude/rules/e2e-testing.md`** if it exists — project-specific E2E conventions
+5. **Read project guidance (`AGENTS.md` or `CLAUDE.md`) and `.claude/rules/e2e-testing.md`** if present — project-specific E2E conventions apply in either harness
 
 If no Playwright setup exists in the project, stop and tell the user: "This project doesn't have Playwright configured. Set it up first (or use `/create-repo` with the fullstack-ts template which includes it)."
 
@@ -142,7 +142,7 @@ test.describe("<Feature Name>", () => {
    ```
    pnpm test:e2e
    ```
-   Or the project-specific E2E command from CLAUDE.md.
+   Or the project-specific E2E command from the project guidance.
 
 2. If tests fail, read the error, understand why, and fix. Don't guess — understand the failure.
 

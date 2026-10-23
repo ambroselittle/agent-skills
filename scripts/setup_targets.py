@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""Target selection for setup.sh; configuration writes stay in setup_config."""
+"""Discover installed agents and apply their components from one shared source."""
 
 from __future__ import annotations
 
 import argparse
-import json
 import os
+import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import setup_config
+import setup_migrations
 
 ROOT = Path(__file__).resolve().parent.parent
 COMPONENTS = (
@@ -48,29 +50,55 @@ def target_home(target: str) -> Path:
     return Path.home() / ".claude"
 
 
+def detected_agents() -> tuple[str, ...]:
+    """Empty agent directories alone are not an installed/configured agent."""
+    roots = os.environ.get("AGENT_SKILLS_APPLICATION_DIRS")
+    app_roots = (
+        [Path(path).expanduser() for path in roots.split(os.pathsep) if path]
+        if roots is not None
+        else [Path("/Applications"), Path.home() / "Applications"]
+    )
+    found = []
+    for agent in ("claude", "codex"):
+        home = target_home(agent)
+        configs = (
+            ("settings.json", "settings.local.json", "CLAUDE.md", "agent-skills.json")
+            if agent == "claude"
+            else ("config.toml", "AGENTS.md", "hooks.json", "agent-skills.json")
+        )
+        apps = ("Claude.app",) if agent == "claude" else ("Codex.app",)
+        if (
+            shutil.which(agent)
+            or any((home / name).is_file() for name in configs)
+            or any((directory / name).is_dir() for directory in app_roots for name in apps)
+        ):
+            found.append(agent)
+    return tuple(found)
+
+
 def exclusion_block(config: dict) -> dict:
     raw = config.get("exclude", {})
     if isinstance(raw, dict):
         return raw
-    # Reuse the established warning instead of failing before normalization.
     setup_config.normalize_exclusions(config)
     return {}
 
 
 def target_config(target: str) -> tuple[Path, dict, dict]:
-    """Read each agent's config; Codex overrides inherited Claude categories."""
-    common_path = setup_config.config_path()
-    common = setup_config.load_json(common_path)
-    if target == "claude":
-        return common_path, common, common
-    path = target_home(target) / "agent-skills.json"
-    config = json.loads(path.read_text()) if path.exists() else {}
-    effective = {
-        **common,
-        **config,
-        "exclude": {**exclusion_block(common), **exclusion_block(config)},
-    }
+    path = setup_config.config_path()
+    common = setup_config.load_json(path)
+    config, effective = setup_config.agent_preferences(common, target)
     return path, config, effective
+
+
+def save_target_config(target: str, config: dict) -> None:
+    path = setup_config.config_path()
+    common = setup_config.load_json(path)
+    agents = common.setdefault("agents", {})
+    if not isinstance(agents, dict):
+        raise ValueError("agents must be an object")
+    agents[target] = config
+    setup_config.save_json(path, common)
 
 
 def guidance_path(target: str) -> Path:
@@ -78,14 +106,14 @@ def guidance_path(target: str) -> Path:
 
 
 def refresh_guidance(target: str, dry_run: bool = False) -> None:
-    """Refresh the requested agent and other agents with our managed block."""
+    """Refresh this agent and every other already-managed guidance block."""
     targets = [target]
     for other in ("claude", "codex"):
         path = guidance_path(other)
         if other != target and path.exists() and setup_config.GUIDANCE_OPEN_TAG in path.read_text():
             targets.append(other)
     for agent in targets:
-        config_path, config, effective = target_config(agent)
+        _, config, effective = target_config(agent)
         exclusions = setup_config.normalize_exclusions(effective).get("guidance", set())
         remove = bool({"all", "core"} & exclusions)
         path = guidance_path(agent)
@@ -120,10 +148,9 @@ def refresh_guidance(target: str, dry_run: bool = False) -> None:
                 except (OSError, subprocess.TimeoutExpired):
                     pass
             if user and config.get("user") != user:
-                # Validate before persisting the selection.
                 setup_config.guidance_content(ROOT, agent, user)
                 config["user"] = user
-                setup_config.save_json(config_path, config)
+                save_target_config(agent, config)
         setup_config.cmd_guidance(
             argparse.Namespace(
                 action="upsert",
@@ -133,85 +160,202 @@ def refresh_guidance(target: str, dry_run: bool = False) -> None:
         )
 
 
+def source_selection() -> tuple[Path, set[str] | None]:
+    """Keep unchanged skills on the primary checkout when using a worktree."""
+
+    def git(*arguments):
+        result = subprocess.run(
+            ["git", "-C", str(ROOT), *arguments],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return result.stdout.strip() if result.returncode == 0 else ""
+
+    common = git("rev-parse", "--git-common-dir")
+    if not common:
+        return ROOT, None
+    directory = Path(common)
+    if not directory.is_absolute():
+        directory = ROOT / directory
+    primary = directory.resolve().parent
+    if primary == ROOT:
+        return ROOT, None
+    names = set()
+    for arguments in (
+        ("diff", "--name-only", "main...", "--", "skills/"),
+        ("diff", "--name-only", "--", "skills/"),
+        ("ls-files", "--others", "--exclude-standard", "--", "skills/"),
+    ):
+        for name in git(*arguments).splitlines():
+            parts = Path(name).parts
+            if len(parts) > 1 and parts[0] == "skills":
+                names.add(parts[1])
+    if names:
+        names.add("shared")
+    return primary, names
+
+
+def install_shared_sources(dry_run: bool) -> None:
+    """Canonical aliases share maintained sources without flattening or copies."""
+    shared = Path.home() / ".agent-skills"
+    manifest_path = shared / "resource-links.json"
+    manifest = setup_config.load_json(manifest_path)
+    primary, changed = source_selection()
+    desired = {shared / "source": ROOT, shared / "scripts/python": Path(sys.executable).resolve()}
+    for source in sorted((ROOT / "skills").iterdir()):
+        if not source.is_dir() or not ((source / "SKILL.md").exists() or source.name == "shared"):
+            continue
+        if changed is not None and source.name not in changed:
+            baseline = primary / "skills" / source.name
+            if baseline.is_dir():
+                source = baseline
+        desired[shared / "skills" / source.name] = source
+        if (source / "scripts").is_dir():
+            desired[shared / "scripts" / source.name] = source / "scripts"
+    for path, source in desired.items():
+        key = str(path.relative_to(shared))
+        if path.is_symlink() and path.readlink() == source:
+            manifest[key] = str(source)
+            continue
+        if path.exists() or path.is_symlink():
+            if not path.is_symlink() or str(path.readlink()) != manifest.get(key):
+                raise ValueError(f"Shared installation path is not installer-owned: {path}")
+        print(f"  Shared source: {path} → {source}")
+        if not dry_run:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.unlink(missing_ok=True)
+            path.symlink_to(source, target_is_directory=source.is_dir())
+            manifest[key] = str(source)
+    current = {str(path.relative_to(shared)) for path in desired}
+    for key in set(manifest) - current:
+        path = shared / key
+        if path.is_symlink() and str(path.readlink()) == manifest[key]:
+            print(f"  Remove obsolete owned alias: {path}")
+            if not dry_run:
+                path.unlink()
+        if not dry_run:
+            del manifest[key]
+    if not dry_run and setup_config.load_json(manifest_path) != manifest:
+        setup_config.save_json(manifest_path, manifest)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--target", choices=("claude", "codex", "both"), default="claude")
+    parser.add_argument("--target", choices=("claude", "codex", "both"))
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--list", action="store_true", help="list components and Codex support")
+    parser.add_argument("--list", action="store_true")
     parser.add_argument(
-        "--shell-only", action="store_true", help="install only shell approval coverage"
+        "--shell-only", action="store_true", help="limit Codex denial checks to shell calls"
     )
     parser.add_argument("--refresh-guidance", action="store_true", help=argparse.SUPPRESS)
     args, remaining = parser.parse_known_args()
     if args.list:
         for component in COMPONENTS:
-            support = (
-                "supported" if component in ("skills", "pretooluse", "guidance") else "Claude-only"
+            supported = component in ("skills", "pretooluse", "guidance")
+            print(
+                f"{component}: Claude supported; Codex "
+                f"{'supported' if supported else 'Claude-only'}"
             )
-            print(f"{component}: Codex {support}")
+        print("hooks: pretooluse + notification + message-display + window-title")
+        print("all: every component")
         return 0
     try:
         selected, excluded = selection(remaining)
-    except ValueError as error:
-        parser.error(str(error))
-    targets = ("claude", "codex") if args.target == "both" else (args.target,)
-    if args.refresh_guidance:
+        targets = (
+            (("claude", "codex") if args.target == "both" else (args.target,))
+            if args.target
+            else detected_agents()
+        )
+        if not targets:
+            print(
+                "No supported agents detected. Install or configure Claude or Codex, "
+                "or select --target explicitly. Nothing changed."
+            )
+            return 0
+        if not args.dry_run:
+            setup_migrations.migrate()
+        if args.refresh_guidance:
+            for target in targets:
+                refresh_guidance(target, args.dry_run)
+            return 0
+        if not args.dry_run:
+            install_shared_sources(False)
         for target in targets:
-            refresh_guidance(target, args.dry_run)
-        return 0
-    for target in targets:
-        config_path, config, effective = target_config(target)
-        for component in excluded:
-            setup_config.add_exclusions(config, setup_config.COMPONENT_EXCLUSIONS[component])
-        effective["exclude"] = {**exclusion_block(effective), **exclusion_block(config)}
-        exclusions = setup_config.normalize_exclusions(effective)
-        if target == "claude":
-            if args.dry_run:
-                for component in sorted(selected | excluded):
-                    names = setup_config.COMPONENT_EXCLUSIONS[component]
-                    remove = all(
-                        "all" in exclusions.get(category, set())
-                        or name in exclusions.get(category, set())
-                        for category, name in names
-                    )
-                    print(f"Claude: {'remove' if remove else 'install'} {component}")
-                print("  Managed locations: ~/.claude/{skills,hooks,settings.json,CLAUDE.md}")
-                continue
-            result = subprocess.run(["bash", str(ROOT / "setup.sh"), *remaining], check=False)
-            if result.returncode:
-                return result.returncode
-            continue
-        home = target_home(target)
-        if excluded and not args.dry_run:
-            setup_config.save_json(config_path, config)
-        for component in sorted(selected | excluded):
-            category, name = setup_config.COMPONENT_EXCLUSIONS[component][0]
-            excluded_names = exclusions.get(category, set())
-            remove = "all" in excluded_names or name in excluded_names
-            action = "remove" if remove else "install"
-            if component == "pretooluse":
-                if args.dry_run:
-                    print(
-                        f"Codex: {action} policy adapter, engine and rules under {home / 'hooks'}"
-                    )
-                    print(f"  Merge tool hooks into {home / 'hooks.json'}; preserve other hooks")
-                    continue
-                setup_config.cmd_codex_policy(
-                    argparse.Namespace(
-                        action=action,
-                        codex_home=str(home),
-                        source=str(ROOT / "hooks/PreToolUse"),
-                        shell_only=args.shell_only,
+            path, config, effective = target_config(target)
+            changed = []
+            for component in sorted(excluded):
+                changed.extend(
+                    setup_config.add_exclusions(
+                        config, setup_config.COMPONENT_EXCLUSIONS[component]
                     )
                 )
-            elif component == "skills":
-                setup_config.codex_skills(ROOT, home, excluded_names, args.dry_run)
-            elif component == "guidance":
-                refresh_guidance(target, args.dry_run)
-            elif component == "window-title":
-                setup_config.codex_window_titles(home, args.dry_run)
-            else:
-                print(f"Codex: {component} is Claude-only; existing Codex settings are left alone")
+            if changed and not args.dry_run:
+                print("Persisting exclusions")
+                save_target_config(target, config)
+                print(f"  Saved to {path} — edit its exclude key to undo.")
+            effective["exclude"] = {**exclusion_block(effective), **exclusion_block(config)}
+            exclusions = setup_config.normalize_exclusions(effective)
+            if exclusions:
+                summary = " ".join(
+                    f"{key}:{','.join(sorted(value))}" for key, value in sorted(exclusions.items())
+                )
+                print(f"  Excluded ({path}): {summary}")
+            claude_components = []
+            for component in COMPONENTS:
+                if component not in selected | excluded:
+                    continue
+                category, name = setup_config.COMPONENT_EXCLUSIONS[component][0]
+                excluded_names = exclusions.get(category, set())
+                remove = "all" in excluded_names or name in excluded_names
+                action = "remove" if remove else "install"
+                if args.dry_run:
+                    print(f"{target.title()}: {action} {component}")
+                elif component == "skills":
+                    setup_config.agent_skills(
+                        ROOT,
+                        target,
+                        target_home(target),
+                        excluded_names,
+                        False,
+                        primary_root=source_selection()[0],
+                    )
+                elif component == "guidance":
+                    refresh_guidance(target)
+                elif target == "claude":
+                    claude_components.append(component)
+                elif component == "pretooluse":
+                    setup_config.cmd_codex_policy(
+                        argparse.Namespace(
+                            action=action,
+                            codex_home=str(target_home(target)),
+                            source=str(ROOT / "hooks/PreToolUse"),
+                            shell_only=args.shell_only,
+                        )
+                    )
+                elif component == "window-title":
+                    setup_config.codex_window_titles(target_home(target), False)
+                else:
+                    print(
+                        f"Codex: {component} is Claude-only; existing Codex settings are left alone"
+                    )
+            if claude_components:
+                result = subprocess.run(
+                    ["bash", str(ROOT / "setup.sh"), *claude_components, "--no-clear"],
+                    env={
+                        **os.environ,
+                        "AGENT_SKILLS_INTERNAL_CLAUDE_COMPONENTS": "1",
+                        "AGENT_SKILLS_SETUP_AGENT": "claude",
+                        "AGENT_SKILLS_CONFIG": str(path),
+                        "AGENT_SKILLS_PYTHON": str(Path.home() / ".agent-skills/scripts/python"),
+                    },
+                    check=False,
+                )
+                if result.returncode:
+                    return result.returncode
+    except (OSError, ValueError, TypeError) as error:
+        print(str(error), file=sys.stderr)
+        return 1
     return 0
 
 

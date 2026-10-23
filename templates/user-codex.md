@@ -9,22 +9,25 @@ requires an unavailable integration, identify the missing capability explicitly.
 Repo instructions and the user's current authorization take precedence over
 general workflow suggestions in shared guidance. Read relevant repository
 `.claude/rules/` files explicitly; do not assume Codex automatically loads them.
-Shared references to the Claude installer config also apply to Codex's
-`agent-skills.json`, which overrides inherited preferences.
+Read shared preferences from `~/.agent-skills/config.json`; `agents.codex` holds Codex overrides.
+Load context explicitly through `~/.agent-skills/scripts/` and use the capabilities and model
+tiers in `~/.agent-skills/skills/shared/references/harness-capabilities.md`. Setup automatically
+migrates legacy preferences while retaining original configuration files.
 
 ## Permissions
 
 The agent-skills hooks evaluate the shared rule engine and your private local
-rules. `PreToolUse` enforces denials; `PermissionRequest` grants approvals for
-supported shell, patch, and MCP inputs. An allowed tool action does not authorize
+rules. Its Codex adapter enforces explicit denials through `PreToolUse`. Native Codex
+approvals and classification handle `allow`, `ask`, and `proceed` decisions; this integration
+does not grant approval or force a prompt. An allowed tool action does not authorize
 unrequested work: keep external mutations within the user's requested scope.
 
 Use the normal sandbox escalation request when needed. Do not disguise a command
-to get around a policy denial. An `ask` rule blocks at PreToolUse because Codex
-does not support that event requesting approval; report the rule's reason.
+to get around a policy denial. An `ask` rule cannot force a Codex approval prompt.
+Respect native approval decisions and never treat a deferred hook result as authorization.
 
 If an approval prompt appears unexpectedly, inspect the metadata-only log at
-`~/.codex/hooks/agent-skills-policy/codex-events.jsonl` (or under `CODEX_HOME`).
+`${CODEX_HOME:-~/.codex}/hooks/agent-skills-policy/codex-events.jsonl` (or under `CODEX_HOME`).
 A saved trust record or a command succeeding does not prove that a hook ran.
 New or changed hook definitions need review through `/hooks`. If an existing
 session retains old configuration, restart and resume it before retesting.

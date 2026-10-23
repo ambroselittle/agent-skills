@@ -1,164 +1,63 @@
 ---
 name: sync-guidance
-description: Sync Claude guidance between machines. Reads ~/.claude/CLAUDE.md on the current machine, diffs it against this repo's rules, and does two things — (1) updates the personal (unfenced) section of CLAUDE.md with anything new from the repo, and (2) proposes a PR to the repo with any novel guidance found on this machine. Run this on a work machine after cloning the repo to stay in sync.
+description: Sync shared user guidance between installed Claude Code and Codex agents and the agent-skills source repo. Preserves protected managed blocks and proposes generic improvements through a PR.
 argument-hint: "[inbound|outbound|both]"
 ---
 
 # Sync Guidance
 
-You are syncing Claude guidance between this machine's `~/.claude/CLAUDE.md` and the agent-skills repo. The goal is to keep personal guidance in sync across machines without touching anything managed by others.
+Sync user guidance between this machine and `~/.agent-skills/source`. Use the active agent’s native tools as described in [harness capabilities](../shared/references/harness-capabilities.md).
 
-**Arguments:** $ARGUMENTS
-- `inbound` — only update `~/.claude/CLAUDE.md` from repo (repo → this machine)
-- `outbound` — only propose PR with novel guidance from this machine (this machine → repo)
-- `both` (default) — do both directions
+**Input:** `inbound` applies approved local additions, `outbound` proposes source improvements, and `both` (default) performs both directions. The source checkout is resolved through the installed alias, independently of the project invoking this skill.
 
-**Pre-loaded context:**
+## Step 0: Load and inspect context
 
-- CLAUDE.md contents and fence map: !`~/.claude/skills/sync-guidance/scripts/context.sh claude-md`
-- Repo rules and shared template: !`~/.claude/skills/sync-guidance/scripts/context.sh repo-rules`
-- Repo git status: !`~/.claude/skills/sync-guidance/scripts/context.sh git-status`
+Run each helper separately:
 
----
-
-## Step 0: Understand the Landscape
-
-From the pre-loaded context, identify:
-
-1. **Fenced blocks** in `~/.claude/CLAUDE.md` — these are managed by others (employer, other tools). Note their tags and line ranges. You will **read** these for insights but **never write to them**.
-2. **Personal section** — everything after the last fence closing tag. This is yours to update.
-3. **Repo rules** — the current `.claude/rules/*.md` files and `templates/user-common.md` plus `templates/user-claude.md` in this repo.
-
-Print a brief orientation:
-```
-CLAUDE.md: <N> lines total
-  Fenced blocks: <list tag names and line ranges, or "none">
-  Personal section: lines <N>–end (<M> lines)
-
-Repo: <N> rule files found
+```bash
+~/.agent-skills/scripts/sync-guidance/context.sh guidance
 ```
 
----
-
-## Step 2: Inbound — Repo → This Machine
-
-*Skip if argument is `outbound`.*
-
-**Goal:** Add anything from the repo's guidance that isn't already reflected anywhere in `~/.claude/CLAUDE.md` (personal section or fenced sections — check the whole file).
-
-### 2a. Identify gaps
-
-Compare repo guidance (rules + shared template) against the full CLAUDE.md content:
-
-- For each rule file and each meaningful section of `user-common.md` and `user-claude.md`: check if the substance is already present somewhere in CLAUDE.md (exact or paraphrased — don't flag things already covered)
-- Build a list of genuine gaps: guidance in the repo not reflected anywhere in CLAUDE.md
-
-### 2b. Propose additions
-
-For each gap, draft the text to add to the personal section. Group related items. Keep additions concise — these are personal reminders, not full rule docs.
-
-Present the proposed additions:
-
-```
-Inbound additions to personal section of ~/.claude/CLAUDE.md:
-
-1. [from rules/skill-authoring.md]
-   > AskUserQuestion requires 2–4 options per question...
-
-2. [from rules/python-packaging.md]
-   > Use [dependency-groups] not [tool.uv] dev-dependencies...
-
-Apply these? (yes / select / skip)
+```bash
+~/.agent-skills/scripts/sync-guidance/context.sh repo-rules
 ```
 
-- `yes` — apply all
-- `select` — go through each one individually  
-- `skip` — skip inbound entirely
-
-### 2c. Apply
-
-Append approved additions to the personal section of `~/.claude/CLAUDE.md`. Add a comment header: `## Synced from agent-skills (<date>)` before the block if adding multiple items.
-
----
-
-## Step 3: Outbound — This Machine → Repo
-
-*Skip if argument is `inbound`.*
-
-**Goal:** Find novel guidance on this machine not yet in the repo, and propose it as new or updated rule files via a PR.
-
-### 3a. Identify novel guidance
-
-Scan the entire `~/.claude/CLAUDE.md` — both fenced and personal sections — for guidance not already present in the repo's rules or shared template.
-
-When reading fenced sections managed by others:
-- Extract generalizable insights (patterns, practices, constraints) — not employer-specific content
-- Rephrase to be generic and universally applicable
-- Skip anything too specific to that employer's stack/context
-
-Build a list of candidates: novel guidance worth adding to the repo.
-
-### 3b. Triage candidates
-
-For each candidate, determine:
-- Is this genuinely novel vs. already covered (even loosely) in the repo?
-- Is it generalizable, or too specific to this machine/context?
-- Where should it live: new rule file, addition to existing rule file, or update to `templates/user-common.md` (shared) or `templates/user-claude.md` (Claude-specific)?
-- If a rule file: what `paths` frontmatter scope applies?
-
-Present the triage:
-
-```
-Outbound candidates:
-
-1. [new rule: .claude/rules/foo.md, paths: ["**/*.ts"]]
-   > <proposed content summary>
-
-2. [add to: .claude/rules/skill-authoring.md]
-   > <proposed addition>
-
-3. [skip — too employer-specific]
-   > <reason>
-
-Proceed with candidates 1 and 2? (yes / select / skip)
+```bash
+~/.agent-skills/scripts/sync-guidance/context.sh git-status
 ```
 
-### 3c. Write rule files
+`guidance` reads existing `~/.claude/CLAUDE.md` and `${CODEX_HOME:-~/.codex}/AGENTS.md`. Each record identifies the agent, complete content, protected fences, and every unmanaged range, including text before and between fences. Read all records. A file not present is skipped; do not create an agent installation as a side effect.
 
-For approved candidates:
-- Write or update the rule files in the repo
-- Apply correct `paths` frontmatter (consult `.claude/rules/rule-authoring.md`)
-- Keep content generic and universally applicable — no employer names, internal tool names, or proprietary context
+Protected XML-style blocks belong to their managing tool or organization. Read them for generalizable insights, but never edit inside them. Unclosed opening fences are protected through the end of the file. Preserve every existing unmanaged range and its placement; the personal section is not limited to text after the last fence.
 
-### 3d. Open PR
+`repo-rules` separates `user-common.md` from each agent’s integration template. Compare each installed file with the common template, applicable integration template, personal source overlay, and relevant project rules. Do not copy Claude-only instructions into Codex guidance or vice versa.
 
-If any rule files were written:
+## Step 1: Inbound — Source to installed agents
 
-1. Create a branch: `ambrose/sync-guidance-<date>` (use ISO date, e.g. `2026-04-08`)
-2. Commit: `"sync-guidance: add rules from work machine"`
-3. Open PR to main with a summary of what was added and where it came from (described generically)
+Skip for `outbound`.
 
----
+Identify substantive gaps against each complete installed file; paraphrased guidance already present counts as covered. Managed source changes belong in the templates and must be applied through setup, never copied into personal text to work around managed ownership. Refresh those changes with `bash ~/.agent-skills/source/setup.sh guidance`, after showing the proposed changes and receiving confirmation for this skill’s writes.
 
-## Step 4: Summary
+For approved personal additions, show the exact destination and proposed text first. Append only outside protected fences, preserving all existing personal text. Route shared additions to both already-installed agents when approved; keep agent-specific additions in the appropriate file. Do not infer permission to overwrite personal notes or employer-managed content.
 
-Print a clean summary of what was done:
+## Step 2: Outbound — Installed agents to source
 
-```
-Sync complete.
+Skip for `inbound`.
 
-Inbound: added N items to personal section of ~/.claude/CLAUDE.md
-Outbound: PR opened at <url> with N new/updated rule files
+Scan the complete installed files, including protected sections, for novel guidance. Extract only generalizable practices; omit employer-specific names, internal tooling, credentials, and proprietary context. Compare substance across both agents and source templates to avoid duplicates.
 
-Nothing was modified inside fenced blocks.
-```
+Present each candidate with its destination and proposed wording. Universal behavior belongs in `templates/user-common.md`; agent integration details in `templates/user-claude.md` or `templates/user-codex.md`; personal preferences in the selected personal template. Repo-wide directives belong in `.claude/rules/` with appropriate `paths` frontmatter, and orientation belongs in `CLAUDE.md` linked by `AGENTS.md`.
 
----
+Wait for approval before writing. Work in the source checkout or an isolated source worktree, preserving unrelated local changes. Use the configured branch prefix from `~/.agent-skills/config.json`. Verify, commit, push, and open a PR using the repo’s PR workflow and `/author-message`. Do not merge.
 
-## Guidelines
+## Step 3: Report
 
-- **Read-only for fenced blocks.** Never edit content between fence tags, regardless of which tool manages them.
-- **Write boundary is the personal section.** All edits to CLAUDE.md go after the last closing fence tag.
-- **Generic outbound only.** Anything going into the repo must be free of employer-specific context. Rephrase before proposing.
-- **Diff before proposing.** Don't propose additions already covered — check substance, not just exact text.
-- **No auto-apply.** Always show proposed changes and get confirmation before writing anything.
+Report the installed destinations updated and the PR URL, if any. State any missing input needed to finish. Keep the result brief.
+
+## Boundaries
+
+- Protected fences are read-only, including incomplete fences.
+- Preserve all unmanaged text before, between, and after managed blocks.
+- Show proposed changes and obtain confirmation before this skill writes guidance.
+- Setup owns managed blocks; source templates remain their single maintained copy.
+- Publish only generic guidance approved by the user.

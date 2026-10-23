@@ -29,6 +29,9 @@ startup — are facts, not estimates, and stay fine.
 ## Use Agents
 
 When feasible, prefer delegating units of work to sub-agents to keep the main session context clean.
+Use the active harness’s capabilities and supported model tiers from
+`~/.agent-skills/skills/shared/references/harness-capabilities.md`. Run context helpers explicitly
+from `~/.agent-skills/scripts/`; do not assume another harness’s tool names or prompt expansion.
 
 ## Use Context7 for Library Docs
 
@@ -56,13 +59,13 @@ untrackable dependency on local state that undermines the goal of a repeatable a
 | Project-wide conventions, rules, standards   | `<repo>/.claude/rules/<topic>.md`                                                                  |
 | Project orientation (structure, build, test) | `<repo>/CLAUDE.md`                                                                                 |
 | In-progress work, task breakdown             | Available task tool or session context                                                                  |
-| Implementation plans                         | `<work-folder>/<slug>/plan.md` — work folder is set in `~/.claude/agent-skills.json` (`work_root`) |
+| Implementation plans                         | `<work-folder>/<slug>/plan.md` — work folder is set in `~/.agent-skills/config.json` (`work_root`) |
 | Active bug / short-lived project state       | Auto-memory is acceptable, but prefer a note in your work folder                                   |
 
 **Almost nothing should go into auto-memory.** If it's a pattern, preference, or lesson that should
 survive a `git clone` on a new machine — it belongs in the repo. Run `bash setup.sh guidance`
-to refresh the managed guidance for installed agents. Use `--target both` when first installing
-both agents; later setup runs remember them through their managed guidance blocks.
+to refresh managed guidance for detected installed agents. Setup detects supported installations
+and refreshes both when present; `--target claude|codex|both` is an optional override.
 
 ### Deciding where guidance belongs
 
@@ -95,7 +98,7 @@ you discover new information.
 
 ## Work Folder Plans
 
-Plans live outside the repo in your configured work folder (`~/.claude/agent-skills.json` → `work_root`, defaulting to `~/Work`). This keeps them alive across branch deletions and accessible from any repo.
+Plans live outside the repo in your configured work folder (`~/.agent-skills/config.json` → `work_root`, defaulting to `~/Work`). This keeps them alive across branch deletions and accessible from any repo.
 
 - **Keep plans current as work progresses.** A plan that reflects reality lets any new agent session pick up right where the last one left off — no re-discovery, no surprises about what's done or not. Update phase and task status as you complete them, not just at the end.
 - PRs are the permanent record of _what was done and why_ (git blame → PR → ticket). Plans are the _working state_ — update them, don't treat them as archival.
@@ -178,8 +181,10 @@ context-dependent fixes), coordinate as a hub and delegate to parallel sub-agent
 
 1. **Plan the work yourself first.** Identify every unit of work and its inputs. Don't delegate
    planning — delegate execution.
-2. **Use the cheapest available model that can handle the task.** Choose from models supported
-   by the active harness; reserve stronger models for genuinely hard judgment calls.
+2. **Use the cheapest available model that can handle the task.** Use the Low tier for
+   mechanical work, Medium for focused implementation and understanding, and High for difficult
+   judgment. Map tiers to models available in the active harness using the shared capabilities
+   reference.
 3. **Scope each agent tightly.** One task, one clear deliverable. Tell each agent exactly which
    files to read and which to write. Specify what it should _not_ do — no running tests, no
    lint fixes, no exploration beyond the stated scope.
@@ -369,11 +374,12 @@ wrapping.
 
 Use a clear separation between orientation and directives:
 
-- **CLAUDE.md** is orientation — what the project is, its structure, how to build and test, what lives
-  where. Think of it as a README for Claude. Keep it concise and factual.
+- **CLAUDE.md** (linked by `AGENTS.md` for Codex) is orientation — what the project is, its
+  structure, how to build and test, what lives where. Think of it as a README for agents. Keep it
+  concise and factual.
 - **.claude/rules/** is for behavioral directives — what to do or not do. Rules are either unscoped
   (always loaded, no `paths` frontmatter) or path-scoped (loaded on demand when matching files are
-  touched).
+  touched). Agents that do not auto-load these rules must read applicable files explicitly.
 
 **Why this distinction:** CLAUDE.md grows unbounded when it mixes context with rules. Separating them
 keeps CLAUDE.md scannable and makes rules discoverable in one place. Path-scoped rules also save

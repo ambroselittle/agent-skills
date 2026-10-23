@@ -6,22 +6,56 @@
 # Everything is opt-in-able: name one or more components (see --list) to
 # install just those, e.g. `setup.sh pretooluse` for only the hook engine.
 # No arguments means the full setup. To keep something off a machine for good,
-# list it under "exclude" in ~/.claude/agent-skills.json (or pass --without,
+# list it under "exclude" in ~/.agent-skills/config.json (or pass --without,
 # which writes that entry for you): excluded pieces are never installed and
 # are removed if a previous run installed them.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Explicit targets use the shared dispatcher. The no-flag Claude installer
-# remains unchanged for existing setup automation.
-for _arg in "$@"; do
-  case "$_arg" in
-    --target|--target=*|--dry-run)
-      exec python3 "$SCRIPT_DIR/scripts/setup_targets.py" "$@"
-      ;;
-  esac
-done
+# Public setup always uses the shared dispatcher. Only its Claude-specific
+# component phase enters the established shell installer below.
+if [[ "${AGENT_SKILLS_INTERNAL_CLAUDE_COMPONENTS:-}" != 1 ]]; then
+  _usable_python() {
+    local candidate="$1" version major minor
+    [[ -n "$candidate" && -x "$candidate" ]] || return 1
+    version="$("$candidate" -c 'import sys; print(".".join(map(str, sys.version_info[:3])))' 2>/dev/null)" || return 1
+    major="${version%%.*}"
+    version="${version#*.}"
+    minor="${version%%.*}"
+    [[ "$major" =~ ^[0-9]+$ && "$minor" =~ ^[0-9]+$ ]] || return 1
+    [[ "$major" -gt 3 || ( "$major" -eq 3 && "$minor" -ge 12 ) ]]
+  }
+  _python=""
+  for _candidate in "${AGENT_SKILLS_PYTHON:-}" "$HOME/.agent-skills/scripts/python"; do
+    if _usable_python "$_candidate"; then
+      _python="$_candidate"
+      break
+    fi
+  done
+  if [[ -z "$_python" ]]; then
+    for _name in python3 python3.15 python3.14 python3.13 python3.12 python; do
+      _candidate="$(command -v "$_name" || true)"
+      if _usable_python "$_candidate"; then
+        _python="$_candidate"
+        break
+      fi
+    done
+  fi
+  if [[ -z "$_python" ]] && command -v uv &>/dev/null; then
+    _candidate="$(UV_PYTHON_DOWNLOADS=never uv python find '>=3.12' --no-python-downloads 2>/dev/null || true)"
+    if _usable_python "$_candidate"; then
+      _python="$_candidate"
+    fi
+  fi
+  if [[ -z "$_python" ]]; then
+    printf 'Python 3.12+ is required. Setup could not find a usable installed interpreter; nothing changed.\n' >&2
+    exit 1
+  fi
+  export AGENT_SKILLS_PYTHON="$_python"
+  "$_python" "$SCRIPT_DIR/scripts/setup_targets.py" "$@"
+  exit $?
+fi
 CLAUDE_DIR="$HOME/.claude"
 CLAUDE_SKILLS_DIR="$CLAUDE_DIR/skills"
 CLAUDE_SETTINGS="$CLAUDE_DIR/settings.json"
@@ -109,7 +143,7 @@ merges permissions, registers MCP servers, and updates CLAUDE.md.
 
 Name one or more components to install only those for this run. A bare
 'setup.sh' always means the full setup, minus anything listed under "exclude"
-in ~/.claude/agent-skills.json — excluded pieces are never installed and are
+in ~/.agent-skills/config.json — excluded pieces are never installed and are
 removed if a previous run installed them. Every key there is a list ("all"
 excludes everything under that key):
 
@@ -130,7 +164,7 @@ Examples:
   setup.sh --without guidance mcp   Everything except those two
 
 Flags:
-  --target claude|codex|both         Select agent integrations (default: claude).
+  --target claude|codex|both         Select agent integrations (default: detect installed agents).
   --dry-run                        Preview selected changes without writing files.
   --without                        Persist every component named after this
                                    flag into the "exclude" key of
@@ -276,11 +310,11 @@ fi
 mkdir -p "$CLAUDE_DIR"
 
 SETUP_CONFIG="$SCRIPT_DIR/scripts/setup_config.py"
-export AGENT_SKILLS_CONFIG="${AGENT_SKILLS_CONFIG:-$CLAUDE_DIR/agent-skills.json}"
+export AGENT_SKILLS_CONFIG="${AGENT_SKILLS_CONFIG:-$HOME/.agent-skills/config.json}"
 
 # Every settings.json / CLAUDE.md / shell-rc edit goes through the helper so
 # install and uninstall share the same tested code.
-_config() { python3 "$SETUP_CONFIG" "$@"; }
+_config() { "$AGENT_SKILLS_PYTHON" "$SETUP_CONFIG" "$@"; }
 
 # Register a hook command under an event in settings.json, keyed on the command
 # so a re-run updates an existing entry (e.g. a changed timeout) in place.
@@ -313,22 +347,12 @@ _remove_paths() {
 
 section "Checking prerequisites"
 
-# Every component shells out to python3 — for the hook engine, and for the
-# scripts/setup_config.py helper that edits settings.json, CLAUDE.md, and
-# the shell rc file.
-if ! command -v python3 &>/dev/null; then
-  fail "python3 not found — setup requires Python 3.11+"
+# The public bootstrap has already selected an installed Python 3.12+.
+if [[ ! -x "${AGENT_SKILLS_PYTHON:-}" ]]; then
+  fail "Selected Python 3.12+ runtime is unavailable — reapply setup"
   exit 1
 fi
-
-py_version="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
-py_major="${py_version%%.*}"
-py_minor="${py_version##*.}"
-if [[ "$py_major" -lt 3 ]] || { [[ "$py_major" -eq 3 ]] && [[ "$py_minor" -lt 11 ]]; }; then
-  fail "Python $py_version found, but 3.11+ required (for union type syntax)"
-  printf "     Install a newer Python or update your PATH.\n"
-  exit 1
-fi
+py_version="$("$AGENT_SKILLS_PYTHON" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
 ok "Python $py_version"
 
 if _want window-title; then
@@ -357,7 +381,7 @@ if _want mcp; then
 fi
 
 # --------------------------------------------------------------------------- #
-# Exclusions — the persistent opt-out in ~/.claude/agent-skills.json          #
+# Exclusions — the persistent opt-out in ~/.agent-skills/config.json          #
 # --------------------------------------------------------------------------- #
 
 # One space-delimited set per exclude key (bash 3 has no associative arrays).
@@ -393,175 +417,6 @@ for _key in hooks mcp guidance skills attribution cli; do
 done
 if [[ -n "$_excluded_summary" ]]; then
   printf "\n  ${_dim}Excluded (%s):%s${_reset}\n" "$AGENT_SKILLS_CONFIG" "$_excluded_summary"
-fi
-
-# --------------------------------------------------------------------------- #
-# Worktree detection                                                          #
-# --------------------------------------------------------------------------- #
-
-# Only the skills component cares — skip the git calls otherwise.
-IS_WORKTREE=false
-
-if _want skills && git -C "$SCRIPT_DIR" rev-parse --is-inside-work-tree &>/dev/null; then
-  worktree_root="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
-  git_common="$(git -C "$SCRIPT_DIR" rev-parse --git-common-dir)"
-  main_repo="$(cd "$git_common" && cd .. && pwd)"
-
-  if [[ "$worktree_root" != "$main_repo" ]]; then
-    IS_WORKTREE=true
-  fi
-fi
-
-# --------------------------------------------------------------------------- #
-# [skills] Link skills                                                        #
-# --------------------------------------------------------------------------- #
-
-if _want skills; then
-  section "Linking skills"
-
-  mkdir -p "$CLAUDE_SKILLS_DIR"
-
-  if $IS_WORKTREE; then
-    printf "  ${_dim}Worktree mode — only linking skills changed on this branch${_reset}\n"
-  fi
-
-  # In a worktree: only relink skills with changes on the current branch.
-  # Everything else stays linked to main repo.
-  _changed_skills=()
-  if $IS_WORKTREE; then
-    while IFS= read -r file; do
-      if [[ "$file" == skills/* ]]; then
-        skill="${file#skills/}"
-        skill="${skill%%/*}"
-        _changed_skills+=("$skill")
-      fi
-    done < <(
-      git -C "$SCRIPT_DIR" diff --name-only main... -- skills/ 2>/dev/null
-      git -C "$SCRIPT_DIR" diff --name-only -- skills/ 2>/dev/null
-      git -C "$SCRIPT_DIR" ls-files --others --exclude-standard -- skills/ 2>/dev/null
-    )
-    _changed_skills=($(printf '%s\n' "${_changed_skills[@]}" | sort -u))
-  fi
-
-  _should_link_skill() {
-    local skill_name="$1"
-    if _is_excluded skills "$skill_name"; then
-      return 1
-    fi
-    if ! $IS_WORKTREE; then
-      return 0
-    fi
-    for s in "${_changed_skills[@]}"; do
-      [[ "$s" == "$skill_name" ]] && return 0
-    done
-    return 1
-  }
-
-  # Clean up stale symlinks (from renamed or deleted skills)
-  while IFS= read -r -d '' target; do
-    if [[ -L "$target" && ! -e "$target" ]]; then
-      rm -f "$target"
-      ok "removed stale symlink: $(basename "$target")"
-    fi
-  done < <(find "$CLAUDE_SKILLS_DIR" -maxdepth 1 -type l -print0 2>/dev/null)
-
-  # True when the symlink <link> points into one of the given directories.
-  _links_into() {
-    local link_target root
-    link_target="$(readlink "$1")"
-    shift
-    for root in "$@"; do
-      [[ "$link_target" == "$root/"* ]] && return 0
-    done
-    return 1
-  }
-
-  # Remove excluded skills we installed. A link that points somewhere else
-  # (another clone, an org repo's skill of the same name) is not ours to touch.
-  _repo_skill_roots="$SCRIPT_DIR/skills"
-  if $IS_WORKTREE; then
-    _repo_skill_roots="$_repo_skill_roots $main_repo/skills"
-  fi
-  for skill_dir in "$SCRIPT_DIR"/skills/*/; do
-    [[ -f "$skill_dir/SKILL.md" ]] || continue
-    skill_name="$(basename "$skill_dir")"
-    _is_excluded skills "$skill_name" || continue
-    target="$CLAUDE_SKILLS_DIR/$skill_name"
-    if [[ -L "$target" ]] && _links_into "$target" $_repo_skill_roots; then
-      rm -f "$target"
-      ok "removed $skill_name (excluded)"
-    elif [[ -e "$target" || -L "$target" ]]; then
-      skip "$skill_name excluded, but $target is not ours — left alone"
-    fi
-  done
-
-  _linked=0
-  _skipped=0
-  for skill_dir in "$SCRIPT_DIR"/skills/*/; do
-    [[ -d "$skill_dir" ]] || continue
-    skill_name="$(basename "$skill_dir")"
-    [[ -f "$skill_dir/SKILL.md" ]] || continue
-
-    if ! _should_link_skill "$skill_name"; then
-      ((_skipped++)) || true
-      continue
-    fi
-
-    target="$CLAUDE_SKILLS_DIR/$skill_name"
-
-    if [[ -L "$target" ]]; then
-      existing="$(readlink "$target")"
-      if [[ "$existing" == "$skill_dir" || "$existing" == "${skill_dir%/}" ]]; then
-        ((_skipped++)) || true
-        continue
-      fi
-      rm -f "$target"
-    elif [[ -e "$target" ]]; then
-      warn "$skill_name: non-symlink exists at $target, skipping"
-      continue
-    fi
-
-    ln -s "${skill_dir%/}" "$target"
-    if $IS_WORKTREE; then
-      ok "$skill_name → worktree"
-    else
-      ok "$skill_name"
-    fi
-    ((_linked++)) || true
-  done
-
-  # Link shared resources
-  shared_source="$SCRIPT_DIR/skills/shared"
-  shared_target="$CLAUDE_SKILLS_DIR/shared"
-
-  if [[ -d "$shared_source" ]]; then
-    _link_shared=true
-    if $IS_WORKTREE && [[ ${#_changed_skills[@]} -eq 0 ]]; then
-      _link_shared=false
-    fi
-
-    if $_link_shared; then
-      if [[ -L "$shared_target" ]]; then
-        existing="$(readlink "$shared_target")"
-        if [[ "$existing" != "$shared_source" ]]; then
-          rm -f "$shared_target"
-          ln -s "$shared_source" "$shared_target"
-          ok "shared"
-          ((_linked++)) || true
-        fi
-      elif [[ ! -e "$shared_target" ]]; then
-        ln -s "$shared_source" "$shared_target"
-        ok "shared"
-        ((_linked++)) || true
-      fi
-    fi
-  fi
-
-  if [[ $_linked -eq 0 ]]; then
-    skip "All skills already linked ($_skipped up to date)"
-  else
-    printf "  ${_dim}$_linked linked, $_skipped already up to date${_reset}\n"
-  fi
 fi
 
 # --------------------------------------------------------------------------- #
@@ -846,16 +701,6 @@ if _want mcp; then
   }
 
   _mcp_server "playwright" "@playwright/mcp" -- npx @playwright/mcp@latest
-fi
-
-# --------------------------------------------------------------------------- #
-# [guidance] Upsert <agent-skills-guidance> block in CLAUDE.md                #
-# --------------------------------------------------------------------------- #
-
-if _want guidance; then
-  section "Updating CLAUDE.md"
-
-  python3 "$SCRIPT_DIR/scripts/setup_targets.py" --target claude --refresh-guidance
 fi
 
 # --------------------------------------------------------------------------- #

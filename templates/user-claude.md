@@ -34,7 +34,10 @@ no leading fragment of the first prompt.
   `~/.claude/scripts/window-title pin "their words"`. A pinned title is theirs — never revise it,
   and it silences the reminders for the rest of the session.
 
-## Delegation models
+## Shared runtime
 
-Use Haiku for mechanical transforms, Sonnet for anything requiring understanding, and reserve
-Opus for genuinely hard judgment calls.
+Read preferences from `~/.agent-skills/config.json` and load skill context explicitly through
+`~/.agent-skills/scripts/`. Use the capability tiers in
+`~/.agent-skills/skills/shared/references/harness-capabilities.md`; choose only models and tools
+available in this Claude Code session. Legacy configuration is migrated by setup, which retains
+the original files.

@@ -1,5 +1,9 @@
 #!/bin/bash
 # Pre-loads deploy context for the SKILL.md prompt
+python="$HOME/.agent-skills/scripts/python"
+if [ ! -x "$python" ]; then
+  python=python3
+fi
 
 case "$1" in
   auth-status)
@@ -15,7 +19,7 @@ case "$1" in
       2>/dev/null \
       | sort \
       | sed 's|^\./||' \
-      | python3 -c "
+      | "$python" -c "
 import sys, json
 files = [l.strip() for l in sys.stdin if l.strip()]
 # Annotate with service name derived from path
@@ -36,14 +40,24 @@ print(json.dumps(services, indent=2))
 
   deploy-config)
     if [ -f .deploy-aws.json ]; then
-      cat .deploy-aws.json
+      "$python" - <<'PYEOF'
+import json
+from pathlib import Path
+
+config = json.loads(Path(".deploy-aws.json").read_text())
+database = config.get("database")
+if isinstance(database, dict):
+    for field in ("password", "url"):
+        database.pop(field, None)
+print(json.dumps(config, indent=2))
+PYEOF
     else
       echo '{}'
     fi
     ;;
 
   template-type)
-    python3 - <<'PYEOF'
+    "$python" - <<'PYEOF'
 import os, json
 
 def detect():

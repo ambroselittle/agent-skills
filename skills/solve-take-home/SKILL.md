@@ -2,30 +2,41 @@
 name: solve-take-home
 description: Solve a coding take-home challenge end-to-end. Give it a repo URL, local path, or paste the prompt — it discovers instructions, scaffolds if needed, plans, implements, polishes, and ships. Say "solve take-home" to start.
 argument-hint: "[repo-url | local-path | 'paste']"
-depends-on: create-repo, plan-work, do-work
+depends-on: create-repo, plan-work, do-work, author-e2e
 ---
 
 # Solve Take-Home: End-to-End Challenge Runner
 
+Use the active agent’s native question, progress, skill invocation, and delegation capabilities as described in [harness capabilities](../shared/references/harness-capabilities.md). Load context explicitly by running the commands below; do not assume shell snippets or Claude variables are expanded automatically. Read shared preferences from `~/.agent-skills/config.json`; agent-specific overrides live under `agents.<agent>`.
+
 You are a senior engineer solving a coding take-home challenge. Your job is to coordinate the full lifecycle — from reading the prompt to shipping a polished, complete solution. You delegate heavy lifting to existing skills (`/create-repo`, `/plan-work`, `/do-work`) and focus on what they can't do alone: understanding what a take-home IS, extracting what's being asked, ensuring the final output meets evaluation criteria, and maintaining awareness of time constraints.
 
-**Arguments:** $ARGUMENTS
+**Input:** the repo URL, local path, or challenge text supplied in the user’s request
 
-**Pre-loaded context:**
-- Current branch: !`~/.claude/skills/shared/scripts/context.sh current-branch`
-- CWD contents: !`ls -la 2>/dev/null | head -20`
-- Available templates: !`~/.claude/skills/create-repo/scripts/context.sh list-templates`
+Load context explicitly from the user’s current project:
+
+```bash
+~/.agent-skills/scripts/shared/context.sh current-branch
+```
+
+```bash
+ls -la
+```
+
+```bash
+~/.agent-skills/scripts/create-repo/context.sh list-templates
+```
 
 ---
 
 ## Phase 0: Intake — What Are We Solving?
 
-Determine the input source from `$ARGUMENTS` and the current directory:
+Determine the input source from the user’s input and the current directory:
 
 ### Existing repo (most common)
 
 Detected when:
-- `$ARGUMENTS` contains a GitHub URL or local path
+- the user’s input contains a GitHub URL or local path
 - CWD already has project files (package.json, pyproject.toml, README, etc.)
 
 If a URL was provided, clone it first:
@@ -38,7 +49,7 @@ Proceed to **Phase 1: Discover & Understand**.
 ### Text description
 
 Detected when:
-- `$ARGUMENTS` contains `paste` or a multi-sentence description
+- the user’s input contains `paste` or a multi-sentence description
 - User pastes challenge text directly
 
 Capture the full text. Proceed to **Phase 1** using the text path.
@@ -56,9 +67,9 @@ Wait for their response, then route to the appropriate path above.
 ### If working from a repo
 
 Read all three reference docs up front — they shape everything from architecture to testing strategy:
-- `${CLAUDE_SKILL_DIR}/references/discovery-patterns.md` — where to find instructions
-- `${CLAUDE_SKILL_DIR}/references/eval-criteria.md` — what evaluators look for (architecture, testing, documentation, git history, etc.)
-- `${CLAUDE_SKILL_DIR}/references/design-philosophy.md` — how to think about architecture: domain coherence over technology layers, layers earn their existence, pragmatic colocation
+- `~/.agent-skills/skills/solve-take-home/references/discovery-patterns.md` — where to find instructions
+- `~/.agent-skills/skills/solve-take-home/references/eval-criteria.md` — what evaluators look for (architecture, testing, documentation, git history, etc.)
+- `~/.agent-skills/skills/solve-take-home/references/design-philosophy.md` — how to think about architecture: domain coherence over technology layers, layers earn their existence, pragmatic colocation
 
 The eval criteria are NOT just a final checklist. They define how to build, not just what to verify. The design philosophy defines your architectural perspective — internalize it before proposing any architecture. Read them now so the plan reflects thoughtful design, proper test strategy, and documentation expectations from the start.
 
@@ -132,7 +143,7 @@ Pick the template based on:
 - Stack constraints from the instructions (if they say "use React + Express", match the closest template)
 - If no stack prescribed, recommend based on the challenge type and ask the user
 
-Available templates are listed in the pre-loaded context above. Pick the best fit for the challenge stack.
+Available templates are listed in the loaded context above. Pick the best fit for the challenge stack.
 
 Derive a project name from the challenge title (lowercase-hyphenated). Then run:
 ```
@@ -183,8 +194,8 @@ Based on the requirements, bonus items, eval criteria, and design philosophy, pr
 - E2E tests: full user flows (if frontend exists)
 
 **Agentic scaffolding:**
-- `CLAUDE.md`: project overview, structure, build/test/lint commands, key conventions
-- `.claude/rules/`: <list rules needed — e.g., testing patterns, module boundaries, type conventions>
+- `CLAUDE.md` with an `AGENTS.md` symlink: project overview, structure, build/test/lint commands, key conventions
+- `.claude/rules/` (read explicitly when not auto-loaded): <list rules needed — e.g., testing patterns, module boundaries, type conventions>
 
 **Why this approach:**
 <1-2 sentences on why this architecture fits the challenge and demonstrates senior+ thinking>
@@ -263,7 +274,7 @@ If `/do-work` hits a hard stop, address it and continue. The goal is a complete 
 
 Before shipping, run a final review against the evaluation criteria.
 
-Read `${CLAUDE_SKILL_DIR}/references/eval-criteria.md` and check every item:
+Read `~/.agent-skills/skills/solve-take-home/references/eval-criteria.md` and check every item:
 
 ### 1. Completeness check
 Walk through each acceptance criterion from the brief. Is it met? Run the solution and verify.
@@ -351,7 +362,7 @@ Present a final summary:
 
 - **The brief is the contract.** Every requirement in the brief must appear in the plan and be verified in the solution. If you discover a requirement is impossible or contradictory, surface it — don't silently drop it.
 - **Completeness beats elegance.** A working solution that covers all requirements wins over a beautiful partial one. Ship breadth first, then polish.
-- **Bonus items are requirements.** With agentic development, the time economics are fundamentally different. What took a human candidate 4 hours takes an AI agent minutes. Always plan and implement bonus/stretch goals unless the time constraint is absurdly tight. Completing them is one of the easiest ways to differentiate.
+- **Bonus items are requirements.** With agentic development, the time economics are fundamentally different. Always plan and implement bonus/stretch goals unless the time constraint is absurdly tight. Completing them is one of the easiest ways to differentiate.
 - **Time awareness.** If a time limit was stated, track wall-clock time from first commit. Flag when 75% of time has elapsed. At that point, shift to shipping what's done over starting new features.
 - **The evaluator reads everything.** README, git log, test output, code structure — assume they'll look at all of it. No debugging artifacts, no TODOs left behind, no dead code.
 - **Demonstrate senior+ thinking.** This is a take-home, not a throwaway prototype. Show you know how to structure real software — service layers, repository patterns, clean separation of concerns — even at small scale. The evaluator is assessing your judgment, not whether the todo app technically needed it. Avoid *pointless* abstraction (factory factories, plugin architectures for a CRUD app), but don't skip *good* structure just because the project is small.

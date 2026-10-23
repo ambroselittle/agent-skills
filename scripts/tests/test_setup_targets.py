@@ -12,45 +12,26 @@ ROOT = Path(__file__).resolve().parents[2]
 
 @pytest.fixture
 def install(tmp_path):
-    home = tmp_path / "home"
-    home.mkdir()
-    codex = tmp_path / "custom-codex"
-    env = {**os.environ, "HOME": str(home), "CODEX_HOME": str(codex)}
-    env.pop("AGENT_SKILLS_CONFIG", None)
-    env["AGENT_SKILLS_USER"] = "test-user-no-template"
+    from test_setup_runtime import RuntimeSandbox
     from test_setup_sh import CLAUDE_SHIM, GH_SHIM
 
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    for name, body in (("claude", CLAUDE_SHIM), ("gh", GH_SHIM), ("git", "#!/bin/sh\nexit 1\n")):
-        shim = bin_dir / name
-        shim.write_text(body)
-        shim.chmod(0o755)
-    env.update(
+    sandbox = RuntimeSandbox(tmp_path)
+    for name, body in (("claude", CLAUDE_SHIM), ("gh", GH_SHIM)):
+        path = sandbox.bin / name
+        path.unlink(missing_ok=True)
+        path.write_text(body)
+        path.chmod(0o755)
+    sandbox.env.update(
         {
-            "PATH": f"{bin_dir}:{os.environ['PATH']}",
             "CLAUDE_SHIM_LOG": str(tmp_path / "claude-calls.log"),
             "CLAUDE_SHIM_MCP": str(tmp_path / "mcp.txt"),
-            "TERM": "xterm",
         }
     )
 
     def run(*args, env_override=None):
-        current_env = env.copy()
-        for key, value in (env_override or {}).items():
-            if value is None:
-                current_env.pop(key, None)
-            else:
-                current_env[key] = value
-        return subprocess.run(
-            ["bash", str(ROOT / "setup.sh"), *args, "--no-clear"],
-            env=current_env,
-            cwd=ROOT,
-            text=True,
-            capture_output=True,
-        )
+        return sandbox.run(*args, env=env_override)
 
-    return home, codex, run
+    return sandbox.home, sandbox.codex, run
 
 
 def test_codex_install_is_standalone_and_preserves_hooks(install):
@@ -79,8 +60,7 @@ def test_codex_install_is_standalone_and_preserves_hooks(install):
         text=True,
         capture_output=True,
     )
-    assert json.loads(p.stdout)["hookSpecificOutput"]["decision"]["behavior"] == "allow"
-    assert str(home) not in (codex / "hooks/agent-skills-policy/codex-events.jsonl").read_text()
+    assert p.returncode == 0 and p.stdout == ""
 
 
 def test_repeat_install_and_exclusion_are_idempotent(install):
@@ -226,8 +206,8 @@ def test_full_both_install_has_exact_portable_skills_and_is_idempotent(install):
     result = run("--target", "both")
     assert result.returncode == 0, result.stdout + result.stderr
     catalog = json.loads((ROOT / "skills/compatibility.json").read_text())
-    expected = {name for name, info in catalog.items() if info["codex"] == "shared"}
-    assert {path.name for path in (home / ".agents/skills").iterdir()} == expected
+    expected = {name for name, info in catalog.items() if "codex" in info["supportedAgents"]}
+    assert {path.name for path in (home / ".agents/skills").iterdir()} == expected | {"shared"}
     assert {p.name for p in (ROOT / "skills").iterdir() if (p / "SKILL.md").exists()} == set(
         catalog
     )
@@ -304,20 +284,19 @@ def test_claude_dry_run_reports_exclusions_as_removals(install):
     assert list(home.iterdir()) == []
 
 
-def test_policy_reconciles_missing_shell_matcher_and_obsolete_modules(install):
+def test_policy_reconciles_missing_matcher_and_obsolete_modules(install):
     _, codex, run = install
     assert run("--target", "codex", "pretooluse").returncode == 0
     hooks_path = codex / "hooks.json"
     hooks = json.loads(hooks_path.read_text())
-    hooks["hooks"]["PermissionRequest"] = [
-        e for e in hooks["hooks"]["PermissionRequest"] if e.get("matcher") != "^Bash$"
-    ]
+    hooks["hooks"].pop("PreToolUse")
     hooks_path.write_text(json.dumps(hooks))
     obsolete = codex / "hooks/agent-skills-policy/engine/obsolete.py"
     obsolete.write_text("obsolete")
     assert run("--target", "codex", "pretooluse").returncode == 0
     hooks = json.loads(hooks_path.read_text())
-    assert any(e.get("matcher") == "^Bash$" for e in hooks["hooks"]["PermissionRequest"])
+    assert "PreToolUse" in hooks["hooks"]
+    assert "PermissionRequest" not in hooks["hooks"]
     assert not obsolete.exists()
 
 
@@ -329,7 +308,7 @@ def test_installed_policy_entry_handles_private_rules_and_failures(install, even
     home, codex, run = install
     assert run("--target", "codex", "pretooluse").returncode == 0
     overlay = home / ".agent-skills/local-rules.json"
-    overlay.parent.mkdir()
+    overlay.parent.mkdir(exist_ok=True)
     if failure == "overlay-json":
         overlay.write_text("{broken")
     elif failure == "overlay-schema":
@@ -368,16 +347,14 @@ def test_installed_policy_entry_handles_private_rules_and_failures(install, even
         capture_output=True,
         text=True,
     )
+    if event == "PermissionRequest":
+        assert result.returncode == 0 and result.stdout == result.stderr == ""
+        return
     if failure == "private-deny":
         assert result.returncode == 0, result.stderr
-        output = json.loads(result.stdout)["hookSpecificOutput"]
-        assert (
-            output["permissionDecision"]
-            if event == "PreToolUse"
-            else output["decision"]["behavior"]
-        ) == "deny"
+        assert json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
     else:
-        assert result.returncode == (2 if event == "PreToolUse" else 0)
+        assert result.returncode == 2
         assert result.stdout == ""
         assert "policy unavailable" in result.stderr
     log = (codex / "hooks/agent-skills-policy/codex-events.jsonl").read_text()

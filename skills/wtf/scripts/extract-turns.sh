@@ -6,7 +6,7 @@
 #   cwd: optional; defaults to $PWD. Used to compute the Claude project slug.
 #
 # Environment:
-#   CLAUDE_SESSION_ID: required. The session ID injected by Claude Code.
+#   CLAUDE_SESSION_ID or CLAUDE_CODE_SESSION_ID: the current Claude session ID.
 #
 # Output: markdown to stdout. On any failure, prints a "(transcript unavailable: ...)"
 # line and exits 0 so the caller never fails because of this helper.
@@ -14,10 +14,15 @@
 set -euo pipefail
 
 cwd="${1:-${PWD:-$(pwd)}}"
-session_id="${CLAUDE_SESSION_ID:-}"
+agent="${AGENT_SKILLS_HARNESS:-claude}"
+if [ "$agent" != claude ]; then
+  echo "(transcript unavailable: no supported transcript export for $agent)"
+  exit 0
+fi
+session_id="${CLAUDE_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}"
 
 if [ -z "$session_id" ]; then
-  echo "(transcript unavailable: CLAUDE_SESSION_ID not set)"
+  echo "(transcript unavailable: Claude session ID not set)"
   exit 0
 fi
 

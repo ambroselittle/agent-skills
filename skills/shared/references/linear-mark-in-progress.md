@@ -8,7 +8,7 @@ Procedure for transitioning a Linear ticket to its team's "in progress" status w
 
 ## Step 1 — Check current state
 
-Inspect the `state` from the `get_issue` response (`state.type` and `state.name`):
+Inspect the current state from the available Linear issue-fetch tool. Discover its schema and normalize the state type/name described below; connector field names may differ.
 
 - `state.type === "started"` → already in progress (or in a downstream started state like "In Review"). **Skip the transition.** Don't regress a deliberate forward move.
 - `state.type === "completed"` or `"canceled"` → ask: "Ticket `<TICKET>` is `<state.name>`. Continue anyway?" If yes, **skip the transition** and proceed. If no, stop the whole skill.
@@ -18,7 +18,7 @@ Inspect the `state` from the `get_issue` response (`state.type` and `state.name`
 
 ## Step 2 — Resolve the team's "in-progress" state ID
 
-Read `linear_team_statuses.<TEAM>.in-progress` from `~/.claude/agent-skills.json`, where `<TEAM>` is the **uppercase** team prefix from the ticket ID (e.g. `LC` for `LC-12345`).
+Read `linear_team_statuses.<TEAM>.in-progress` from the effective shared config (`bash ~/.agent-skills/scripts/shared/context.sh config`), where `<TEAM>` is the **uppercase** team prefix from the ticket ID (e.g. `LC` for `LC-12345`).
 
 The schema is intentionally semantic and extensible — future transitions (`in-review`, `done`, …) slot in alongside `in-progress`:
 
@@ -38,11 +38,7 @@ Use the saved state ID. If the transition later fails with "state not found" (e.
 
 ### If not configured
 
-Discover the state via the Linear API. The team's UUID comes from the `get_issue` response (`team.id`):
-
-```
-mcp__claude_ai_Linear__list_issue_statuses { "teamId": "<team-uuid>" }
-```
+Discover the team's issue statuses with the available connected Linear tool, using its actual schema. Resolve the team from the issue-fetch response; connector field names and accepted team identifiers may differ.
 
 Filter to statuses where `type === "started"`:
 
@@ -53,22 +49,16 @@ Filter to statuses where `type === "started"`:
 Save to config:
 
 ```bash
-python3 -c "
-import json, os
-path = os.path.expanduser('~/.claude/agent-skills.json')
-d = json.load(open(path))
-d.setdefault('linear_team_statuses', {}).setdefault('<TEAM>', {})['in-progress'] = '<state-id>'
-json.dump(d, open(path, 'w'), indent=2)
-"
+bash ~/.agent-skills/scripts/shared/context.sh config-set linear_team_statuses '<TEAM>' in-progress '"<state-id>"'
 ```
+
+Encode values as JSON and quote arguments safely. This preserves unrelated teams and honors the selected config and any existing active-agent override.
 
 ---
 
 ## Step 3 — Transition the issue
 
-```
-mcp__claude_ai_Linear__save_issue { "issueId": "<TICKET>", "stateId": "<state-id>" }
-```
+Update the issue to the resolved status using the available connected Linear tool and its actual schema.
 
 Report: "Marked `<TICKET>` → `<state-name>` in Linear."
 
