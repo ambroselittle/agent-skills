@@ -526,7 +526,7 @@ def codex_window_titles(home: Path, dry_run: bool) -> None:
 
 def guidance_content(root: Path, target: str, user: str | None = None) -> str:
     """Concatenate maintained common, harness and optional personal text."""
-    paths = [root / "templates/user-common.md", root / f"templates/user-{target}.md"]
+    paths = [root / "templates/user-agents-guidance.md", root / f"templates/user-{target}.md"]
     if user:
         if Path(user).name != user or user in (".", ".."):
             raise ValueError("User template must be a name, not a path")

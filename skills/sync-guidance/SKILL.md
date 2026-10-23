@@ -30,7 +30,7 @@ Run each helper separately:
 
 Protected XML-style blocks belong to their managing tool or organization. Read them for generalizable insights, but never edit inside them. Unclosed opening fences are protected through the end of the file. Preserve every existing unmanaged range and its placement; the personal section is not limited to text after the last fence.
 
-`repo-rules` separates `user-common.md` from each agent’s integration template. Compare each installed file with the common template, applicable integration template, personal source overlay, and relevant project rules. Do not copy Claude-only instructions into Codex guidance or vice versa.
+`repo-rules` separates `user-agents-guidance.md` from each agent’s integration template. Compare each installed file with the common template, applicable integration template, personal source overlay, and relevant project rules. Do not copy Claude-only instructions into Codex guidance or vice versa.
 
 ## Step 1: Inbound — Source to installed agents
 
@@ -46,7 +46,7 @@ Skip for `inbound`.
 
 Scan the complete installed files, including protected sections, for novel guidance. Extract only generalizable practices; omit employer-specific names, internal tooling, credentials, and proprietary context. Compare substance across both agents and source templates to avoid duplicates.
 
-Present each candidate with its destination and proposed wording. Universal behavior belongs in `templates/user-common.md`; agent integration details in `templates/user-claude.md` or `templates/user-codex.md`; personal preferences in the selected personal template. Repo-wide directives belong in `.claude/rules/` with appropriate `paths` frontmatter, and orientation belongs in `CLAUDE.md` linked by `AGENTS.md`.
+Present each candidate with its destination and proposed wording. Universal behavior belongs in `templates/user-agents-guidance.md`; agent integration details in `templates/user-claude.md` or `templates/user-codex.md`; personal preferences in the selected personal template. Repo-wide directives belong in `.claude/rules/` with appropriate `paths` frontmatter, and orientation belongs in `CLAUDE.md` linked by `AGENTS.md`.
 
 Wait for approval before writing. Work in the source checkout or an isolated source worktree, preserving unrelated local changes. Use the configured branch prefix from `~/.agent-skills/config.json`. Verify, commit, push, and open a PR using the repo’s PR workflow and `/author-message`. Do not merge.
 

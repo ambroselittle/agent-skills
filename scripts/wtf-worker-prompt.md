@@ -25,7 +25,7 @@ Pick exactly ONE target per entry:
 
 | # | Category | Where it lands |
 |---|---|---|
-| 1 | **Behavioral guidance** (how agents should work) | `templates/ambroselittle.md` (user-specific), `templates/user-common.md` (universal), or the relevant `templates/user-{claude,codex}.md` (harness integration) — decide by whether the preference is Ambrose-only or anyone-would-benefit |
+| 1 | **Behavioral guidance** (how agents should work) | `templates/ambroselittle.md` (user-specific), `templates/user-agents-guidance.md` (universal), or the relevant `templates/user-{claude,codex}.md` (harness integration) — decide by whether the preference is Ambrose-only or anyone-would-benefit |
 | 2 | **Rule** (project-specific directive) | `.claude/rules/<topic>.md` — path-scoped (with `paths:` frontmatter) if it only applies to certain files, unscoped otherwise |
 | 3 | **Skill** (behavior of an existing skill, or a new one) | `skills/<name>/SKILL.md` or supporting files; rarely, a new `skills/<name>/` |
 | 4 | **Hook** (PreToolUse rule) | `hooks/PreToolUse/rules.json` + paired test in `hooks/PreToolUse/tests/rules/` (convention is enforced — see `hooks/PreToolUse/CLAUDE.md`) |

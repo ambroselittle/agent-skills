@@ -2,7 +2,7 @@
 
 AI agent skills, hooks, and project templates for Claude Code and Codex. Skills are prompt-based tools that orchestrate workflows; hooks enforce safety rules on tool calls; templates scaffold new projects.
 
-`AGENTS.md` links to this file. Shared guidance lives in `templates/user-common.md`,
+`AGENTS.md` links to this file. Shared guidance lives in `templates/user-agents-guidance.md`,
 integration details in `templates/user-{claude,codex}.md`, and personal overlays in `templates/`.
 `setup.sh` detects installed agents; `--target claude|codex|both` overrides detection.
 `scripts/setup_targets.py` selects targets and `scripts/setup_config.py` owns configuration writes.

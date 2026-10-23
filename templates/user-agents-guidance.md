@@ -55,7 +55,7 @@ untrackable dependency on local state that undermines the goal of a repeatable a
 
 | Type of content                              | Where it goes                                                                                      |
 | -------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Behavioral guidance, ways of working         | `templates/user-common.md` or `templates/<username>.md`                                            |
+| Behavioral guidance, ways of working         | `templates/user-agents-guidance.md` or `templates/<username>.md`                                            |
 | Project-wide conventions, rules, standards   | `<repo>/.claude/rules/<topic>.md`                                                                  |
 | Project orientation (structure, build, test) | `<repo>/CLAUDE.md`                                                                                 |
 | In-progress work, task breakdown             | Available task tool or session context                                                                  |
@@ -72,7 +72,7 @@ and refreshes both when present; `--target claude|codex|both` is an optional ove
 Before saving anything, apply this test — in order:
 
 1. **Would this guidance apply when working on ANY project, not just this one?**
-   → Yes → It belongs in `templates/user-common.md` (universal) or `templates/<username>.md`
+   → Yes → It belongs in `templates/user-agents-guidance.md` (universal) or `templates/<username>.md`
    (user-specific). **Do not use auto-memory.**
 
 2. **Would this guidance apply to all contributors on this specific project?**
@@ -105,6 +105,11 @@ Plans live outside the repo in your configured work folder (`~/.agent-skills/con
 - The PR creation step (in /do-work) captures key decisions in the PR description.
 
 ## Working with git/gh
+
+**Always use `gh` for GitHub communication** — pull requests, reviews, issues,
+comments, checks, and API requests. Run `gh` in the developer's authenticated host
+context, outside the agent sandbox, so existing credentials and the macOS Keychain
+are available. Use the normal host execution approval flow when required.
 
 - Before making changes, verify you are on the correct branch -- not default or unrelated feature branch
 - When creating PRs, look for and use the template in `.github/pull_request_template.md`

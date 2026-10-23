@@ -29,7 +29,7 @@ def portable_home(tmp_path):
     caller = tmp_path / "another-project"
     (caller / ".git").mkdir(parents=True)
     (caller / "templates").mkdir()
-    (caller / "templates/user-common.md").write_text("Wrong project guidance.\n")
+    (caller / "templates/user-agents-guidance.md").write_text("Wrong project guidance.\n")
     codex = tmp_path / "custom-codex"
     env = {**os.environ, "HOME": str(home), "CODEX_HOME": str(codex)}
     for key in (
@@ -58,7 +58,10 @@ def test_sync_alias_resolves_source_instead_of_callers_repository(portable_home)
     assert result.returncode == 0, result.stderr
     context = json.loads(result.stdout)
     assert Path(context["repo"]).resolve() == ROOT
-    assert context["shared_template"] == (ROOT / "templates/user-common.md").read_text().strip()
+    assert (
+        context["shared_template"]
+        == (ROOT / "templates/user-agents-guidance.md").read_text().strip()
+    )
     assert set(context["integration_templates"]) == {"claude", "codex"}
     assert (
         context["integration_templates"]["codex"]

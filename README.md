@@ -36,7 +36,7 @@ bash setup.sh --target codex pretooluse
 | Titles | Terminal title + topical reminders | Native `/title` and `/rename` |
 | Display swaps, notifications, attribution, MCP, resume CLI | Existing integrations | Native Codex configuration |
 
-One source of guidance is maintained in `templates/user-common.md` plus a personal `templates/<username>.md` overlay. `user-claude.md` and `user-codex.md` contain only integration details. Setup refreshes their managed blocks while preserving all other text. Repo `AGENTS.md` links to `CLAUDE.md`; portable skills likewise use one maintained source. `supportedAgents` arrays in `skills/compatibility.json` record compatibility. Existing directories and links owned by other installers are preserved.
+One source of guidance is maintained in `templates/user-agents-guidance.md` plus a personal `templates/<username>.md` overlay. `user-claude.md` and `user-codex.md` contain only integration details. Setup refreshes their managed blocks while preserving all other text. Repo `AGENTS.md` links to `CLAUDE.md`; portable skills likewise use one maintained source. `supportedAgents` arrays in `skills/compatibility.json` record compatibility. Existing directories and links owned by other installers are preserved.
 
 ### Shared runtime and configuration
 

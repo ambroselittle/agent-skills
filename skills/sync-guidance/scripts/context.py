@@ -85,7 +85,7 @@ def main() -> int:
         result = {
             "repo": str(root),
             "rules": rules,
-            "shared_template": (root / "templates/user-common.md").read_text().strip(),
+            "shared_template": (root / "templates/user-agents-guidance.md").read_text().strip(),
             "integration_templates": {
                 agent: (root / f"templates/user-{agent}.md").read_text().strip()
                 for agent in ("claude", "codex")

@@ -34,7 +34,7 @@ session retains old configuration, restart and resume it before retesting.
 
 ## Shared guidance locations
 
-Keep reusable guidance in `templates/user-common.md`, Codex integration details
+Keep reusable guidance in `templates/user-agents-guidance.md`, Codex integration details
 in `templates/user-codex.md`, and personal additions in `templates/<username>.md`.
 The installer writes a managed block to `~/.codex/AGENTS.md`, preserving other
 text. Prefer repository `AGENTS.md` linked to its `CLAUDE.md` source where both
