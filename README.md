@@ -121,7 +121,6 @@ These skills form a pipeline from idea to merged PR:
 | `/code-review` | Multi-pass parallel review with specialized agents. Two-pass approach (normal + reversed diff) for higher recall. Presents findings in-session with opt-out model — default is to fix everything.                                                                                                              |
 | `/do-fixes`    | Applies checked findings from `/code-review`, verifies, commits, and posts a PR summary comment. Context-aware — detects the most recent review artifact type.                                                                                                                                                 |
 | `/author-e2e`  | Generate Playwright E2E tests from scenario files or feature descriptions. Produces page objects and test files following Page Object Model best practices.                                                                                                                                                    |
-| `/make-skill`  | Interactive interview to create a new skill from scratch.                                                                                                                                                                                                                                                      |
 
 ---
 

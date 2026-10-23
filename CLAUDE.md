@@ -27,7 +27,6 @@ skills/                # Skill definitions (SKILL.md + supporting files)
   ├── create-repo/        # Monorepo scaffolding (Python scripts + Jinja2 templates)
   ├── solve-take-home/    # End-to-end take-home challenge solver
   ├── author-e2e/         # Playwright test generation from scenarios
-  ├── make-skill/         # Interactive skill creator
   └── shared/             # Reusable agents, scripts (context.sh, get-diff.sh), references
 hooks/
   ├── PreToolUse/      # Rule-based allow/deny engine for tool calls

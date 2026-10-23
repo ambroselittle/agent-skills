@@ -48,12 +48,6 @@
       "codex"
     ]
   },
-  "make-skill": {
-    "reason": "Use the native skill authoring workflow.",
-    "supportedAgents": [
-      "claude"
-    ]
-  },
   "plan-review": {
     "reason": "Portable workflow using the shared runtime and maintained source resources.",
     "supportedAgents": [

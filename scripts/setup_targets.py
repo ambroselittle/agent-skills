@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -202,9 +203,10 @@ def install_shared_sources(dry_run: bool) -> None:
     manifest_path = shared / "resource-links.json"
     manifest = setup_config.load_json(manifest_path)
     primary, changed = source_selection()
+    catalog = json.loads((ROOT / "skills/compatibility.json").read_text())
     desired = {shared / "source": ROOT, shared / "scripts/python": Path(sys.executable).resolve()}
     for source in sorted((ROOT / "skills").iterdir()):
-        if not source.is_dir() or not ((source / "SKILL.md").exists() or source.name == "shared"):
+        if not source.is_dir() or source.name not in set(catalog) | {"shared"}:
             continue
         if changed is not None and source.name not in changed:
             baseline = primary / "skills" / source.name
@@ -229,6 +231,13 @@ def install_shared_sources(dry_run: bool) -> None:
             manifest[key] = str(source)
     current = {str(path.relative_to(shared)) for path in desired}
     for key in set(manifest) - current:
+        parts = Path(key).parts
+        if (
+            len(parts) != 2
+            or parts[0] not in ("skills", "scripts")
+            or not isinstance(manifest[key], str)
+        ):
+            continue  # Unknown manifest metadata is not an obsolete alias.
         path = shared / key
         if path.is_symlink() and str(path.readlink()) == manifest[key]:
             print(f"  Remove obsolete owned alias: {path}")
@@ -274,7 +283,7 @@ def main() -> int:
             )
             return 0
         if not args.dry_run:
-            setup_migrations.migrate()
+            setup_migrations.migrate(ROOT, source_selection()[0])
         if args.refresh_guidance:
             for target in targets:
                 refresh_guidance(target, args.dry_run)

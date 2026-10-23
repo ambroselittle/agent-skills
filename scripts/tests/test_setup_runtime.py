@@ -427,8 +427,7 @@ def test_canonical_sources_scripts_and_exact_supported_agent_skills(runtime_box,
     for name, entry in catalog.items():
         assert isinstance(entry["supportedAgents"], list), name
         assert set(entry["supportedAgents"]) <= {"claude", "codex"}, name
-        if name != "make-skill":
-            assert set(entry["supportedAgents"]) == {"claude", "codex"}, name
+        assert set(entry["supportedAgents"]) == {"claude", "codex"}, name
     result = runtime_box.run("--target", target, "skills")
     assert result.returncode == 0, result.stdout + result.stderr
     assert (runtime_box.shared / "source").is_symlink()
@@ -552,3 +551,153 @@ def test_worktree_upgrade_relinks_changed_primary_skill_and_preserves_foreign_sk
     assert legacy.resolve() == ROOT / "skills/author-e2e"
     assert foreign_link.is_symlink() and foreign_link.readlink() == foreign
     assert (foreign_link / "SKILL.md").read_text() == "Keep this independently managed skill.\n"
+
+
+@pytest.mark.parametrize("source_kind", ["checkout", "primary"])
+def test_retired_skill_version_zero_owned_link_is_removed_during_guidance_setup(
+    runtime_box, tmp_path, source_kind
+):
+    retired = "make-skill"
+    source = ROOT / "skills" / retired
+    if source_kind == "primary":
+        primary = tmp_path / "primary-checkout"
+        common_git = primary / ".git"
+        common_git.mkdir(parents=True)
+        source = primary / "skills" / retired
+        source.mkdir(parents=True)
+        (source / "SKILL.md").write_text("Retain this primary checkout's source.\n")
+        runtime_box.command(
+            "git",
+            'case "$*" in\n'
+            f"  *'rev-parse --git-common-dir') printf '%s\\n' {shlex.quote(str(common_git))};;\n"
+            "esac",
+        )
+    legacy = runtime_box.home / ".claude/skills" / retired
+    legacy.parent.mkdir(parents=True)
+    legacy.symlink_to(source)
+    result = runtime_box.run("--target", "claude", "guidance")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not legacy.exists() and not legacy.is_symlink()
+    assert not (runtime_box.shared / "skills" / retired).is_symlink()
+    assert json.loads((runtime_box.shared / "state.json").read_text())["version"] > 1
+    if source_kind == "primary":
+        assert (source / "SKILL.md").read_text() == "Retain this primary checkout's source.\n"
+
+
+def test_retired_skill_version_one_canonical_links_and_manifests_are_reconciled(
+    runtime_box,
+):
+    retired = "make-skill"
+    canonical = runtime_box.shared / "skills" / retired
+    canonical.parent.mkdir(parents=True)
+    canonical.symlink_to(ROOT / "skills" / retired)
+    scripts = runtime_box.shared / "scripts" / retired
+    scripts.parent.mkdir()
+    scripts.symlink_to(ROOT / "skills" / retired / "scripts")
+    live = runtime_box.shared / "skills/author-e2e"
+    live.symlink_to(ROOT / "skills/author-e2e")
+    source_alias = runtime_box.shared / "source"
+    source_alias.symlink_to(ROOT)
+    runtime_alias = runtime_box.shared / "scripts/python"
+    runtime_alias.symlink_to(Path(sys.executable).resolve())
+    infrastructure_inodes = {path: path.lstat().st_ino for path in (source_alias, runtime_alias)}
+    resources = runtime_box.shared / "resource-links.json"
+    resources.write_text(
+        json.dumps(
+            {
+                f"skills/{retired}": str(ROOT / "skills" / retired),
+                f"scripts/{retired}": str(ROOT / "skills" / retired / "scripts"),
+                "skills/author-e2e": str(ROOT / "skills/author-e2e"),
+                "source": str(ROOT),
+                "scripts/python": str(Path(sys.executable).resolve()),
+                "unknown_resource_metadata": {"keep": True},
+            }
+        )
+    )
+    state = runtime_box.shared / "state.json"
+    state.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "legacy_config_imported": True,
+                "unknown_state": {"keep": [1, 2]},
+            }
+        )
+    )
+    manifests = []
+    links = []
+    for agent_home, skill_home in (
+        (runtime_box.home / ".claude", runtime_box.home / ".claude/skills"),
+        (runtime_box.codex, runtime_box.home / ".agents/skills"),
+    ):
+        agent_home.mkdir(parents=True, exist_ok=True)
+        skill_home.mkdir(parents=True, exist_ok=True)
+        link = skill_home / retired
+        link.symlink_to(canonical)
+        (skill_home / "author-e2e").symlink_to(live)
+        manifest = agent_home / "agent-skills-links.json"
+        manifest.write_text(
+            json.dumps(
+                {
+                    retired: str(canonical),
+                    "author-e2e": str(live),
+                    "unknown_manifest_metadata": {"keep": [1]},
+                }
+            )
+        )
+        manifests.append(manifest)
+        links.append(link)
+    result = runtime_box.run("--target", "both", "guidance")
+    assert result.returncode == 0, result.stdout + result.stderr
+    for link in (canonical, scripts, *links):
+        assert not link.exists() and not link.is_symlink()
+    for path in manifests:
+        assert json.loads(path.read_text()) == {
+            "author-e2e": str(live),
+            "unknown_manifest_metadata": {"keep": [1]},
+        }
+    assert live.is_symlink() and live.resolve() == ROOT / "skills/author-e2e"
+    remaining_resources = json.loads(resources.read_text())
+    assert f"skills/{retired}" not in remaining_resources
+    assert f"scripts/{retired}" not in remaining_resources
+    assert remaining_resources["skills/author-e2e"] == str(ROOT / "skills/author-e2e")
+    assert remaining_resources["unknown_resource_metadata"] == {"keep": True}
+    assert {path: path.lstat().st_ino for path in infrastructure_inodes} == infrastructure_inodes
+    upgraded = json.loads(state.read_text())
+    assert upgraded["version"] > 1
+    assert upgraded["unknown_state"] == {"keep": [1, 2]}
+    before = {path: path.read_bytes() for path in (state, resources, *manifests)}
+    assert runtime_box.run("--target", "both", "guidance").returncode == 0
+    assert {path: path.read_bytes() for path in before} == before
+
+
+@pytest.mark.parametrize("foreign_kind", ["symlink", "directory"])
+def test_retired_skill_migration_preserves_foreign_installations_and_is_idempotent(
+    runtime_box, tmp_path, foreign_kind
+):
+    retired = "make-skill"
+    link = runtime_box.home / ".claude/skills" / retired
+    link.parent.mkdir(parents=True)
+    foreign = tmp_path / "independently-managed" / retired
+    if foreign_kind == "symlink":
+        foreign.mkdir(parents=True)
+        link.symlink_to(foreign)
+    else:
+        link.mkdir()
+    marker = link / "SKILL.md"
+    marker.write_text("Keep this user-owned installation intact.\n")
+    runtime_box.shared.mkdir()
+    state = runtime_box.shared / "state.json"
+    state.write_text(json.dumps({"version": 1, "legacy_config_imported": True}))
+    result = runtime_box.run("--target", "claude", "guidance")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert marker.read_text() == "Keep this user-owned installation intact.\n"
+    assert link.is_symlink() == (foreign_kind == "symlink")
+    if foreign_kind == "symlink":
+        assert link.readlink() == foreign
+    assert json.loads(state.read_text())["version"] > 1
+    before = state.read_bytes()
+    result = runtime_box.run("--target", "claude", "guidance")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert state.read_bytes() == before
+    assert marker.read_text() == "Keep this user-owned installation intact.\n"
