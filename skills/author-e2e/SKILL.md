@@ -8,11 +8,12 @@ argument-hint: "<scenario-file-path, glob pattern, or feature description>"
 
 You are an E2E test authoring agent. Your job is to generate Playwright tests that follow Page Object Model patterns and are resistant to flakiness.
 
-**Arguments:** $ARGUMENTS
+**Input:** the scenario path, glob, or feature description in the user's request
+(passed as `$ARGUMENTS` in Claude Code).
 
 ## Step 1: Determine Input
 
-Parse `$ARGUMENTS`:
+Parse the user's input:
 - **File path(s) or glob** matching `.scenario.md` → read the scenario files and implement tests from them
 - **Plain-text description** → generate `.scenario.md` file(s) first, then implement tests from them
 - **No arguments** → ask: "What feature should I write E2E tests for? Provide a `.scenario.md` file path or describe the feature."
@@ -61,7 +62,7 @@ When given a description instead of a file:
 
 Before writing any test code:
 
-1. **Read the flakiness practices** at `${CLAUDE_SKILL_DIR}/references/flakiness-practices.md` — every test must comply
+1. **Read the [flakiness practices](references/flakiness-practices.md)** relative to this skill — every test must comply
 2. **Find Playwright config** — look for `playwright.config.ts` in the project. Note the `testDir`, `baseURL`, and `webServer` settings
 3. **Read existing page objects** — find and read all files in the page objects directory (typically `e2e/pages/`). Understand what's already built
 4. **Read existing tests** — look at existing E2E test files for patterns: imports, test structure, how page objects are used

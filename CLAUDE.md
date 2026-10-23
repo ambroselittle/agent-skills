@@ -1,6 +1,15 @@
 # agent-skills
 
-AI agent skills, hooks, and project templates for Claude Code. Skills are prompt-based tools that orchestrate workflows; hooks enforce safety rules on tool calls; templates scaffold new projects.
+AI agent skills, hooks, and project templates for Claude Code and Codex. Skills are prompt-based tools that orchestrate workflows; hooks enforce safety rules on tool calls; templates scaffold new projects.
+
+`AGENTS.md` links to this file. Keep shared guidance in `templates/user-common.md`
+and integration-specific text in `templates/user-{claude,codex}.md`; never maintain
+two full guidance copies. `setup.sh --target claude|codex|both` uses
+`scripts/setup_targets.py` for target selection and the existing `setup_config.py`
+primitives for configuration writes. No target flag preserves the Claude installer and refreshes any installed Codex guidance.
+New Codex components need an exclusion/removal path and isolated-home installer tests.
+The Codex skill allowlist and unsupported-workflow reasons live in
+`skills/compatibility.json`. Do not blindly import Claude-only tool instructions.
 
 ## Structure
 

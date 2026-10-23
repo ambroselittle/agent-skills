@@ -251,3 +251,16 @@ def test_save_json_keeps_non_ascii_literal(settings_file):
     """Claude Code writes settings.json as UTF-8; escaping em-dashes would churn every run."""
     sc.save_json(settings_file, {"note": "a — b"})
     assert "a — b" in settings_file.read_text()
+
+
+def test_save_json_preserves_symlink_and_updates_referent(tmp_path):
+    from setup_config import save_json
+
+    referent = tmp_path / "dotfiles/settings.json"
+    referent.parent.mkdir()
+    referent.write_text('{"old": true}\n')
+    link = tmp_path / "settings.json"
+    link.symlink_to(referent)
+    save_json(link, {"new": True})
+    assert link.is_symlink()
+    assert json.loads(referent.read_text()) == {"new": True}

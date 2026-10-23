@@ -2,6 +2,10 @@ line-length = 100
 target-version = "py312"
 extend-exclude = ["**/templates/**", "**/.eval-runs/**", "skills/solve-take-home/**"]
 
+# The installed adapter runs under the host python3, including macOS Python 3.9.
+[per-file-target-version]
+"hooks/PreToolUse/engine/codex_adapter.py" = "py39"
+
 [lint]
 select = ["E", "F", "I", "UP", "B"]
 

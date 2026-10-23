@@ -13,10 +13,18 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Explicit targets use the shared dispatcher. The no-flag Claude installer
+# remains unchanged for existing setup automation.
+for _arg in "$@"; do
+  case "$_arg" in
+    --target|--target=*|--dry-run)
+      exec python3 "$SCRIPT_DIR/scripts/setup_targets.py" "$@"
+      ;;
+  esac
+done
 CLAUDE_DIR="$HOME/.claude"
 CLAUDE_SKILLS_DIR="$CLAUDE_DIR/skills"
 CLAUDE_SETTINGS="$CLAUDE_DIR/settings.json"
-CLAUDE_MD="$CLAUDE_DIR/CLAUDE.md"
 HOOKS_DIR="$CLAUDE_DIR/hooks"
 
 # --------------------------------------------------------------------------- #
@@ -94,7 +102,7 @@ _print_components() {
 
 _usage() {
   cat <<USAGE
-Usage: setup.sh [component|group ...] [flag ...]
+Usage: setup.sh [--target claude|codex|both] [component|group ...] [flag ...]
 
 Default (no arguments): idempotent full setup — links skills, installs hooks,
 merges permissions, registers MCP servers, and updates CLAUDE.md.
@@ -122,6 +130,8 @@ Examples:
   setup.sh --without guidance mcp   Everything except those two
 
 Flags:
+  --target claude|codex|both         Select agent integrations (default: claude).
+  --dry-run                        Preview selected changes without writing files.
   --without                        Persist every component named after this
                                    flag into the "exclude" key of
                                    ~/.claude/agent-skills.json, then remove
@@ -845,32 +855,7 @@ fi
 if _want guidance; then
   section "Updating CLAUDE.md"
 
-  core_template="$SCRIPT_DIR/templates/user-claude.md"
-
-  if _is_excluded guidance core; then
-    _config guidance remove "$CLAUDE_MD"
-  elif [[ -f "$core_template" ]]; then
-    block_content="$(cat "$core_template")"
-
-    if _is_excluded guidance personal; then
-      skip "Personal template excluded"
-    else
-      gh_user=""
-      if command -v gh &>/dev/null; then
-        gh_user="$(gh api user --jq .login 2>/dev/null || true)"
-      fi
-      if [[ -n "$gh_user" ]] && [[ -f "$SCRIPT_DIR/templates/${gh_user}.md" ]]; then
-        block_content="${block_content}
-
-$(cat "$SCRIPT_DIR/templates/${gh_user}.md")"
-        ok "Personal template for $gh_user"
-      fi
-    fi
-
-    printf '%s' "$block_content" | _config guidance upsert "$CLAUDE_MD" -
-  else
-    warn "$core_template not found, skipping CLAUDE.md update"
-  fi
+  python3 "$SCRIPT_DIR/scripts/setup_targets.py" --target claude --refresh-guidance
 fi
 
 # --------------------------------------------------------------------------- #

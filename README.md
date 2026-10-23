@@ -1,6 +1,6 @@
 # Agent Skills 🤖✨
 
-**Make Claude awesomer.** A collection of skills, hooks, and CLAUDE.md guidance that turn Claude Code into a sharper, safer, more opinionated engineering collaborator.
+**Make your agents awesomer.** Shared skills, policy hooks, and guidance for Claude Code and Codex, with small integrations for their different tool APIs.
 
 Clone or fork this repo and run `make init` — you immediately get all three.
 
@@ -9,6 +9,83 @@ git clone https://github.com/ambroselittle/agent-skills
 cd agent-skills
 make init
 ```
+
+## Claude and Codex installation
+
+Existing `setup.sh` and `make init` invocations still target Claude. To install
+the supported components for both tools:
+
+```bash
+bash setup.sh --target both
+```
+
+Preview an installation without changing files:
+
+```bash
+bash setup.sh --target both --dry-run
+```
+
+Install only Codex's permission hooks:
+
+```bash
+bash setup.sh --target codex pretooluse
+```
+
+`--target codex --list` shows component support. Component selection and
+`--without` work with either target. Codex exclusions live in
+`~/.codex/agent-skills.json`; they override matching categories in the existing
+Claude installer config, so personal skill opt-outs carry over. `CODEX_HOME`
+is respected. `AGENT_SKILLS_USER` selects a personal guidance template;
+otherwise both agents use a cached user or look up your GitHub login.
+
+| Component | Claude | Codex |
+| --- | --- | --- |
+| Policy engine | PreToolUse decisions | PreToolUse denials + PermissionRequest approvals |
+| Guidance | Managed CLAUDE.md block | Managed AGENTS.md block |
+| Skills | Existing skill links | Reviewed portable skills linked in ~/.agents/skills |
+| Titles | Terminal title + topical reminders | Native `/title` and `/rename`; custom automation retired |
+| Display swaps, notifications, attribution, MCP, resume CLI | Existing integrations | Left to native Codex/Superset configuration |
+
+There is **one maintained guidance core** (`templates/user-common.md`) and one
+personal file (`templates/<username>.md`). `user-claude.md` and `user-codex.md`
+only contain harness-specific instructions. The installer combines these into
+managed blocks, preserving your other text. Once both agents have a managed block,
+normal setup runs (including `bash setup.sh guidance`) refresh both. Each block
+records that agent's installation; a Claude-only machine does not acquire Codex
+configuration on a normal run. Per-agent guidance exclusions still apply.
+Repo `AGENTS.md` is a symlink to
+`CLAUDE.md`; compatible skills also link to one source rather than copied prompts.
+See `skills/compatibility.json` for the intentionally small Codex skill set and
+the reasons other workflows remain Claude-only. Existing skill directories or
+links owned by other installers are left alone.
+
+### Activate and diagnose Codex hooks
+
+Review new or changed definitions in Codex **`/hooks`**. The installer never
+edits trust records. If an already-running session still prompts or runs a
+removed hook, exit and resume it; a successful command alone does not establish
+that the hook ran.
+
+The policy log at `~/.codex/hooks/agent-skills-policy/codex-events.jsonl` records
+session IDs, event/tool names, input shape and decisions, **not commands or file
+contents**. A live test must produce an entry for the expected session. Logs
+rotate after about 1 MB. `--shell-only` supports a staged installation matching
+the original shell-only adapter; a normal install adds patch and MCP coverage.
+
+The same rules and private `~/.agent-skills/local-rules.json` overlay are used
+by both tools. Codex normalizes patch additions, updates, moves and deletions for
+the engine. Unknown permission inputs defer to normal approval. `ask` also
+defers at PermissionRequest; at PreToolUse it blocks because Codex cannot ask
+there. Hooks are not a complete sandbox: hosted tools and some specialized
+paths are outside their coverage, and the existing engine is not a shell interpreter.
+
+### Window titles
+
+Claude retains its `window-title` script and topical reminders. Codex uses its
+built-in `/title` display and `/rename` command. The custom Codex app-server
+rename helper and title nudges are retired: they did not update the active CLI
+reliably. Setup removes their hook registrations and leaves inert compatibility
+stubs so cached commands in running sessions cannot trigger error loops.
 
 ---
 

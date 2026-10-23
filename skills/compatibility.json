@@ -1,0 +1,18 @@
+{
+  "author-e2e": {"codex": "shared", "reason": "Portable workflow with relative references."},
+  "author-message": {"codex": "shared", "reason": "Plain writing guidance; no harness APIs."},
+  "code-review": {"codex": "claude-only", "reason": "Claude agent definitions and dynamic context; use the project's Codex review skill."},
+  "create-repo": {"codex": "claude-only", "reason": "Claude dynamic context and orchestration; scaffolding scripts remain callable directly."},
+  "deploy-aws": {"codex": "claude-only", "reason": "Claude dynamic context, tools, and shared script paths."},
+  "do-fixes": {"codex": "claude-only", "reason": "Depends on Claude review and implementation workflows."},
+  "do-work": {"codex": "claude-only", "reason": "Claude-specific orchestration and dynamic context."},
+  "make-skill": {"codex": "claude-only", "reason": "Use Codex's native skill-creator skill."},
+  "plan-review": {"codex": "claude-only", "reason": "Claude-specific reviewer agents."},
+  "plan-work": {"codex": "claude-only", "reason": "Claude-specific planning tools and dynamic context."},
+  "setup-agent-skills": {"codex": "claude-only", "reason": "Configures Claude workflows; use setup.sh --target codex."},
+  "solve-take-home": {"codex": "claude-only", "reason": "Depends on Claude's create-repo skill orchestration."},
+  "start-work": {"codex": "claude-only", "reason": "Claude session and worktree workflow."},
+  "super-work": {"codex": "claude-only", "reason": "Superset launch workflow for Claude sessions."},
+  "sync-guidance": {"codex": "claude-only", "reason": "Bidirectional editing of Claude's guidance and rules."},
+  "wtf": {"codex": "claude-only", "reason": "Claude worker and session transcript integration."}
+}

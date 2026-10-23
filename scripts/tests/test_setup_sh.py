@@ -43,7 +43,13 @@ class Sandbox:
         self.bin.mkdir()
         self.shim_log = tmp_path / "claude-calls.log"
         self.shim_mcp = tmp_path / "claude-mcp-get.txt"
-        for name, body in (("claude", CLAUDE_SHIM), ("gh", GH_SHIM)):
+        # These tests exercise full installs, independent of the checkout
+        # hosting pytest. Disable worktree detection in this isolated HOME.
+        for name, body in (
+            ("claude", CLAUDE_SHIM),
+            ("gh", GH_SHIM),
+            ("git", "#!/bin/sh\nexit 1\n"),
+        ):
             shim = self.bin / name
             shim.write_text(body)
             shim.chmod(0o755)
@@ -58,6 +64,7 @@ class Sandbox:
         env = {
             **os.environ,
             "HOME": str(self.home),
+            "CODEX_HOME": str(self.home / ".codex"),
             "AGENT_SKILLS_CONFIG": str(self.config),
             "PATH": f"{self.bin}:{os.environ['PATH']}",
             "SHELL": "/bin/zsh",

@@ -27,7 +27,7 @@ From the pre-loaded context, identify:
 
 1. **Fenced blocks** in `~/.claude/CLAUDE.md` — these are managed by others (employer, other tools). Note their tags and line ranges. You will **read** these for insights but **never write to them**.
 2. **Personal section** — everything after the last fence closing tag. This is yours to update.
-3. **Repo rules** — the current `.claude/rules/*.md` files and `templates/user-claude.md` in this repo.
+3. **Repo rules** — the current `.claude/rules/*.md` files and `templates/user-common.md` plus `templates/user-claude.md` in this repo.
 
 Print a brief orientation:
 ```
@@ -50,7 +50,7 @@ Repo: <N> rule files found
 
 Compare repo guidance (rules + shared template) against the full CLAUDE.md content:
 
-- For each rule file and each meaningful section of `user-claude.md`: check if the substance is already present somewhere in CLAUDE.md (exact or paraphrased — don't flag things already covered)
+- For each rule file and each meaningful section of `user-common.md` and `user-claude.md`: check if the substance is already present somewhere in CLAUDE.md (exact or paraphrased — don't flag things already covered)
 - Build a list of genuine gaps: guidance in the repo not reflected anywhere in CLAUDE.md
 
 ### 2b. Propose additions
@@ -103,7 +103,7 @@ Build a list of candidates: novel guidance worth adding to the repo.
 For each candidate, determine:
 - Is this genuinely novel vs. already covered (even loosely) in the repo?
 - Is it generalizable, or too specific to this machine/context?
-- Where should it live: new rule file, addition to existing rule file, or update to `templates/user-claude.md`?
+- Where should it live: new rule file, addition to existing rule file, or update to `templates/user-common.md` (shared) or `templates/user-claude.md` (Claude-specific)?
 - If a rule file: what `paths` frontmatter scope applies?
 
 Present the triage:

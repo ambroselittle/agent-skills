@@ -1,7 +1,14 @@
 # PreToolUse Hook Engine
 
-A rule-based engine that intercepts Claude Code tool calls before execution and returns
-allow/deny/ask decisions.
+A rule-based engine shared by Claude Code and Codex. Claude's `interpreter.py`
+returns its native decisions. Codex's `codex_adapter.py` translates supported tool
+inputs and emits the distinct PreToolUse and PermissionRequest response shapes.
+
+Codex installs its own snapshot of the same engine/rules from this source; it
+does not require Claude to be installed. Keep policy changes in the engine, not
+duplicated in either adapter. Unknown permission input defers, and errors never
+auto-approve. Codex PreToolUse errors or `ask` rules block rather than silently
+executing. The bounded metadata log must never include command text or file contents.
 
 ## Architecture
 
@@ -105,8 +112,9 @@ entries are full rule objects rather than relax-only overrides:
 ```
 
 Overlay rules are exempt from the `rules.json` convention checker (they are not
-in this repo) and fail open if the file is absent or malformed. Distinct from
-the per-repo `.agent-skills/config.json`, which only _relaxes_ existing denies.
+in this repo). An absent overlay adds no rules. Claude ignores malformed overlays;
+Codex blocks PreToolUse evaluation and defers PermissionRequest to normal approval.
+Distinct from the per-repo `.agent-skills/config.json`, which only _relaxes_ existing denies.
 
 ## Testing
 

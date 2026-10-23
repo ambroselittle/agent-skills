@@ -81,9 +81,9 @@ for f in sorted(rules_dir.glob("*.md")):
         "content": content,
     })
 
-# Also include templates/user-claude.md as the shared base
-user_template = templates_dir / "user-claude.md"
-shared_content = user_template.read_text() if user_template.exists() else ""
+# Include the shared core and Claude integration guidance from their maintained sources
+user_templates = [templates_dir / name for name in ("user-common.md", "user-claude.md")]
+shared_content = "\n\n".join(p.read_text().strip() for p in user_templates if p.exists())
 
 print(json.dumps({
     "rules": rules,

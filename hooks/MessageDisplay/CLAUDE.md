@@ -14,7 +14,7 @@ you read — it does not change what Claude writes, and it never leaks back into
 The model is none the wiser and will keep saying "load-bearing"; you just stop seeing it.
 
 If you want Claude to actually stop *producing* a phrase, that's a prompt change
-(`templates/user-claude.md`), not a hook. The two are complementary.
+(`templates/user-common.md`), not a hook. The two are complementary.
 
 ## Architecture
 
