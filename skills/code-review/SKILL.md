@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Review a pull request with multi-pass parallel specialized agents. Presents findings in-session for opt-out review — default is to fix everything. Merges repo-specific reviewers (`.claude/agents/reviewers/`) with built-in reviewers — repo overrides built-in on name collision. Always-on agents (security, devdocs) run regardless of diff. Default is incremental (commits since last review); use `full` for the entire PR.
+description: Review a pull request with multi-pass parallel specialized agents. Presents findings in-session for opt-out review — default is to fix everything. Merges repo-specific reviewers (`.agents/reviewers/`, with legacy `.claude/agents/reviewers/` fallback) with built-in reviewers — repo overrides built-in on name collision. Always-on agents (security, devdocs) run regardless of diff. Default is incremental (commits since last review); use `full` for the entire PR.
 argument-hint: "[full | pr-url]"
 context: fork
 ---
@@ -9,21 +9,24 @@ context: fork
 
 You are the coordinator of a parallel code review team.
 
-**Arguments:** $ARGUMENTS
+**Arguments:** Use the arguments supplied with this skill invocation or the user's current request.
 - No arguments: incremental — review commits since the last review (reads SHA from `<work-folder>/reviews/` filenames); if no prior review, uses full PR diff
 - `full`: entire PR diff regardless of prior reviews
 - PR URL: review a specific PR
 
-**Current state (pre-loaded):**
-- CI environment: !`~/.claude/skills/code-review/scripts/context.sh ci-status`
-- HEAD SHA: !`~/.claude/skills/shared/scripts/context.sh head-sha`
-- Current branch: !`~/.claude/skills/shared/scripts/context.sh current-branch`
-- Work folder: !`~/.claude/skills/shared/scripts/context.sh work-folder`
-- Ticket ID: !`~/.claude/skills/shared/scripts/context.sh ticket-id`
-- Open PR: !`~/.claude/skills/shared/scripts/context.sh open-pr`
-- Recent commits: !`~/.claude/skills/shared/scripts/context.sh recent-commits`
-- Reviewer agents found: !`~/.claude/skills/code-review/scripts/context.sh reviewer-agents`
-- Work plan: !`~/.claude/skills/code-review/scripts/context.sh work-plan`
+Read `~/.agent-skills/skills/shared/references/harness-capabilities.md` before proceeding. Use its active-harness mappings for skills, questions, progress, delegation, model tiers, project instructions, and connected tools.
+
+**Context to load explicitly:** Run each command below before interpreting its output. These are shell commands to execute, not values supplied automatically by the harness.
+
+- CI environment: `bash ~/.agent-skills/scripts/code-review/context.sh ci-status`
+- HEAD SHA: `bash ~/.agent-skills/scripts/shared/context.sh head-sha`
+- Current branch: `bash ~/.agent-skills/scripts/shared/context.sh current-branch`
+- Work folder: `bash ~/.agent-skills/scripts/shared/context.sh work-folder`
+- Ticket ID: `bash ~/.agent-skills/scripts/shared/context.sh ticket-id`
+- Open PR: `bash ~/.agent-skills/scripts/shared/context.sh open-pr`
+- Recent commits: `bash ~/.agent-skills/scripts/shared/context.sh recent-commits`
+- Reviewer agents found: `bash ~/.agent-skills/scripts/code-review/context.sh reviewer-agents`
+- Work plan: `bash ~/.agent-skills/scripts/code-review/context.sh work-plan`
 
 **PR number:** extract from "Open PR" above (the number before the colon). Use this everywhere `<pr-number>` appears — do not re-query with `gh pr view` to get the PR number.
 
@@ -37,24 +40,19 @@ You are the coordinator of a parallel code review team.
 
 ## Phase 1: Orientation
 
-1. **Read project context.** Read `CLAUDE.md` at the repo root — note conventions and any areas of special concern.
-
-   **Model check.** If you are not running on Opus, emit this note before continuing:
-   > For best synthesis quality, switch to Opus with: `/model opus` (no restart needed)
-
-   Then continue regardless — this is advisory only.
+1. **Read project context.** Read applicable `AGENTS.md`, legacy `CLAUDE.md`, and rules — note conventions and areas of special concern. Use the high model tier for coordinator synthesis when the active harness supports that selection; otherwise keep the configured session model.
 
 2. **Determine review scope.**
 
-   Use the pre-loaded `Work folder` as the review artifact location. If `none` (on main), ask the user which branch/plan this review is for before proceeding.
+   Use the loaded `Work folder` as the review artifact location. If `none` (on main), ask the user which branch/plan this review is for before proceeding.
 
    **Diff source — prefer PR diff over local diff:**
 
-   - **PR exists** (pre-loaded above shows an open PR, or a PR URL was passed as argument):
-     - **Incremental** (default): find the most recent review file in `<work-folder>/reviews/` by SHA suffix (`YYYY-MM-DD-<sha>.md`). Run `gh pr diff <pr-number> -- $(git log <sha>...HEAD --name-only | sort -u | tr '\n' ' ')` to scope to changed files since last review. If filtering is too complex, use full PR diff with a note.
-     - **Full** (`full` argument or no prior review): run `gh pr diff <pr-number>`.
+   - **PR exists** (loaded above shows an open PR, or a PR URL was passed as argument):
+     - **Incremental** (default): find the most recent review file in `<work-folder>/reviews/` by SHA suffix (`YYYY-MM-DD-<sha>.md`). Run `bash ~/.agent-skills/scripts/code-review/context.sh diff --pr <pr-number> --since <sha>` to filter the full PR diff to files changed since the last review. `gh pr diff` does not accept path arguments. An empty changed-file set means there is no new diff to review.
+     - **Full** (`full` argument or no prior review): run `bash ~/.agent-skills/scripts/code-review/context.sh diff --pr <pr-number>`.
 
-   - **No PR yet** (pre-loaded shows no open PR):
+   - **No PR yet** (loaded shows no open PR):
      - Run `git fetch origin main` first to ensure main is current, then `git diff $(git merge-base HEAD origin/main)...HEAD`.
      - Note to user: "No open PR found — diffing against origin/main. Results may include drift if main has moved significantly since you branched."
 
@@ -67,7 +65,7 @@ You are the coordinator of a parallel code review team.
    gh pr view <pr-number> --json author -q .author.login
    ```
 
-   Fetch all three feedback channels **in parallel** (three Bash tool calls in a single message —
+   Fetch all three feedback channels **in parallel** (three independent shell calls using the active harness —
    they are independent):
    ```bash
    gh api repos/<owner>/<repo>/pulls/<pr-number>/comments --paginate
@@ -124,7 +122,7 @@ You are the coordinator of a parallel code review team.
        Resolution: no-response
    ```
 
-5. **Select reviewers.** Use the pre-loaded list above, which shows two groups:
+5. **Select reviewers.** Use the loaded list above, which shows two groups:
 
    - **always-on**: run unconditionally — no exceptions, no skipping based on diff size or relevance.
    - **selectable**: coordinator decides which to include. Include an agent if there is any material
@@ -157,33 +155,31 @@ track progress. Mark each `in_progress` when you start it, `completed` when done
 Run each selected reviewer **twice in parallel** — pass 1 with the normal diff, pass 2 with the
 reversed diff. No edits in this phase.
 
-**Get the reversed diff for pass 2** — pass `--pr <pr-number>` (the number extracted earlier) and the same file list used for pass 1 to keep scope consistent (incremental reviews scope to changed files since last review; full reviews omit the file list):
+**Get the reversed diff for pass 2** — use the same PR and `--since <sha>` as pass 1 for incremental review. Omit `--since` for a full review. Both commands filter the same full PR diff before changing file order:
 ```bash
-# Incremental: bash ~/.claude/skills/code-review/scripts/context.sh reversed-diff --pr <pr-number> <file1> <file2> ...
-# Full PR:     bash ~/.claude/skills/code-review/scripts/context.sh reversed-diff --pr <pr-number>
+bash ~/.agent-skills/scripts/code-review/context.sh reversed-diff --pr <pr-number> --since <sha>
 ```
 
-Read `~/.claude/skills/shared/references/finding-format.md` and `${CLAUDE_SKILL_DIR}/references/review-discipline.md` — include the full content of both in every agent prompt.
+Read `~/.agent-skills/skills/shared/references/finding-format.md` and `~/.agent-skills/skills/code-review/references/review-discipline.md` — include the full content of both in every agent prompt.
 
 **Collect applicable repo rules** (once, before spawning any agents):
-1. List all files in `.claude/rules/`. If the directory doesn't exist or is empty, skip this step.
+1. List rule files in `.agents/rules/` and legacy `.claude/rules/`; read applicable `AGENTS.md` and `CLAUDE.md` instructions. Deduplicate linked copies.
 2. For each rule file, read its `paths:` frontmatter. If any glob matches a file in the diff, mark it as diff-applicable — include its content for all agents.
-3. For each reviewer `<name>`, check if `.claude/rules/<name>.md` exists — if so, include its content for that reviewer specifically.
+3. For each reviewer `<name>`, include applicable name-matched rule files from those directories for that reviewer specifically.
 4. Pass to each agent: content of diff-applicable rules + content of any name-matched rule, with the note from the `## Repo Rules` section of the review discipline (included below).
 
 Spawn all agents simultaneously in a single parallel batch — all pass-1 agents and all pass-2
 agents at once. Pass 2 does not wait for pass 1. Collect findings from all agents (both passes)
 before proceeding to Phase 3.
 
-Spawn each agent with `model: sonnet`. The merged reviewer list (from the pre-loaded context above)
+Spawn each agent using the medium model tier. The merged reviewer list (from the loaded context above)
 includes all agents — built-ins, repo overrides (same name as a built-in, repo version wins), and
 repo-specific agents (new names not in the built-in set). Run all of them. For each agent, the
-file path is `.claude/agents/reviewers/<name>.md` if it exists there, otherwise
-`${CLAUDE_SKILL_DIR}/agents/<name>.md`. context.sh resolves this — you just work from the list.
+persona file is `.agents/reviewers/<name>.md` if present, otherwise legacy `.claude/agents/reviewers/<name>.md`, otherwise `~/.agent-skills/skills/code-review/agents/<name>.md`. This is the same exact-slug precedence used by the context command; run one winning persona per name.
 
 Use this prompt for **both passes** — the only difference is the diff passed at the end (normal for pass 1, reversed for pass 2):
 
-> "Read `<agent-file>` for your reviewer persona and focus areas. Read `CLAUDE.md` for project conventions. Review the following diff from your specialized perspective. If a work plan is provided below, use it to understand the *intent* of the change — but evaluate the code on its own merits. Intentional changes can still be wrong. Output all findings using the standard finding format provided below.
+> "Read `<agent-file>` for your reviewer persona and focus areas. Read applicable `AGENTS.md`, legacy `CLAUDE.md`, and provided rules for project conventions. Review the following diff from your specialized perspective. If a work plan is provided below, use it to understand the *intent* of the change — but evaluate the code on its own merits. Intentional changes can still be wrong. Output all findings using the standard finding format provided below.
 >
 > If you find no issues in your domain, say so explicitly — do not manufacture findings to justify your involvement. A clean review is a good outcome.
 >

@@ -9,7 +9,7 @@ Your job: produce a PR (or update an existing one) that addresses the correction
 - **Working directory:** a fresh `--depth 1` clone of `ambroselittle/agent-skills` under `/tmp/wtf-worker-*`. The wrapper has already `cd`'d into it.
 - **Auth:** `gh` and `git` are authenticated with the user's credentials.
 - **Tools:** full shell + filesystem access; `--dangerously-skip-permissions` is in effect.
-- **Model:** Sonnet.
+- **Model capability:** Medium tier, selected by the wrapper.
 
 ## Mode: `new`
 
@@ -25,11 +25,11 @@ Pick exactly ONE target per entry:
 
 | # | Category | Where it lands |
 |---|---|---|
-| 1 | **Behavioral guidance** (how Claude should work) | `templates/ambroselittle.md` (user-specific) or `templates/user-claude.md` (universal) — decide by whether the preference is Ambrose-only or anyone-would-benefit |
+| 1 | **Behavioral guidance** (how agents should work) | `templates/ambroselittle.md` (user-specific), `templates/user-agents-guidance.md` (universal), or the relevant `templates/user-{claude,codex}.md` (harness integration) — decide by whether the preference is Ambrose-only or anyone-would-benefit |
 | 2 | **Rule** (project-specific directive) | `.claude/rules/<topic>.md` — path-scoped (with `paths:` frontmatter) if it only applies to certain files, unscoped otherwise |
 | 3 | **Skill** (behavior of an existing skill, or a new one) | `skills/<name>/SKILL.md` or supporting files; rarely, a new `skills/<name>/` |
 | 4 | **Hook** (PreToolUse rule) | `hooks/PreToolUse/rules.json` + paired test in `hooks/PreToolUse/tests/rules/` (convention is enforced — see `hooks/PreToolUse/CLAUDE.md`) |
-| 5 | **CLAUDE.md** (repo orientation, structural facts) | `CLAUDE.md` at the repo root. Rare — most things are behavior, not orientation. |
+| 5 | **Project guidance** (repo orientation, structural facts) | `CLAUDE.md` linked by `AGENTS.md` at the repo root. Rare — most things are behavior, not orientation. |
 | 6 | **Upstream repo issue** (correction is about a different repo) | File an issue there: `gh issue create -R <owner>/<repo> --title "..." --body "..."`. No local changes. |
 | 7 | **No-action** (already fixed, one-off, or unactionable) | Close the backlog issue with a comment explaining why. |
 

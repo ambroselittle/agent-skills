@@ -34,17 +34,27 @@ exit 0
 
 class Sandbox:
     def __init__(self, tmp_path: Path):
-        self.home = tmp_path / "home"
+        from test_setup_runtime import RuntimeSandbox
+
+        runtime = RuntimeSandbox(tmp_path)
+        self.home = runtime.home
         self.claude_dir = self.home / ".claude"
-        self.claude_dir.mkdir(parents=True)
+        self.claude_dir.mkdir(parents=True, exist_ok=True)
         self.config = self.claude_dir / "agent-skills.json"
         self.skills = self.claude_dir / "skills"
-        self.bin = tmp_path / "bin"
-        self.bin.mkdir()
+        self.bin = runtime.bin
+        self.applications = runtime.apps
         self.shim_log = tmp_path / "claude-calls.log"
         self.shim_mcp = tmp_path / "claude-mcp-get.txt"
-        for name, body in (("claude", CLAUDE_SHIM), ("gh", GH_SHIM)):
+        # These tests exercise full installs, independent of the checkout
+        # hosting pytest. Disable worktree detection in this isolated HOME.
+        for name, body in (
+            ("claude", CLAUDE_SHIM),
+            ("gh", GH_SHIM),
+            ("git", "#!/bin/sh\nexit 1\n"),
+        ):
             shim = self.bin / name
+            shim.unlink(missing_ok=True)
             shim.write_text(body)
             shim.chmod(0o755)
 
@@ -58,8 +68,10 @@ class Sandbox:
         env = {
             **os.environ,
             "HOME": str(self.home),
+            "CODEX_HOME": str(self.home / ".codex"),
             "AGENT_SKILLS_CONFIG": str(self.config),
-            "PATH": f"{self.bin}:{os.environ['PATH']}",
+            "PATH": str(self.bin),
+            "AGENT_SKILLS_APPLICATION_DIRS": str(self.applications),
             "SHELL": "/bin/zsh",
             "CLAUDE_SHIM_LOG": str(self.shim_log),
             "CLAUDE_SHIM_MCP": str(self.shim_mcp),
@@ -90,7 +102,8 @@ def box(tmp_path) -> Sandbox:
 def test_without_persists_to_config_and_reports_where(box):
     result = box.run("skills", "--without", "mcp")
     assert result.returncode == 0, result.stdout + result.stderr
-    assert box.read_config()["exclude"] == {"mcp": ["all"]}
+    assert box.read_config()["agents"]["claude"]["exclude"] == {"mcp": ["all"]}
+    assert "exclude" not in box.read_config()
     assert "Persisting exclusions" in result.stdout
     assert str(box.config) in result.stdout
 
@@ -105,7 +118,7 @@ def test_without_is_idempotent_and_keeps_other_keys(box):
     assert box.read_config() == {
         "user_prefix": "me",
         "work_root": "/w",
-        "exclude": {"hooks": ["pretooluse"]},
+        "agents": {"claude": {"exclude": {"hooks": ["pretooluse"]}}},
     }
 
 

@@ -10,15 +10,17 @@ You are setting up a fresh git worktree for a work item so the user can start co
 
 This is the local-filesystem counterpart to `/super-work` (which creates Superset workspaces). Use this when the user wants a plain `git worktree` they can open in their own editor (VS Code, Cursor, Zed, …).
 
-**Arguments:** $ARGUMENTS
+**Arguments:** Use the arguments supplied with this skill invocation or the user's current request.
 
-**Pre-loaded context:**
+Read `~/.agent-skills/skills/shared/references/harness-capabilities.md` before proceeding. Use its active-harness mappings for skills, questions, progress, delegation, model tiers, project instructions, and connected tools.
 
-- Ticket ID (from branch): !`~/.claude/skills/shared/scripts/context.sh ticket-id`
-- User branch prefix: !`~/.claude/skills/shared/scripts/context.sh user-slug`
-- Repo remote: !`~/.claude/skills/shared/scripts/context.sh repo-remote`
-- Current branch: !`~/.claude/skills/shared/scripts/context.sh current-branch`
-- Config: !`cat ~/.claude/agent-skills.json 2>/dev/null || echo "needs-setup"`
+**Context to load explicitly:** Run each command below before interpreting its output. These are shell commands to execute, not values supplied automatically by the harness.
+
+- Ticket ID (from branch): `bash ~/.agent-skills/scripts/shared/context.sh ticket-id`
+- User branch prefix: `bash ~/.agent-skills/scripts/shared/context.sh user-slug`
+- Repo remote: `bash ~/.agent-skills/scripts/shared/context.sh repo-remote`
+- Current branch: `bash ~/.agent-skills/scripts/shared/context.sh current-branch`
+- Config: `bash ~/.agent-skills/scripts/shared/context.sh config`
 
 **Setup check:** If `Config` shows `needs-setup`, stop: "Run `/setup-agent-skills` first to configure your work folder and branch prefix, then come back."
 
@@ -28,16 +30,12 @@ This is the local-filesystem counterpart to `/super-work` (which creates Superse
 
 Determine which ticket to start, in priority order:
 
-1. **Argument** — if `$ARGUMENTS` matches `[A-Z]+-\d+` (Linear ID), use it directly.
+1. **Argument** — if the invocation input matches `[A-Z]+-\d+` (Linear ID), use it directly.
 2. **Session context** — if `/plan-work` produced a ticket + slug in this conversation, use them.
-3. **Slug argument** — if `$ARGUMENTS` doesn't match the Linear pattern but looks like a slug (contains a hyphen, no spaces), use it as the slug and derive the ticket if it starts with one.
+3. **Slug argument** — if the invocation input doesn't match the Linear pattern but looks like a slug (contains a hyphen, no spaces), use it as the slug and derive the ticket if it starts with one.
 4. **Ask** — "What ticket are you starting? Give me a Linear ID (e.g. `LC-12345`)."
 
-Once you have a Linear ID, fetch the issue:
-
-```
-mcp__claude_ai_Linear__get_issue { "issueId": "<TICKET>" }
-```
+Once you have a Linear ID, fetch it using the available connected Linear tool and its actual schema.
 
 **Derive the slug** (same rule as `/plan-work`):
 
@@ -57,13 +55,13 @@ The team prefix is everything before the first `-` of the ticket ID, lowercased 
 
 Skip this phase entirely if no Linear ticket is involved (slug-only / free-text path). Otherwise, transition the ticket so teammates can see you've picked it up.
 
-Read `~/.claude/skills/shared/references/linear-mark-in-progress.md` and follow it precisely. It covers state-check, per-team status resolution + caching to `linear_team_statuses.<TEAM>.in-progress` in `~/.claude/agent-skills.json`, and the API transition. On any Linear API failure, report and continue — don't block worktree setup.
+Read `~/.agent-skills/skills/shared/references/linear-mark-in-progress.md` and follow it precisely. It covers state-check, per-team status resolution + caching to `linear_team_statuses.<TEAM>.in-progress` in `~/.agent-skills/config.json`, and the API transition. On any Linear API failure, report and continue — don't block worktree setup.
 
 ---
 
 ## Phase 2: Resolve Source Repo (by team)
 
-Read `team_repos` from `~/.claude/agent-skills.json` — a map of lowercase team prefix → absolute path to the source repo.
+Read `team_repos` from the effective configuration loaded above — a map of lowercase team prefix → absolute path to the source repo.
 
 ```json
 { "team_repos": { "lc": "/Volumes/Code/Repos/loancrate/loancrate" } }
@@ -77,14 +75,10 @@ Read `team_repos` from `~/.claude/agent-skills.json` — a map of lowercase team
   Verify the answer is a git repo, then save:
 
   ```bash
-  python3 -c "
-  import json, os
-  path = os.path.expanduser('~/.claude/agent-skills.json')
-  d = json.load(open(path))
-  d.setdefault('team_repos', {})['<team>'] = '<absolute-path>'
-  json.dump(d, open(path, 'w'), indent=2)
-  "
+  bash ~/.agent-skills/scripts/shared/context.sh config-set team_repos '<team>' '"<absolute-path>"'
   ```
+
+  Encode the entered path as a JSON string and quote each shell argument safely. Preserve other teams' settings.
 
 The resolved source repo is `<source-repo>`. From here on, run all `git` commands with `-C <source-repo>` unless otherwise noted.
 
@@ -147,7 +141,7 @@ If this fails (locked worktree, branch name conflict, dirty index, etc.), report
 
 ## Phase 6: Run Setup
 
-Read `repo_setup` from `~/.claude/agent-skills.json` — a map of `<source-repo-absolute-path>` → setup command string. Placeholders supported inside the command:
+Read `repo_setup` from the effective configuration — a map of `<source-repo-absolute-path>` → setup command string. Placeholders supported inside the command:
 
 - `{WORKTREE}` → absolute worktree path
 - `{SOURCE}` → absolute source-repo path
@@ -168,7 +162,7 @@ After detecting (or being given) a command, ask:
 
 > "Detected setup command: `<command>`. Save this as the default for `<source-repo>`?"
 
-If yes, save under `repo_setup.<source-repo-absolute-path>` in agent-skills.json.
+If yes, save with `bash ~/.agent-skills/scripts/shared/context.sh config-set repo_setup '<source-repo-absolute-path>' '<JSON-encoded-command>'`, preserving the path as one key component.
 
 **Run it.** Stream output to the user (don't background — they want to see the install). If it fails, report which step failed and stop. The worktree still exists; the user can investigate and re-run setup manually with the command you printed.
 
@@ -176,13 +170,13 @@ If yes, save under `repo_setup.<source-repo-absolute-path>` in agent-skills.json
 
 ## Phase 7: Launch Editor
 
-Read `editor_command` from `~/.claude/agent-skills.json`.
+Read `editor_command` from the effective configuration.
 
 **If not set:**
 
 - Ask: "What editor should I launch new worktrees in? (e.g. `code` for VS Code, `cursor`, `zed`, or `none` to skip.)"
 - If they pick something other than `none`, verify the command resolves: `command -v <editor>`. If it doesn't, tell them and re-ask.
-- Save to `editor_command` in agent-skills.json (use the string `none` to disable).
+- Save with the shared `config-set editor_command '<JSON-encoded-command>'` command (use the JSON string `"none"` to disable).
 
 **If `none`** → print `cd <worktree-path>` and skip launch.
 
@@ -202,7 +196,7 @@ Report concisely:
 - **Branch:** `<branch>` (from `origin/<base>`)
 - **Setup:** succeeded / failed / skipped
 - **Editor:** launched `<editor>` / skipped (with `cd` command)
-- **Cleanup hint:** "When done, run `bash ~/.claude/skills/start-work/scripts/cleanup-worktree.sh <worktree-path>` to remove the worktree and branch. With no arg, you'll get an fzf picker of linked worktrees in the current repo."
+- **Cleanup hint:** "When done, run `bash ~/.agent-skills/scripts/start-work/cleanup-worktree.sh <worktree-path>` to remove the worktree and branch. With no arg, you'll get an fzf picker of linked worktrees in the current repo."
 
 Stop. Don't auto-start the dev server — that's the user's call (or handled by Conductor/Superset which have their own run scripts).
 
@@ -213,7 +207,7 @@ Stop. Don't auto-start the dev server — that's the user's call (or handled by 
 Cleanup is deterministic — no AI needed. The companion script handles it:
 
 ```bash
-bash ~/.claude/skills/start-work/scripts/cleanup-worktree.sh [<worktree-path-or-branch>] [--force]
+bash ~/.agent-skills/scripts/start-work/cleanup-worktree.sh [<worktree-path-or-branch>] [--force]
 ```
 
 With no target, it opens an fzf picker listing linked worktrees in the current repo (excluding the main worktree). It verifies the worktree is clean and the branch is merged (or has a merged PR) before removing. `--force` skips those checks.

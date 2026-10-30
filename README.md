@@ -1,6 +1,6 @@
 # Agent Skills 🤖✨
 
-**Make Claude awesomer.** A collection of skills, hooks, and CLAUDE.md guidance that turn Claude Code into a sharper, safer, more opinionated engineering collaborator.
+**Make your agents awesomer.** Shared skills, policy hooks, and guidance for Claude Code and Codex, with small integrations for their different tool APIs.
 
 Clone or fork this repo and run `make init` — you immediately get all three.
 
@@ -9,6 +9,68 @@ git clone https://github.com/ambroselittle/agent-skills
 cd agent-skills
 make init
 ```
+
+## Claude and Codex installation
+
+`setup.sh` detects installed Claude Code and Codex agents and configures each supported integration. Reapplying setup refreshes their managed guidance together. Use `--target claude|codex|both` to override detection explicitly.
+
+Preview setup without changing installed files:
+
+```bash
+bash setup.sh --dry-run
+```
+
+Install only Codex policy hooks:
+
+```bash
+bash setup.sh --target codex pretooluse
+```
+
+`--list` shows components; selection and persistent `--without` exclusions work for detected or explicitly selected agents. `CODEX_HOME` is respected. `AGENT_SKILLS_USER` selects a personal guidance template; otherwise setup uses the cached user or your GitHub login.
+
+| Component | Claude | Codex |
+| --- | --- | --- |
+| Policy engine | Existing allow/deny/ask behavior | Explicit denials; other decisions defer to native approvals |
+| Guidance | Managed CLAUDE.md block | Managed AGENTS.md block |
+| Skills | Links in `~/.claude/skills` | Links in `~/.agents/skills` |
+| Titles | Terminal title + topical reminders | Native `/title` and `/rename` |
+| Display swaps, notifications, attribution, MCP, resume CLI | Existing integrations | Native Codex configuration |
+
+One source of guidance is maintained in `templates/user-agents-guidance.md` plus a personal `templates/<username>.md` overlay. `user-claude.md` and `user-codex.md` contain only integration details. Setup refreshes their managed blocks while preserving all other text. Repo `AGENTS.md` links to `CLAUDE.md`; portable skills likewise use one maintained source. `supportedAgents` arrays in `skills/compatibility.json` record compatibility. Existing directories and links owned by other installers are preserved.
+
+### Shared runtime and configuration
+
+Both agents read `~/.agent-skills/config.json`. Shared preferences such as `work_root`, `user_prefix`, and exclusions live at the top level; per-agent differences live under `agents.claude` or `agents.codex`. Setup automatically applies versioned migrations, imports legacy Claude preferences and Codex overrides, retains the original files, and preserves unrelated hooks and configuration.
+
+Resources are available through `~/.agent-skills/skills/<name>`, commands through `~/.agent-skills/scripts/<name>/<script>`, and the selected source checkout through `~/.agent-skills/source`. Scripts use the selected Python 3.12+ runtime at `~/.agent-skills/scripts/python`. The Python-based scaffolder keeps its package, environment, and templates together through its resource directory.
+
+Skills load context explicitly and use the active agent’s question, progress, skill invocation, and delegation capabilities. Generic Low, Medium, and High tiers map to available models in [harness capabilities](skills/shared/references/harness-capabilities.md). Missing optional capabilities have explicit fallbacks; Claude-specific adapters such as transcript reading remain conditional.
+
+### Activate and diagnose Codex hooks
+
+Review new or changed definitions in Codex **`/hooks`**. The installer never
+edits trust records. If an already-running session still prompts or runs a
+removed hook, exit and resume it; a successful command alone does not establish
+that the hook ran.
+
+The policy log at `~/.codex/hooks/agent-skills-policy/codex-events.jsonl` records
+session IDs, event/tool names, input shape and decisions, **not commands or file
+contents**. A live test must produce an entry for the expected session. Logs
+rotate after about 1 MB. The adapter covers shell commands, patch operations, and MCP inputs.
+
+The same rules and private `~/.agent-skills/local-rules.json` overlay are used
+by both tools. Codex normalizes patch additions, updates, moves and deletions for
+the engine. Unknown inputs and `allow`, `ask`, and `proceed` decisions defer to native Codex handling.
+An `ask` rule cannot force a Codex prompt; the adapter only enforces explicit denials. Hooks are not a complete sandbox: hosted tools and some specialized
+paths are outside their coverage, and the existing engine is not a shell interpreter.
+
+### Window titles
+
+Claude retains its `window-title` script and topical reminders. Codex uses its
+built-in `/title` display and `/rename` command. The custom Codex app-server
+rename helper and title nudges are retired: they did not update the active CLI
+reliably. Setup removes their hook registrations and leaves inert compatibility
+stubs so cached commands in running sessions cannot trigger error loops.
 
 ---
 
@@ -25,9 +87,9 @@ make init
 
 ---
 
-### 📋 CLAUDE.md — A Better Collaborator Across Every Project
+### 📋 Shared Guidance — A Better Collaborator Across Every Project
 
-Installed to `~/.claude/CLAUDE.md`, this guidance block is loaded into every Claude Code session regardless of project. It shapes how Claude thinks about your work:
+Installed to `~/.claude/CLAUDE.md` and `${CODEX_HOME:-~/.codex}/AGENTS.md` for detected agents, the shared managed guidance shapes collaboration across projects:
 
 - **Bias toward action** — evaluates actual risk instead of reflexively balking at large changes, which it's prone to from human-limited training data
 - **Scope philosophy** — don't shy away from expanding scope when discovered during planning and implementation
@@ -41,7 +103,7 @@ Installed to `~/.claude/CLAUDE.md`, this guidance block is loaded into every Cla
 
 ### ⚡ Skills — Workflow Automation for the Whole Dev Cycle
 
-Skills are agentic superpowers that orchestrate multi-step workflows. Invoke them with `/skill-name` in Claude Code.
+Skills are agentic superpowers that orchestrate multi-step workflows. Invoke them with `/skill-name` in Claude Code or `$skill-name` in Codex; use the active harness’s installed skill workflow.
 
 #### 🔧 Core Engineering Workflow
 
@@ -59,7 +121,6 @@ These skills form a pipeline from idea to merged PR:
 | `/code-review` | Multi-pass parallel review with specialized agents. Two-pass approach (normal + reversed diff) for higher recall. Presents findings in-session with opt-out model — default is to fix everything.                                                                                                              |
 | `/do-fixes`    | Applies checked findings from `/code-review`, verifies, commits, and posts a PR summary comment. Context-aware — detects the most recent review artifact type.                                                                                                                                                 |
 | `/author-e2e`  | Generate Playwright E2E tests from scenario files or feature descriptions. Produces page objects and test files following Page Object Model best practices.                                                                                                                                                    |
-| `/make-skill`  | Interactive interview to create a new skill from scratch.                                                                                                                                                                                                                                                      |
 
 ---
 
@@ -86,9 +147,9 @@ Every scaffold includes: dynamic port discovery (no hardcoded ports), docker-com
 
 ```
 skills/          # Skill definitions (SKILL.md + agents, scripts, references)
-hooks/           # PreToolUse hook engine, rules.json, and tests (~449 tests)
-templates/       # CLAUDE.md guidance templates (core + per-user overlays)
-setup.sh         # Idempotent installer — links skills, installs hooks, updates CLAUDE.md
+hooks/           # PreToolUse hook engine, rules.json, and tests
+templates/       # Shared + agent integration guidance and personal overlays
+setup.sh         # Detects agents, migrates config, links skills and updates guidance
 ```
 
 ## Setup
@@ -99,18 +160,12 @@ setup.sh         # Idempotent installer — links skills, installs hooks, update
 make init
 ```
 
-This:
-
-1. Symlinks skills into `~/.claude/skills/`
-2. Installs the PreToolUse hook engine into `~/.claude/hooks/`
-3. Merges allow/deny permissions into `~/.claude/settings.json`
-4. Upserts the `<agent-skills-guidance>` block into `~/.claude/CLAUDE.md`
-
+This detects installed agents, migrates shared configuration, links portable skills and commands, installs the applicable integrations, and refreshes each agent’s managed guidance. Claude’s existing hook and permission behavior stays intact; Codex receives the deny-only adapter and uses native approvals.
 Idempotent — safe to re-run. In a worktree for this repo, only skills with changes on the branch are relinked, so you can test them prior to merging more easily.
 
 ### Installing only the parts you want
 
-Every piece of the install is a named component, so you can take just the PreToolUse hook without the skills, CLAUDE.md guidance, or anything else:
+Every piece of the install is a named component, so you can take just the PreToolUse hook without the skills, managed guidance, or anything else:
 
 ```bash
 bash setup.sh pretooluse
@@ -120,26 +175,26 @@ Name any number of components, or use `--without` to take everything except the 
 
 ```bash
 bash setup.sh hooks                    # pretooluse + notification + message-display + window-title
-bash setup.sh skills guidance          # skills plus the CLAUDE.md guidance block
+bash setup.sh skills guidance          # skills plus installed agents’ guidance
 bash setup.sh --without guidance mcp   # everything except those two
 bash setup.sh --list                   # show every component and what it touches
 ```
 
-| Component         | Installs                                                                       |
-| ----------------- | ------------------------------------------------------------------------------ |
-| `skills`          | Symlinks skills into `~/.claude/skills/`                                       |
-| `pretooluse`      | PreToolUse hook engine + `rules.json`, and the built-in allow/deny permissions |
-| `notification`    | macOS attention banners on Notification events                                 |
-| `message-display` | MessageDisplay phrase-swap hook                                                |
-| `window-title`    | Per-session window titles, the `window-title` CLI, and the status line         |
-| `attribution`     | Disables Claude auto-attribution (commit/PR trailers, session URL)             |
-| `mcp`             | Registers MCP servers (Playwright)                                             |
-| `guidance`        | Upserts the `<agent-skills-guidance>` block in `~/.claude/CLAUDE.md`           |
-| `cli`             | `claude-resume` script and the `reclaude` shell alias                          |
+| Component | Installs |
+| --- | --- |
+| `skills` | Symlinks compatible skills into the detected agents’ skill directories |
+| `pretooluse` | PreToolUse hook engine + `rules.json`, and the built-in allow/deny permissions |
+| `notification` | macOS attention banners on Notification events |
+| `message-display` | MessageDisplay phrase-swap hook |
+| `window-title` | Per-session window titles, the `window-title` CLI, and the status line |
+| `attribution` | Disables Claude auto-attribution (commit/PR trailers, session URL) |
+| `mcp` | Registers MCP servers (Playwright) |
+| `guidance` | Refreshes installed agents’ `<agent-skills-guidance>` blocks |
+| `cli` | `claude-resume` script and the `reclaude` shell alias |
 
 ### Opting out permanently
 
-Naming components on the command line is a one-off. To keep something off a machine for good, list it under `exclude` in `~/.claude/agent-skills.json`. Every key is a list, and `"all"` in a list excludes everything under that key:
+Naming components on the command line is a one-off. To keep something off a machine for good, list it under `exclude` in `~/.agent-skills/config.json`. Every key is a list, and `"all"` in a list excludes everything under that key:
 
 ```json
 "exclude": {

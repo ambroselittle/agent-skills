@@ -1,6 +1,19 @@
 # agent-skills
 
-AI agent skills, hooks, and project templates for Claude Code. Skills are prompt-based tools that orchestrate workflows; hooks enforce safety rules on tool calls; templates scaffold new projects.
+AI agent skills, hooks, and project templates for Claude Code and Codex. Skills are prompt-based tools that orchestrate workflows; hooks enforce safety rules on tool calls; templates scaffold new projects.
+
+`AGENTS.md` links to this file. Shared guidance lives in `templates/user-agents-guidance.md`,
+integration details in `templates/user-{claude,codex}.md`, and personal overlays in `templates/`.
+`setup.sh` detects installed agents; `--target claude|codex|both` overrides detection.
+`scripts/setup_targets.py` selects targets and `scripts/setup_config.py` owns configuration writes.
+Shared preferences live in `~/.agent-skills/config.json` with per-agent overrides under `agents`;
+setup applies versioned migrations and retains legacy files. Canonical resources, commands, and
+source are `~/.agent-skills/skills/`, `~/.agent-skills/scripts/`, and `~/.agent-skills/source`.
+Scripts use the selected Python 3.12+ runtime. Skill compatibility uses `supportedAgents` arrays
+in `skills/compatibility.json`; native capability mappings are documented in
+`skills/shared/references/harness-capabilities.md`. Codex policy integration enforces denials and
+defers other decisions to native approvals. New components need exclusion/removal paths and
+isolated-home installer tests.
 
 ## Structure
 
@@ -14,13 +27,12 @@ skills/                # Skill definitions (SKILL.md + supporting files)
   ├── create-repo/        # Monorepo scaffolding (Python scripts + Jinja2 templates)
   ├── solve-take-home/    # End-to-end take-home challenge solver
   ├── author-e2e/         # Playwright test generation from scenarios
-  ├── make-skill/         # Interactive skill creator
   └── shared/             # Reusable agents, scripts (context.sh, get-diff.sh), references
 hooks/
   ├── PreToolUse/      # Rule-based allow/deny engine for tool calls
   ├── MessageDisplay/  # Swaps tired phrases out of Claude's on-screen text
   └── Notification/    # macOS attention banners (click to focus the session)
-templates/             # CLAUDE.md guidance templates for ~/.claude/CLAUDE.md
+templates/             # Shared, per-agent, and personal managed guidance
 setup.sh               # Idempotent installer: links skills, installs hooks, registers MCP
 ```
 
@@ -39,11 +51,11 @@ name: skill-name
 description: Short phrase shown to user
 argument-hint: "[options]"
 depends-on: plan-work # optional prerequisite
-context: fork # optional: run in isolated context
+context: fork # optional Claude extension; use native delegation in other agents
 ---
 ```
 
-The rest of SKILL.md is the AI orchestrator prompt — phases, steps, and instructions for Claude Code. Skills may also include:
+The rest of SKILL.md is the AI orchestrator prompt — phases, steps, and instructions for the supported agents. Skills may also include:
 
 - `references/` — docs the skill reads at runtime (e.g., flakiness-practices.md)
 - `agents/` — sub-agent definitions spawned by the skill
@@ -148,11 +160,11 @@ This installs `uv` if missing, syncs Python environments (hooks + create-repo), 
 
 Called by `make init`. Idempotent installer that:
 
-1. Links skills to `~/.claude/skills/` (worktree-aware — only changed skills in worktrees)
-2. Installs PreToolUse hook engine to `~/.claude/hooks/`
-3. Merges permissions from `built-in-rules.json` into `~/.claude/settings.json`
-4. Registers MCP servers (Playwright)
-5. Upserts guidance block into `~/.claude/CLAUDE.md` from `templates/`
+1. Detects installed Claude Code and Codex agents, with optional target overrides
+2. Migrates shared preferences while retaining legacy files and unrelated configuration
+3. Links compatible skills, canonical resources, commands, and the source checkout
+4. Installs applicable hook, permission, CLI, and MCP integrations
+5. Refreshes managed CLAUDE.md and AGENTS.md guidance while preserving personal text
 
 ### Components
 
@@ -160,6 +172,6 @@ Each step is a named component that can be installed on its own: `skills`, `pret
 
 - `bash setup.sh` (no arguments) always runs the full setup. Naming components selects them for that run only.
 - `bash setup.sh pretooluse` installs only the hook engine.
-- `bash setup.sh --without guidance` persists `guidance` into the `exclude` key of `~/.claude/agent-skills.json`; the section then removes what it installed, and every later bare run keeps it off. See "Opting out permanently" in the README for the schema.
+- `bash setup.sh --without guidance` persists `guidance` into the `exclude` key of `~/.agent-skills/config.json`; the section then removes what it installed, and every later bare run keeps it off. See "Opting out permanently" in the README for the schema.
 - Each section in `setup.sh` is guarded by `_want <component>` and banner-tagged with `# [component]`. When adding a new install step, add its name to `ALL_COMPONENTS`, give it a `_describe_component` line, gate it, and give it an exclusion branch that removes what it installs (an `_is_excluded <key> <name>` check at the top of the section) — otherwise it silently runs on every partial install and can never be opted out of.
 - All settings.json, CLAUDE.md, and shell-rc edits go through `scripts/setup_config.py`, whose install primitives each have an uninstall counterpart. Do not add inline Python heredocs to `setup.sh`; add a subcommand to the helper and a test for both directions.

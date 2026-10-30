@@ -1,11 +1,14 @@
-#!/bin/bash
-# Pre-loaded context helper for plan-work skill.
-# Usage: context.sh <flag>
-case "$1" in
-  claude-md-exists)
-    if [ -f CLAUDE.md ]; then echo "yes"; else echo "no"; fi
-    ;;
-  *)
-    echo "unknown flag: $1" >&2; exit 1
-    ;;
-esac
+#!/usr/bin/env bash
+# Explicit workflow context; callable from Claude Code or Codex.
+set -euo pipefail
+
+script_dir="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+python="$HOME/.agent-skills/scripts/python"
+if [[ ! -x "$python" ]]; then
+  if [[ -e "$HOME/.agent-skills/source" ]]; then
+    echo "Missing selected Python: $python. Reapply agent-skills setup." >&2
+    exit 1
+  fi
+  python="$(command -v python3)"
+fi
+"$python" "$script_dir/../../shared/scripts/workflow_context.py" plan-work "$@"

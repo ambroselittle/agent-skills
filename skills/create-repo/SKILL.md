@@ -6,11 +6,11 @@ argument-hint: "[template] [project-name]"
 
 # Create Repo: Bootstrap a New Project
 
+Use the active agent’s native question, progress, skill invocation, and delegation capabilities as described in [harness capabilities](../shared/references/harness-capabilities.md). Load context explicitly by running the commands below; do not assume shell snippets or Claude variables are expanded automatically. Read shared preferences from `~/.agent-skills/config.json`; agent-specific overrides live under `agents.<agent>`.
+
 You are a project scaffolding assistant. Your job is to create a well-structured monorepo from a template, verify it works, and get it into version control with a clean first commit.
 
-**Arguments:** $ARGUMENTS
-- `$ARGUMENTS[0]` — template name (optional, will prompt if missing)
-- `$ARGUMENTS[1]` — project name (optional, will prompt if missing)
+**Input:** optional template name followed by project name from the user’s request. Ask for missing values.
 
 ## CRITICAL: Do Not Install Global Dependencies
 
@@ -28,23 +28,21 @@ This is a hard stop — do not proceed, do not attempt to install it yourself, d
 
 ## Step 1: Interview (skip answered questions if arguments provided)
 
-The repo home finder results are pre-loaded below. Use them for the Location question.
+Load the repo-home and available-template context explicitly. Run each command separately:
 
-- Repo home: !`~/.claude/skills/create-repo/scripts/context.sh repo-home`
-- Available templates: !`~/.claude/skills/create-repo/scripts/context.sh list-templates`
+```bash
+~/.agent-skills/scripts/create-repo/context.sh repo-home
+```
+
+```bash
+~/.agent-skills/scripts/create-repo/context.sh list-templates
+```
+
+Use the repo-home results for the Location question. Resolve all output and parent-directory arguments to absolute paths against the user’s original working directory before running the package commands below.
 
 If the result is empty or `{}`, fall back to `./<project-name>` and `~/Code/<project-name>` as location options.
 
-Use the `AskUserQuestion` tool for every choice. This gives the user a proper selection UI with defaults they can accept by pressing Enter.
-
-**AskUserQuestion constraints** — the tool requires:
-- `questions`: array of 1-4 question objects
-- Each question: `question` (string), `header` (max 12 chars), `options` (2-4 items), `multiSelect` (boolean)
-- Each option: `label` (1-5 words), `description` (explains the choice)
-- The tool auto-adds an "Other" option for free-text input — don't add one yourself
-- Put the most common/default option first in the list (it becomes the default when the user presses Enter)
-
-You can batch up to 4 independent questions in a single `AskUserQuestion` call. Use this to ask multiple things at once when they don't depend on each other.
+Use the available question interface for choices, following its actual schema. If no question tool is available, present the choices conversationally and wait for the answer. Batch only independent questions.
 
 ### Template selection (two questions if needed)
 
@@ -91,15 +89,15 @@ Then based on the category, ask the **variant** (skip if the category only has o
 
 After template is resolved, ask the project description first (needed to generate name suggestions), then batch the remaining questions:
 
-**Round 1 — free text (no AskUserQuestion):**
+**Round 1 — free text (no question interface):**
 
 Just ask conversationally: **"What's this project about? (one sentence, or say 'skip' to move on)"**
 
 Read their response as plain text. If they skip, or give a generic/vague answer (e.g., "just testing", "playing around", "trying out the stack", "prototype"), treat it the same as no description — go the creative name route, not literal.
 
-**Round 2 — Name (MUST be a separate AskUserQuestion call — do NOT batch with other questions):**
+**Round 2 — Name (MUST be a separate question interface call — do NOT batch with other questions):**
 
-The name question must be its own `AskUserQuestion` call so you can evaluate the response and potentially loop. If you batch it with Location/Customizations/GitHub, you lose the ability to re-generate names.
+The name question must be its own `question interface` call so you can evaluate the response and potentially loop. If you batch it with Location/Customizations/GitHub, you lose the ability to re-generate names.
 
 Generate 3 name suggestions. Names should be lowercase-hyphenated, memorable, and short (1–2 words).
 
@@ -132,7 +130,7 @@ Present as options:
 
 **After the user picks a location**, update the cache:
 ```bash
-cd ${CLAUDE_SKILL_DIR} && uv run python -m scripts.find_repo_home --update-last-picked <parent-dir>
+cd ~/.agent-skills/skills/create-repo && uv run python -m scripts.find_repo_home --update-last-picked <parent-dir>
 ```
 
 **Question 4 — Customizations:**
@@ -154,7 +152,7 @@ cd ${CLAUDE_SKILL_DIR} && uv run python -m scripts.find_repo_home --update-last-
 
 ## Step 2: Set Up Progress Tracking
 
-Create a task list using the `TaskCreate` tool to track progress through the remaining steps. This gives the user visibility into where you are and what's left. Create one task per step:
+Create a task list using the available progress-tracking capability to track progress through the remaining steps. This gives the user visibility into where you are and what's left. Create one task per step:
 
 1. Preflight check
 2. Resolve versions
@@ -174,7 +172,7 @@ This step is a hard gate. No version resolution, no scaffolding, no file creatio
 
 Run the preflight environment checker:
 ```bash
-cd ${CLAUDE_SKILL_DIR} && uv run python -m scripts.preflight --template <template>
+cd ~/.agent-skills/skills/create-repo && uv run python -m scripts.preflight --template <template>
 ```
 
 **If it exits 0:** All tools are present and at required versions. Mark task completed and continue.
@@ -185,7 +183,7 @@ cd ${CLAUDE_SKILL_DIR} && uv run python -m scripts.preflight --template <templat
    ```
    bash install-deps.sh
    ```
-3. **STOP COMPLETELY.** Use `AskUserQuestion` to confirm:
+3. **STOP COMPLETELY.** Use `question interface` to confirm:
    - header: `"Preflight"`
    - question: `"Some required tools are missing. Run 'bash install-deps.sh' to install them, then continue."`
    - options:
@@ -207,7 +205,7 @@ cd ${CLAUDE_SKILL_DIR} && uv run python -m scripts.preflight --template <templat
 Run the version resolution script. It automatically discovers which packages the template needs by scanning `.j2` files, resolves latest stable versions via npm/PyPI, and handles caching (24h TTL):
 
 ```bash
-cd ${CLAUDE_SKILL_DIR} && uv run python -m scripts.resolve_versions \
+cd ~/.agent-skills/skills/create-repo && uv run python -m scripts.resolve_versions \
   --template <template> \
   --output /tmp/create-repo-versions.json
 ```
@@ -227,7 +225,7 @@ If the script fails, it reports which packages couldn't be resolved. Fix by chec
 Run the scaffold script:
 
 ```bash
-cd ${CLAUDE_SKILL_DIR} && uv run python -m scripts.scaffold \
+cd ~/.agent-skills/skills/create-repo && uv run python -m scripts.scaffold \
   --project-name <name> \
   --template <template> \
   --versions /tmp/create-repo-versions.json \
@@ -236,7 +234,9 @@ cd ${CLAUDE_SKILL_DIR} && uv run python -m scripts.scaffold \
 
 If the output directory already exists, ask the user if they want to overwrite it. If yes, re-run with `--force` which cleans the directory first. **Never rm -rf the directory yourself.**
 
-The script renders `templates/common/` (shared across all templates) and `templates/<template>/` (template-specific files), substituting project name, scope, and dependency versions.
+The scaffold exposes `AGENTS.md` as a relative symlink to `CLAUDE.md`, so both agents discover one orientation source. Applicable `.claude/rules/` files remain shared project guidance; read them explicitly when the harness does not load them.
+
+The script renders `templates/__common/` (shared across all templates) and `templates/<template>/` (template-specific files), substituting project name, scope, and dependency versions.
 
 **If the user requested customizations:** After the scaffold script completes, apply customizations by editing the scaffolded files directly. This is where the model adds value — interpreting "use Express instead of Hono" and making the right changes across package.json, server entry point, etc. Report what you changed.
 
@@ -253,7 +253,7 @@ cd <output-dir> && git init -q
 ```
 
 ```bash
-cd ${CLAUDE_SKILL_DIR} && uv run python -m scripts.scaffold --setup <output-dir>
+cd ~/.agent-skills/skills/create-repo && uv run python -m scripts.scaffold --setup <output-dir>
 ```
 
 Add `--skip-docker` if `DATABASE_URL` is already set in the environment (e.g., CI with a service container).
@@ -269,7 +269,7 @@ This handles: `pnpm install` / `uv sync` → project setup (port discovery, `.en
 Run the verification script:
 
 ```bash
-cd ${CLAUDE_SKILL_DIR} && uv run python -m scripts.verify <output-dir>
+cd ~/.agent-skills/skills/create-repo && uv run python -m scripts.verify <output-dir>
 ```
 
 This runs quality checks only (assumes setup is already done): `build` → `typecheck` → `lint` → `test` → dev server smoke check → E2E tests. It reports per-step pass/fail with timing.
@@ -296,7 +296,7 @@ Do not proceed to git until verification passes cleanly.
 Run the git initialization script:
 
 ```bash
-cd ${CLAUDE_SKILL_DIR} && uv run python -m scripts.init_git <output-dir> \
+cd ~/.agent-skills/skills/create-repo && uv run python -m scripts.init_git <output-dir> \
   --project-name <name> \
   --template <template> \
   --stack "<stack description, e.g. React 19 + Hono + tRPC + Prisma + Tailwind v4>"
@@ -338,7 +338,7 @@ Then report:
 
 ## Step 9: Template Improvement Report
 
-If any fixes were needed during verification (Step 6) — e.g., a dependency version introduced a breaking change that the templates don't account for — write a summary of template changes needed to `<work-folder>/create-repo-template-fixes/plan.md` under your configured `work_root` (from `~/.claude/agent-skills.json`, defaulting to `~/Work`). Include:
+If any fixes were needed during verification (Step 6) — e.g., a dependency version introduced a breaking change that the templates don't account for — write a summary of template changes needed to `<work-folder>/create-repo-template-fixes/plan.md` under your configured `work_root` (from `~/.agent-skills/config.json`, defaulting to `~/Work`). Include:
 - What broke and why (dependency version change, config format change, etc.)
 - Exact file changes needed in the templates
 - Whether the fix should be deterministic (template/script change) or kept as AI-handled

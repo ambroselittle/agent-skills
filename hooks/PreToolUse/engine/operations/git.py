@@ -126,8 +126,9 @@ def _remote_is_empty(remote: str, cwd: str | None) -> bool:
             capture_output=True,
             timeout=5,
         )
-        # exit code 2 means no matching refs; empty stdout also means no refs
-        return result.returncode == 2 or result.stdout.strip() == b""
+        # --exit-code returns 2 for no refs. Authentication/DNS failures also
+        # have empty stdout, but must never relax the protected-branch rule.
+        return result.returncode in (0, 2) and result.stdout.strip() == b""
     except Exception:
         return False
 
@@ -232,7 +233,7 @@ def matches_git_push_direct(payload: dict, rule: dict) -> bool:
         # Allow initial pushes to empty remotes — no history to protect.
         # cwd may come from -C flag or from a preceding `cd <path>` subcommand.
         remote = _extract_push_remote(tokens)
-        cwd = _extract_git_cwd(tokens) or _extract_cd_cwd(all_subcommands, i)
+        cwd = _extract_git_cwd(tokens) or _extract_cd_cwd(all_subcommands, i) or payload.get("cwd")
         if remote and _remote_is_empty(remote, cwd):
             continue
 

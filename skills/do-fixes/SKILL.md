@@ -11,7 +11,7 @@ context: fork
 You are applying fixes from a completed review. This skill detects the most recent review artifact
 and applies the appropriate fixes.
 
-**Arguments:** $ARGUMENTS
+**Arguments:** Use the arguments supplied with this skill invocation or the user's current request.
 - No arguments: auto-discover the most recent review doc for this branch
 - Path: use the specified review doc
 
@@ -24,15 +24,18 @@ Scan `<work-folder>/reviews/` for the most recent review artifact:
 The review document contains findings with checkboxes — checked `[x]` findings get fixed,
 unchecked `[ ]` findings get skipped.
 
-**Setup check:** If the pre-loaded `Work folder` shows `needs-setup`, stop: "Run `/setup-agent-skills` first to configure your work folder, then come back."
+**Setup check:** If the loaded `Work folder` shows `needs-setup`, stop: "Run `/setup-agent-skills` first to configure your work folder, then come back."
 
-**Pre-loaded context:**
-- Current branch: !`~/.claude/skills/shared/scripts/context.sh current-branch`
-- Work folder: !`~/.claude/skills/shared/scripts/context.sh work-folder`
-- Ticket ID: !`~/.claude/skills/shared/scripts/context.sh ticket-id`
-- HEAD SHA: !`~/.claude/skills/shared/scripts/context.sh head-sha`
-- Open PR: !`~/.claude/skills/shared/scripts/context.sh open-pr`
-- Uncommitted changes: !`~/.claude/skills/shared/scripts/context.sh uncommitted-changes`
+Read `~/.agent-skills/skills/shared/references/harness-capabilities.md` before proceeding. Use its active-harness mappings for skills, questions, progress, delegation, model tiers, project instructions, and connected tools.
+
+**Context to load explicitly:** Run each command below before interpreting its output. These are shell commands to execute, not values supplied automatically by the harness.
+
+- Current branch: `bash ~/.agent-skills/scripts/shared/context.sh current-branch`
+- Work folder: `bash ~/.agent-skills/scripts/shared/context.sh work-folder`
+- Ticket ID: `bash ~/.agent-skills/scripts/shared/context.sh ticket-id`
+- HEAD SHA: `bash ~/.agent-skills/scripts/shared/context.sh head-sha`
+- Open PR: `bash ~/.agent-skills/scripts/shared/context.sh open-pr`
+- Uncommitted changes: `bash ~/.agent-skills/scripts/shared/context.sh uncommitted-changes`
 
 **PR number:** extract from "Open PR" above (the number before the colon). Use this everywhere `<pr-number>` appears.
 
@@ -44,7 +47,7 @@ unchecked `[ ]` findings get skipped.
 
 If a path was provided as argument, use it. Otherwise, auto-discover:
 
-1. Use the pre-loaded `Work folder`. If `none` (on main), ask the user which branch this review is for.
+1. Use the loaded `Work folder`. If `none` (on main), ask the user which branch this review is for.
 2. Look in `<work-folder>/reviews/` for review files (`*.review.*.md`).
 3. Use the most recent one (by date in filename).
 4. If no review doc found: "No review document found. Run `/code-review` first to generate one."
@@ -61,11 +64,11 @@ Read the review doc. Note:
 
 ### Read project context
 
-Read `CLAUDE.md` at the repo root — note verification commands (lint, typecheck, test, format) for use in Phase 1.
+Read applicable `AGENTS.md`, legacy `CLAUDE.md`, and rules — note verification commands (lint, typecheck, test, format) for use in Phase 1.
 
 ### Check for uncommitted changes
 
-If there are uncommitted changes (from pre-loaded context): "There are uncommitted changes. Want to stash them before proceeding, or continue as-is?" Wait for their answer.
+If there are uncommitted changes (from loaded context): "There are uncommitted changes. Want to stash them before proceeding, or continue as-is?" Wait for their answer.
 
 **Create progress tasks:**
 
@@ -100,14 +103,16 @@ Write tests that **prove the bug exists** before fixing it. Scope: only unit-tes
 
 **YOU (the coordinator) do NOT make edits. Delegate ALL edits to agents.**
 
-**Maximize parallelism.** Look at the batches from Step 1. All batches that touch non-overlapping files can (and should) be spawned as parallel agents simultaneously — a single message with multiple Agent tool calls, not sequential spawns. Only serialize batches that share files. For a typical review with 3-7 findings across different files, most or all batches should run in parallel.
+**Maximize parallelism.** Look at the batches from Step 1. All batches that touch non-overlapping files can (and should) be spawned as parallel agents simultaneously — a parallel batch through the active harness's subagent API, not sequential spawns. Only serialize batches that share files. For a typical review with 3-7 findings across different files, most or all batches should run in parallel.
+
+Use the medium model tier for test writers and fix agents; use the low tier for strictly mechanical edits, as mapped by the shared capability reference.
 
 Each agent receives:
 - The specific finding(s) to address (full finding text including user Instructions)
 - Relevant file content (read and pass — don't assume agents can find things)
 - Clear acceptance criteria
 - **User instructions** from `**Instructions:**` field take priority over reviewer suggestions
-- Instruction to follow all CLAUDE.md guidelines
+- Applicable project instructions from AGENTS.md, legacy CLAUDE.md, and rules
 - **EDITS ONLY — no running tests, typecheck, lint, format, starting any processes, or committing.** The coordinator runs verification after all agents complete. Parallel agents each spinning up their own processes will thrash the machine.
 - **Budget: 5 edit rounds**
 
@@ -115,7 +120,7 @@ If an agent discovers a finding is incorrect (e.g., would break types, code is a
 
 ### Step 4: Track progress
 
-Read `~/.claude/skills/shared/references/finding-format.md` for the status lifecycle. Update the review doc as agents report back:
+Read `~/.agent-skills/skills/shared/references/finding-format.md` for the status lifecycle. Update the review doc as agents report back:
 - `[x]` -> `[fixed]` after editing, with one-line change summary
 - `[fixed]` -> `[verified]` after verification passes (batch-update)
 - If verification fails, leave as `[fixed]` and append what failed
@@ -127,14 +132,13 @@ Read `~/.claude/skills/shared/references/finding-format.md` for the status lifec
 
 **CRITICAL: Verification is mandatory before any commit or push. No exceptions, no shortcuts.**
 
-1. **Read CLAUDE.md and `.claude/rules/`** to find the repo's verification commands and policies.
+1. **Read AGENTS.md, legacy CLAUDE.md, and `.agents/rules/` / `.claude/rules/`** to find the repo's verification commands and policies.
    If a `verification.md` rule exists, follow it exactly — it may require running the full test
    suite, not just targeted tests.
 2. **Format** changed files only (runs first — it modifies files):
    - Get changed files: `git diff $(git merge-base HEAD main)...HEAD --name-only`
-   - Use repo-appropriate formatter from CLAUDE.md
-3. **Run the repo's verification suite.** Follow whatever CLAUDE.md or `.claude/rules/verification.md`
-   specifies. If neither prescribes a scope, default to:
+   - Use repo-appropriate formatter from the project instructions
+3. **Run the repo's verification suite.** Follow the verification policy in the applicable project instructions and rule files. If neither prescribes a scope, default to:
    - Typecheck (full — types are global)
    - Tests related to changes (filename pattern filters)
    If the repo's rules say to run the full suite, run the full suite.
@@ -196,9 +200,9 @@ First, re-read the review document from disk — your in-context copy may be sta
 cat <work-folder>/reviews/<review-filename>.md
 ```
 
-Then spawn a sub-agent (`model: sonnet`) with the following:
+Then spawn a sub-agent using the medium model tier with the following:
 
-> "Read `~/.claude/skills/shared/references/code-review-summary-format.md` for the exact comment format — follow it precisely, do not invent a different layout.
+> "Read `~/.agent-skills/skills/shared/references/code-review-summary-format.md` for the exact comment format — follow it precisely, do not invent a different layout.
 >
 > Post or update a PR comment summarizing this code review cycle.
 >
@@ -231,9 +235,9 @@ After the fixes are complete:
 1. **Ensure the PR comment is current.** Check whether a PR summary comment has been posted covering this review cycle. If a comment was posted but findings changed after it (e.g., additional fixes were pushed), post an updated comment using the Step 9 sub-agent.
 2. Summarize what was found, fixed, and deferred.
 3. Ask the user if any review agents or the code-review skill should be updated based on what was missed or noisy.
-4. With user approval, suggest edits to the relevant `.claude/agents/reviewers/` files.
+4. With user approval, suggest edits to the relevant `.agents/reviewers/` persona, or its existing legacy `.claude/agents/reviewers/` override. Preserve the repository's established location.
 
-**Next step:** If the PR has reviewer feedback to address, handle it before merging. Otherwise, merge the PR.
+**Next step:** Address remaining reviewer feedback within the user's authorization, then hand the PR back for review. Never merge without an explicit user request to merge the PR.
 
 ---
 
@@ -264,6 +268,6 @@ When an agent hits budget: (1) accept partial work if close enough, (2) spawn fr
 
 These are hard requirements. Violating any of them is a bug in execution, not a judgment call.
 
-1. **Verify before pushing.** Run the repo's full verification suite (from CLAUDE.md / `.claude/rules/verification.md`) and confirm all checks pass before any `git push`. A push without green checks wastes CI and the reviewer's time.
+1. **Verify before pushing.** Run the repo's full verification suite (from applicable AGENTS.md, legacy CLAUDE.md, and verification rules) and confirm all checks pass before any `git push`. A push without green checks wastes CI and the reviewer's time.
 2. **PR comment after pushing.** Every push that includes review fixes MUST be followed by a PR summary comment (Phase 2 Step 9). The PR comment is the only artifact that surfaces the review outcome to the team. If the session ends without it, the review is invisible.
 3. **PR comment is keyed by review SHA.** Each review round gets its own comment, keyed by a `<!-- code-review: <review-sha> -->` marker (the SHA from the review doc filename). Phase 2 Step 9 handles this in the formal fix flow. Phase 3 is the catch-all. The comment must exist and be current before the session ends.

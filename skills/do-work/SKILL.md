@@ -9,18 +9,22 @@ depends-on: plan-work
 
 You are a senior engineer executing a well-scoped implementation plan. Your job is to write correct, clean code — working through all phases, committing as you go, and opening a PR when done.
 
-**Arguments:** $ARGUMENTS
+**Arguments:** Use the arguments supplied with this skill invocation or the user's current request.
 
-**Pre-loaded context:**
-- Current branch: !`~/.claude/skills/shared/scripts/context.sh current-branch`
-- Work folder: !`~/.claude/skills/shared/scripts/context.sh work-folder`
-- Ticket ID: !`~/.claude/skills/shared/scripts/context.sh ticket-id`
-- Uncommitted changes: !`~/.claude/skills/shared/scripts/context.sh uncommitted-changes`
-- Unpushed commits: !`~/.claude/skills/shared/scripts/context.sh unpushed`
-- Open PR: !`~/.claude/skills/shared/scripts/context.sh open-pr`
-- PR template: !`~/.claude/skills/shared/scripts/context.sh pr-template`
+Read `~/.agent-skills/skills/shared/references/harness-capabilities.md` before proceeding. Use its active-harness mappings for skills, questions, progress, delegation, model tiers, project instructions, and connected tools.
 
-**Setup check:** If the pre-loaded `Work folder` shows `needs-setup`, stop immediately: "Agent-skills isn't configured yet — run `/setup-agent-skills` first, then come back here."
+**Context to load explicitly:** Run each command below before interpreting its output. These are shell commands to execute, not values supplied automatically by the harness.
+
+- Current branch: `bash ~/.agent-skills/scripts/shared/context.sh current-branch`
+- Work folder: `bash ~/.agent-skills/scripts/shared/context.sh work-folder`
+- Ticket ID: `bash ~/.agent-skills/scripts/shared/context.sh ticket-id`
+- Repo remote: `bash ~/.agent-skills/scripts/shared/context.sh repo-remote`
+- Uncommitted changes: `bash ~/.agent-skills/scripts/shared/context.sh uncommitted-changes`
+- Unpushed commits: `bash ~/.agent-skills/scripts/shared/context.sh unpushed`
+- Open PR: `bash ~/.agent-skills/scripts/shared/context.sh open-pr`
+- PR template: `bash ~/.agent-skills/scripts/shared/context.sh pr-template`
+
+**Setup check:** If the loaded `Work folder` shows `needs-setup`, stop immediately: "Agent-skills isn't configured yet — run `/setup-agent-skills` first, then come back here."
 
 ---
 
@@ -28,18 +32,18 @@ You are a senior engineer executing a well-scoped implementation plan. Your job 
 
 ### Find the plan
 
-Use the pre-loaded `Work folder` to locate the plan directory. Read `<work-folder>/plan.md`.
+Use the loaded `Work folder` to locate the plan directory. Read `<work-folder>/plan.md`.
 
 - **Work folder is `none`** (on main/master): "No plan found for this branch. Run `/plan-work` to create one, or switch to your feature branch."
 - **Plan file missing** at `<work-folder>/plan.md`: "Work folder found at `<path>` but no plan.md inside. Run `/plan-work` to create the plan."
 - **`status: complete`**: "This plan is marked complete. Want to re-run a specific phase, or start fresh?"
-- **Uncommitted changes present** (from pre-loaded context): "There are uncommitted changes from a previous run. Want to continue from where things left off, or reset to a clean state?" Wait for their answer — do not make this decision automatically.
+- **Uncommitted changes present** (from loaded context): "There are uncommitted changes from a previous run. Want to continue from where things left off, or reset to a clean state?" Wait for their answer — do not make this decision automatically.
 
 ### Filter phases by repo (multi-repo plans)
 
 Check whether any phases in the plan have a `**Repo:**` annotation. If yes, this is a multi-repo plan:
 
-- Read the current repo from `repo-remote` (pre-loaded context)
+- Read the current repo from `repo-remote` (loaded context)
 - **Matching phases found** → only run those phases. Note: "Running phases for `<repo>` — [N] phases scoped to this repo."
 - **No matching phases** → stop: "This plan has no work for `<current-repo>`. Available repos in this plan: [list]. Switch to the right repo or run `/super-work` to open a workspace for it."
 
@@ -47,7 +51,7 @@ If no phases have a `**Repo:**` annotation, run all phases (single-repo plan —
 
 ### Determine what to implement
 
-Parse `$ARGUMENTS`:
+Parse the invocation input:
 - `phase N`, `phase N: <name>`, or just a number → run that specific phase, then continue to subsequent phases
 - `<phase name>` → match against phase names in the plan (case-insensitive), then continue forward
 - No arguments → find the first phase (in the filtered set) that has any unchecked tasks. A partially-done phase (some tasks checked, some not) counts as the current phase — resume it, don't skip it.
@@ -71,13 +75,13 @@ Before editing any file, read its current contents. Don't assume you know what's
 
 Before implementing any new utility, helper, component, service, or shared logic: check if the plan already names an existing thing to use. If it does, use it — no further search needed.
 
-If the plan is silent on this for a task that would create something new, spawn a **code detective** agent before writing any code:
+If the plan is silent on this for a task that would create something new, spawn a **code detective** agent using the medium model tier before writing any code:
 
-> "Read `~/.claude/skills/shared/agents/code-detective.md` for your instructions. Then answer: does this codebase already have something for the following need?
+> "Read `~/.agent-skills/skills/shared/agents/code-detective.md` for your instructions. Then answer: does this codebase already have something for the following need?
 >
 > **Need:** [describe what the task is about to build, in 1–2 sentences]
 > **Repo root:** [path]
-> **CLAUDE.md:** [paste contents if present]"
+> **Project instructions:** [paste applicable AGENTS.md, legacy CLAUDE.md, and rules]"
 
 Act on the verdict:
 - **USE EXISTING** → use it; note this in the task commit message
@@ -105,6 +109,8 @@ A fix without a failing test is a guess. The test is proof.
 
 Your primary job in Phase 1 is coordination, not implementation. Before writing any code yourself, look at the tasks in the phase and ask: which of these can run in parallel?
 
+Use the medium model tier for focused implementation agents and the low tier for mechanical changes, following the shared capability reference.
+
 **Tasks are independent if** they touch different files and don't share state. Spawn parallel agents for all independent tasks simultaneously.
 
 **Tasks are dependent if** one produces output another needs (e.g. define a model → write an API that uses it). Run those sequentially, either yourself or in chained agents.
@@ -112,7 +118,7 @@ Your primary job in Phase 1 is coordination, not implementation. Before writing 
 Each agent receives:
 - The specific task(s) to complete (include the commit message from the plan)
 - The relevant file contents (read and pass — don't let agents go looking on their own)
-- Project conventions from `CLAUDE.md`
+- Applicable project instructions from `AGENTS.md`, legacy `CLAUDE.md`, and rules
 - **Constraint: EDITS ONLY — no running tests, typecheck, lint, format, starting any processes, or committing.** The coordinator runs verification after all agents complete. Parallel agents each spinning up their own processes will thrash the machine.
 - **Constraint: Read only what's provided** — don't browse the broader codebase
 - **Constraint: If stuck after two attempts on the same file, stop and report back**
@@ -133,7 +139,7 @@ Only implement what the plan says for this phase. If you discover something adja
 
 Each task in the plan is its own commit. After implementation, verify and commit before moving to the next task. Don't batch tasks into a single commit unless they're genuinely inseparable.
 
-**Verification commands**: read from `CLAUDE.md`. If none are documented there, ask the user before running anything.
+**Verification commands**: read applicable `AGENTS.md`, legacy `CLAUDE.md`, and `.agents/rules/` / `.claude/rules/`. If none are documented there, ask the user before running anything.
 
 For each task:
 
@@ -141,7 +147,7 @@ For each task:
 1. **Format** changed files (formatters modify files — run before typecheck to avoid false failures)
 2. **Lint** changed files
 3. **Targeted tests** for this task's changes, if applicable
-4. **E2E tests** — if the project has a `playwright.config.ts` and E2E tests exist, include the E2E test command (e.g. `pnpm test:e2e`, or whatever CLAUDE.md specifies) in the verification run. Skip this step if no Playwright setup exists.
+4. **E2E tests** — if the project has a `playwright.config.ts` and E2E tests exist, include the E2E test command (e.g. `pnpm test:e2e`, or whatever the project instructions specify) in the verification run. Skip this step if no Playwright setup exists.
 
 If checks fail: fix and re-run once. If still failing: **stop and report** — don't loop. Describe what failed and what you tried.
 
@@ -180,7 +186,7 @@ git push -u origin <branch>
 
 ### Step 3: Open a PR
 
-Use the repo's PR template if one exists (check pre-loaded `pr-template` context).
+Use the repo's PR template if one exists (check loaded `pr-template` context).
 
 **PR body — write as capabilities, not file inventory:**
 - Describe what the PR enables or changes from a user/engineer perspective (new behaviors, fixed problems, improved workflows)
@@ -216,15 +222,7 @@ Update `<work-folder>/plan.md` frontmatter:
 - Set `status: pr-open`
 - Add `pr: <PR-URL>`
 
-**If `linear-issue` is set in the plan frontmatter** (not "none"), post a comment on the Linear issue with the PR link:
-```
-mcp__claude_ai_Linear__save_comment {
-  "issueId": "<LINEAR-ID>",
-  "body": "PR opened: <PR-URL>"
-}
-```
-
-Then update the Linear issue status to "In Review" (or the team's equivalent in-progress state) using `mcp__claude_ai_Linear__get_issue_status` to find the right status ID, then `mcp__claude_ai_Linear__save_issue`. Skip status update if the current status is already past "In Progress".
+**If `linear-issue` is set in the plan frontmatter** (not "none"), use the available connected Linear tools to post a comment containing `PR opened: <PR-URL>`. Inspect the actual tool schemas. Resolve the team's "In Review" status and update the issue, skipping the transition if the current status is already past "In Progress".
 
 ### Done
 

@@ -10,9 +10,9 @@ jobs:
     name: Unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v10.3.2
         with:
           enable-cache: true
 
@@ -31,8 +31,8 @@ jobs:
     outputs:
       changed: ${{ steps.filter.outputs.scaffold }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           filters: |
@@ -48,7 +48,8 @@ jobs:
     name: Scaffold E2E
     needs: scaffold-paths
     if: needs.scaffold-paths.outputs.changed == 'true'
-    runs-on: ubuntu-latest
+    # Scaffolded Playwright versions support Ubuntu 24.04.
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16
@@ -65,21 +66,22 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v10.3.2
         with:
           enable-cache: true
 
-      - uses: extractions/setup-just@v2
+      - uses: extractions/setup-just@v4
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
+          package-manager-cache: false
 
       - name: Scaffold and verify all templates
         run: make test-scaffolds TEMPLATE=all
