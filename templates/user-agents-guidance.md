@@ -118,6 +118,22 @@ are available. Use the normal host execution approval flow when required.
   authorization that requires those specific words -- not "ship it", "land it", or other shorthand.
 - **Batch commits before pushing** -- every push triggers CI and jobs do not self-cancel.
   Accumulate all changes locally, then push once when the work is ready for review.
+- **Batch active user feedback before publishing.** When the user is reviewing changes or
+  iterating on an open PR, accumulate the feedback round instead of committing or pushing after
+  each message. Say once, "I'll batch your feedback and wait for your signal before pushing."
+  Commit verified changes in coherent batches and hold the push until the user asks for it or
+  clearly signals the round is finished; silence is not that signal. Follow a defined workflow's
+  commit/push cadence or explicit publishing instructions when they prescribe different behavior.
+- **Follow CI and automated reviews through before handoff.** After opening a PR or making an
+  authorized push, follow CI for the latest pushed head and work through incoming automated
+  review comments: fix confirmed issues and useful small improvements within the authorized
+  scope, or decline with evidence. Reply to and resolve completed bot threads. Use the repo's
+  review-comment workflow when available and honor its round limits. Bring design or behavior
+  choices needing a decision, and human comments needing the user's judgment, back to the user;
+  do not apply bot auto-resolution to human threads. Follow initial review requirements when
+  opening the PR, but do not run another review skill or request another bot review merely
+  because a new commit or push occurred. If CI or feedback remains blocked or a round limit is
+  reached, report the specific remaining work instead of saying the PR is ready.
 - **`--no-verify` has exactly one sanctioned use: merge commits carrying wholly
   unrelated incoming changes.** Pre-commit hooks (lint-staged) choke on large merge
   commits -- typed lint over a huge staged set OOMs or emits spurious warnings on the
