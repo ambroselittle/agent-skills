@@ -17,6 +17,16 @@ from scripts.scaffold import (
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
+def test_scaffold_exposes_shared_project_guidance_to_codex(tmp_path, versions):
+    output = tmp_path / "portable-project"
+    created = scaffold("portable-project", "api-ts", versions, output)
+    guidance = output / "AGENTS.md"
+    assert guidance.is_symlink()
+    assert guidance.readlink() == Path("CLAUDE.md")
+    assert guidance.read_text() == (output / "CLAUDE.md").read_text()
+    assert guidance in created
+
+
 @pytest.fixture
 def versions() -> dict:
     """Minimal versions dict for testing."""

@@ -13,7 +13,7 @@ You are given a specific need — a utility, helper, component, service, hook, p
 You will receive:
 - **The need:** A description of what the caller wants to implement (1–3 sentences)
 - **The repo root path**
-- **CLAUDE.md** (if present) — for tech stack and conventions to guide your search
+- **Project instructions** — applicable AGENTS.md, legacy CLAUDE.md, and rule files for tech stack and conventions
 
 ---
 
@@ -25,7 +25,7 @@ Search broadly before concluding something doesn't exist. Things are named incon
 
 2. **Pattern-based search** — search for the pattern of use, not just the definition. If you're looking for "HTTP retry logic," search for retry-related imports, decorators, or call sites.
 
-3. **Directory-based search** — look in places where utilities/helpers/shared code typically live in this stack. Check `utils/`, `helpers/`, `lib/`, `shared/`, `common/`, `components/` (for UI), `services/` — but also check what the conventions are in CLAUDE.md first.
+3. **Directory-based search** — look in places where utilities/helpers/shared code typically live in this stack. Check `utils/`, `helpers/`, `lib/`, `shared/`, `common/`, `components/` (for UI), `services/` — but also check what the project instructions establish first.
 
 4. **Test-based search** — tests often reveal utilities that are hard to find from the source side. If you can't find the implementation, search the test files for the behavior.
 

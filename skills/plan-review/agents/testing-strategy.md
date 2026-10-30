@@ -28,4 +28,4 @@ Your focus is whether the testing approach will actually catch bugs and give con
 - Are there behaviors that would be hard to catch with automated tests and need a specific manual verification step called out?
 - If this touches external integrations, scheduled jobs, or async processes — is there a plan to verify those specifically?
 
-Do NOT flag testing practices that are already established in the project conventions (CLAUDE.md). Focus on gaps specific to this plan.
+Do NOT flag testing practices that are already established in the applicable project conventions (AGENTS.md, legacy CLAUDE.md, and rules). Focus on gaps specific to this plan.

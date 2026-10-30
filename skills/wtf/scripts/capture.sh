@@ -5,7 +5,7 @@
 # Usage: capture.sh <message...>
 #
 # Environment:
-#   CLAUDE_SESSION_ID: optional; included in frontmatter when set.
+#   AGENT_SKILLS_HARNESS: claude or codex; optional when a session ID identifies it.
 #
 # Exits non-zero only when no message is provided. All other failures
 # (git commands, transcript extraction) degrade gracefully.
@@ -36,11 +36,22 @@ slug=${slug:-untitled}
 
 # Context — fall back gracefully if we're not in a git repo or git is unavailable.
 cwd="${PWD:-$(pwd)}"
-session_id="${CLAUDE_SESSION_ID:-unknown}"
+agent="${AGENT_SKILLS_HARNESS:-}"
+if [ -z "$agent" ]; then
+  if [ -n "${CLAUDE_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}" ]; then agent=claude
+  elif [ -n "${CODEX_THREAD_ID:-}" ]; then agent=codex
+  else agent=unknown
+  fi
+fi
+case "$agent" in
+  claude) session_id="${CLAUDE_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-unknown}}" ;;
+  codex) session_id="${CODEX_THREAD_ID:-unknown}" ;;
+  *) agent=unknown; session_id=unknown ;;
+esac
 branch=$(git -C "$cwd" branch --show-current 2>/dev/null || echo "no-branch")
 
 # Pull the conversation tail from the transcript (degrades gracefully).
-turns=$("$script_dir/extract-turns.sh" "$cwd" 2>/dev/null || echo "(transcript unavailable)")
+turns=$(AGENT_SKILLS_HARNESS="$agent" bash "$script_dir/extract-turns.sh" "$cwd" 2>/dev/null || echo "(transcript unavailable)")
 
 # Destination directory — permissive on ~/.agent-skills/ per built-in-rules.
 dir="$HOME/.agent-skills/wtf"
@@ -53,6 +64,7 @@ trap 'rm -f "$tmpfile"' EXIT
 cat > "$tmpfile" << EOF
 ---
 timestamp: $ts_iso
+agent: $agent
 session_id: $session_id
 cwd: $cwd
 branch: $branch

@@ -1,7 +1,8 @@
 #!/bin/bash
 # Pre-loaded context helper for create-repo skill.
 # Usage: context.sh <flag>
-SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 
 case "$1" in
   repo-home)

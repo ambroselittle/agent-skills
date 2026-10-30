@@ -1,0 +1,107 @@
+{
+  "author-e2e": {
+    "reason": "Portable workflow using the shared runtime and maintained source resources.",
+    "supportedAgents": [
+      "claude",
+      "codex"
+    ]
+  },
+  "author-message": {
+    "reason": "Portable workflow using the shared runtime and maintained source resources.",
+    "supportedAgents": [
+      "claude",
+      "codex"
+    ]
+  },
+  "code-review": {
+    "reason": "Portable workflow using the shared runtime and maintained source resources.",
+    "supportedAgents": [
+      "claude",
+      "codex"
+    ]
+  },
+  "create-repo": {
+    "reason": "Portable workflow using the shared runtime and maintained source resources.",
+    "supportedAgents": [
+      "claude",
+      "codex"
+    ]
+  },
+  "deploy-aws": {
+    "reason": "Portable workflow using the shared runtime and maintained source resources.",
+    "supportedAgents": [
+      "claude",
+      "codex"
+    ]
+  },
+  "do-fixes": {
+    "reason": "Portable workflow using the shared runtime and maintained source resources.",
+    "supportedAgents": [
+      "claude",
+      "codex"
+    ]
+  },
+  "do-work": {
+    "reason": "Portable workflow using the shared runtime and maintained source resources.",
+    "supportedAgents": [
+      "claude",
+      "codex"
+    ]
+  },
+  "plan-review": {
+    "reason": "Portable workflow using the shared runtime and maintained source resources.",
+    "supportedAgents": [
+      "claude",
+      "codex"
+    ]
+  },
+  "plan-work": {
+    "reason": "Portable workflow using the shared runtime and maintained source resources.",
+    "supportedAgents": [
+      "claude",
+      "codex"
+    ]
+  },
+  "setup-agent-skills": {
+    "reason": "Portable workflow using the shared runtime and maintained source resources.",
+    "supportedAgents": [
+      "claude",
+      "codex"
+    ]
+  },
+  "solve-take-home": {
+    "reason": "Portable workflow using the shared runtime and maintained source resources.",
+    "supportedAgents": [
+      "claude",
+      "codex"
+    ]
+  },
+  "start-work": {
+    "reason": "Portable workflow using the shared runtime and maintained source resources.",
+    "supportedAgents": [
+      "claude",
+      "codex"
+    ]
+  },
+  "super-work": {
+    "reason": "Portable workflow using the shared runtime and maintained source resources.",
+    "supportedAgents": [
+      "claude",
+      "codex"
+    ]
+  },
+  "sync-guidance": {
+    "reason": "Portable workflow using the shared runtime and maintained source resources.",
+    "supportedAgents": [
+      "claude",
+      "codex"
+    ]
+  },
+  "wtf": {
+    "reason": "Portable workflow using the shared runtime and maintained source resources.",
+    "supportedAgents": [
+      "claude",
+      "codex"
+    ]
+  }
+}
