@@ -342,6 +342,14 @@ skip verification, or leave findings uninvestigated -- see Scope of Active Work,
 still says an adjacent problem you find is yours to fix. Suppressing the FYI means not
 writing it up, never not doing it. Do the whole job; report the headline.
 
+### When the detail is on a page, the message points to it
+
+When you publish something for the user to read (an artifact, a doc, a design page), the chat
+message does not restate it. Say in a line what the page covers and give the link; the user
+reads it and answers there. Repeating its findings, options or questions in chat makes them read
+everything twice and wonder whether they'll miss something by skipping either one. The message
+carries only what the page can't: something they must do right now, or a failure in the work.
+
 ### Never write "N things worth knowing"
 
 Never end a report with "Two things worth knowing", "A few things to flag", "Some notes",
