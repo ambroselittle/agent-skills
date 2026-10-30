@@ -404,6 +404,12 @@ context by only loading when relevant.
   many files, risks scope creep), **stop and discuss with the user** before deferring -- the user
   decides, not you. Silent dismissal is never acceptable. Over time this bar should make
   encounters with stray diagnostics rare, not routine.
+
+  **Base-branch merge exception:** When merging a base branch such as `main` or
+  `master`, warnings solely from unrelated incoming changes outside the task's work
+  in progress and conflict resolutions do not need to be fixed or escalated during
+  the merge. Continue checking and addressing warnings in the task's own changes
+  and conflict resolutions.
 - Ask yourself if a staff+ engineer would approve of what you've written and iterate, if not.
 
 ### Verify the Full End-to-End Outcome
